@@ -1,4 +1,4 @@
-import TripRequestForm from "@/components/trip-request-form";
+import TripPlanner from "@/components/trip/trip-planner";
 
 const planningSteps = [
   {
@@ -40,10 +40,7 @@ export default function Home() {
           </span>
         </header>
 
-        <div
-          id="top"
-          className="grid gap-12 pb-12 pt-10 lg:grid-cols-[minmax(0,0.78fr)_minmax(620px,1.22fr)] lg:gap-16 lg:pb-20 lg:pt-16"
-        >
+        <TripPlanner>
           <section className="lg:sticky lg:top-12 lg:self-start">
             <p className="mb-6 flex items-center gap-3 text-xs font-bold tracking-[0.2em] text-[#bd4c35] uppercase">
               <span className="h-px w-8 bg-[#bd4c35]" />
@@ -96,8 +93,7 @@ export default function Home() {
             </ol>
           </section>
 
-          <TripRequestForm />
-        </div>
+        </TripPlanner>
       </div>
     </main>
   );

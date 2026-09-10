@@ -6,11 +6,37 @@ function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null;
 }
 
+function isAmount(value: unknown): value is number {
+  return typeof value === "number" && Number.isFinite(value) && value >= 0;
+}
+
+function isStringList(value: unknown): value is string[] {
+  return Array.isArray(value) && value.every((item) => typeof item === "string");
+}
+
+function isTripRequest(value: unknown): value is TripRequest {
+  return isRecord(value) &&
+    typeof value.start_date === "string" && typeof value.end_date === "string" &&
+    Number.isFinite(Date.parse(value.start_date)) && Number.isFinite(Date.parse(value.end_date)) &&
+    isAmount(value.budget) && value.budget > 0 &&
+    typeof value.travelers === "number" && Number.isInteger(value.travelers) && value.travelers > 0 &&
+    typeof value.accommodation_location === "string" &&
+    ["relaxed", "balanced", "packed"].includes(String(value.pace)) &&
+    isStringList(value.interests) && isStringList(value.must_visit) && isStringList(value.avoid_places) &&
+    typeof value.daily_start_time === "string" && typeof value.daily_end_time === "string";
+}
+
 // TypeScript types alone do not validate JSON received over the network.
 function isTripPlan(value: unknown): value is TripPlan {
   return (
     isRecord(value) &&
     typeof value.destination === "string" &&
+    isTripRequest(value.request) &&
+    isRecord(value.budget_breakdown) &&
+    isAmount(value.budget_breakdown.transport) &&
+    isAmount(value.budget_breakdown.food) &&
+    isAmount(value.budget_breakdown.tickets) &&
+    isAmount(value.budget_breakdown.other) &&
     typeof value.estimated_cost === "number" &&
     Number.isFinite(value.estimated_cost) &&
     value.estimated_cost >= 0 &&
@@ -25,12 +51,29 @@ function isTripPlan(value: unknown): value is TripPlan {
         typeof day.day === "number" &&
         Number.isInteger(day.day) &&
         day.day >= 1 &&
+        typeof day.date === "string" && Number.isFinite(Date.parse(day.date)) &&
+        isRecord(day.weather) && day.weather.date === day.date &&
+        typeof day.weather.condition === "string" &&
+        typeof day.weather.min_temperature === "number" && Number.isFinite(day.weather.min_temperature) &&
+        typeof day.weather.max_temperature === "number" && Number.isFinite(day.weather.max_temperature) &&
+        day.weather.min_temperature <= day.weather.max_temperature &&
+        isAmount(day.weather.rain_risk) && day.weather.rain_risk <= 100 &&
+        Array.isArray(day.transports) && day.transports.every((segment: unknown) =>
+          isRecord(segment) && typeof segment.from_activity_id === "string" &&
+          typeof segment.to_activity_id === "string" &&
+          ["walking", "metro", "taxi"].includes(String(segment.mode)) &&
+          isAmount(segment.duration_minutes) && segment.duration_minutes > 0 &&
+          isAmount(segment.estimated_cost) && typeof segment.description === "string",
+        ) &&
         typeof day.title === "string" &&
         Array.isArray(day.activities) &&
         day.activities.length > 0 &&
         day.activities.every(
           (activity: unknown) =>
             isRecord(activity) &&
+            typeof activity.id === "string" &&
+            ["sightseeing", "food", "museum", "shopping"].includes(String(activity.category)) &&
+            isAmount(activity.estimated_cost) &&
             typeof activity.name === "string" &&
             typeof activity.description === "string" &&
             typeof activity.start_time === "string" &&

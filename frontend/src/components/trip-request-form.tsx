@@ -1,7 +1,6 @@
 "use client";
 
 import { useRef, useState, type FormEvent } from "react";
-import TripPlanResult from "@/components/trip-plan-result";
 import { planTrip } from "@/lib/api";
 import type { Pace, TripPlan, TripRequest } from "@/types/trip";
 
@@ -23,8 +22,7 @@ const interestOptions = [
 type SubmissionState =
   | { status: "idle" }
   | { status: "loading" }
-  | { status: "error"; message: string }
-  | { status: "success"; plan: TripPlan };
+  | { status: "error"; message: string };
 
 type FormState = {
   startDate: string;
@@ -82,7 +80,7 @@ function splitPlaces(value: string) {
     .filter(Boolean);
 }
 
-export default function TripRequestForm() {
+export default function TripRequestForm({ onSuccess }: { onSuccess: (plan: TripPlan) => void }) {
   const [form, setForm] = useState<FormState>(initialFormState);
   const [dateError, setDateError] = useState("");
   const [timeError, setTimeError] = useState("");
@@ -142,7 +140,8 @@ export default function TripRequestForm() {
     setSubmission({ status: "loading" });
     try {
       const plan = await planTrip(tripRequest);
-      setSubmission({ status: "success", plan });
+      setSubmission({ status: "idle" });
+      onSuccess(plan);
     } catch (error) {
       setSubmission({
         status: "error",
@@ -505,7 +504,6 @@ export default function TripRequestForm() {
         </div>
       </form>
     </section>
-    {submission.status === "success" && <TripPlanResult plan={submission.plan} />}
     </div>
   );
 }

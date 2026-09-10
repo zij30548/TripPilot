@@ -40,20 +40,58 @@ class TripRequest(BaseModel):
 
 
 class Activity(BaseModel):
+    id: str
     name: str
+    category: Literal["sightseeing", "food", "museum", "shopping"]
+    estimated_cost: float = Field(ge=0, allow_inf_nan=False)
     description: str
     start_time: time
     end_time: time
 
 
+class TransportSegment(BaseModel):
+    from_activity_id: str
+    to_activity_id: str
+    mode: Literal["walking", "metro", "taxi"]
+    duration_minutes: int = Field(gt=0)
+    estimated_cost: float = Field(ge=0, allow_inf_nan=False)
+    description: str
+
+
+class WeatherSummary(BaseModel):
+    date: date
+    condition: str
+    min_temperature: float = Field(allow_inf_nan=False)
+    max_temperature: float = Field(allow_inf_nan=False)
+    rain_risk: int = Field(ge=0, le=100)
+
+    @model_validator(mode="after")
+    def validate_temperatures(self) -> Self:
+        if self.min_temperature > self.max_temperature:
+            raise ValueError("最低温度不能高于最高温度。")
+        return self
+
+
+class BudgetBreakdown(BaseModel):
+    transport: float = Field(ge=0, allow_inf_nan=False)
+    food: float = Field(ge=0, allow_inf_nan=False)
+    tickets: float = Field(ge=0, allow_inf_nan=False)
+    other: float = Field(ge=0, allow_inf_nan=False)
+
+
 class DayPlan(BaseModel):
     day: int = Field(ge=1)
+    date: date
     title: str
     activities: list[Activity] = Field(min_length=1)
+    transports: list[TransportSegment]
+    weather: WeatherSummary
 
 
 class TripPlan(BaseModel):
     destination: str
+    request: TripRequest
+    budget_breakdown: BudgetBreakdown
     estimated_cost: float = Field(ge=0, allow_inf_nan=False)
     currency: Literal["CNY"] = "CNY"
     is_mock: Literal[True] = True

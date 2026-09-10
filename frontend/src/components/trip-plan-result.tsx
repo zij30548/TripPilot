@@ -1,51 +1,44 @@
-import type { TripPlan } from "@/types/trip";
+"use client";
 
-export default function TripPlanResult({ plan }: { plan: TripPlan }) {
+import { useEffect, useRef, useState } from "react";
+import type { TripPlan } from "@/types/trip";
+import TripOverview from "./trip/trip-overview";
+import DayTimeline from "./trip/day-timeline";
+import BudgetSummary from "./trip/budget-summary";
+import WeatherSummary from "./trip/weather-summary";
+import MapPlaceholder from "./trip/map-placeholder";
+
+export default function TripPlanResult({ plan, onEdit }: { plan: TripPlan; onEdit: () => void }) {
+  const [selectedDay, setSelectedDay] = useState(0);
+  const result = useRef<HTMLDivElement>(null);
+  const day = plan.days[selectedDay];
+
+  useEffect(() => {
+    result.current?.focus();
+    result.current?.scrollIntoView({ block: "start" });
+  }, []);
+
   return (
-    <section
-      aria-labelledby="trip-result-title"
-      className="mt-8 rounded-3xl border border-[#18201d]/10 bg-white p-5 sm:p-8"
-    >
-      <p role="status" className="text-sm font-medium text-[#315f51]">
-        已收到行程 · Mock 示例
-      </p>
-      <h2 id="trip-result-title" className="mt-2 text-2xl font-semibold">
-        {plan.destination} · {plan.days.length} 日行程
-      </h2>
-      <p className="mt-3 text-sm">
-        预估总费用（Mock）：
-        <span className="font-semibold">
-          {new Intl.NumberFormat("zh-CN", {
-            style: "currency",
-            currency: plan.currency,
-          }).format(plan.estimated_cost)}
-        </span>
-      </p>
-      <p className="mt-3 rounded-xl bg-amber-50 p-3 text-sm leading-6 text-amber-900">
-        {plan.notice}
-      </p>
-      <div className="mt-6 space-y-5">
-        {plan.days.map((day) => (
-          <article key={day.day} className="rounded-2xl border border-[#18201d]/10 p-4 sm:p-5">
-            <h3 className="font-semibold text-[#18392f]">
-              第 {day.day} 天 · {day.title}
-            </h3>
-            <ol className="mt-4 space-y-4">
-              {day.activities.map((activity, index) => (
-                <li key={`${day.day}-${index}`} className="border-l-2 border-[#d8e7df] pl-4">
-                  <p className="text-sm text-[#56605c]">
-                    <time dateTime={activity.start_time}>{activity.start_time.slice(0, 5)}</time>
-                    {" – "}
-                    <time dateTime={activity.end_time}>{activity.end_time.slice(0, 5)}</time>
-                  </p>
-                  <h4 className="mt-1 font-medium">{activity.name}</h4>
-                  <p className="mt-1 text-sm leading-6 text-[#56605c]">{activity.description}</p>
-                </li>
-              ))}
-            </ol>
-          </article>
-        ))}
+    <div ref={result} tabIndex={-1} aria-label="旅行结果" className="scroll-mt-6 outline-none">
+      <div className="mb-6 flex flex-wrap items-center justify-between gap-4">
+        <p role="status" className="text-sm font-medium text-[#315f51]">行程已就绪 · Mock 示例</p>
+        <div className="flex flex-wrap gap-3">
+          <button type="button" onClick={onEdit} className="min-h-11 rounded-full border border-[#315f51] bg-white px-5 py-2 text-sm font-semibold text-[#315f51] focus-visible:outline-2 focus-visible:outline-offset-2">修改旅行需求</button>
+          <button type="button" disabled className="min-h-11 cursor-not-allowed rounded-full border border-[#18201d]/10 px-5 py-2 text-sm text-[#68726c]">重新规划 · 暂未开放</button>
+        </div>
       </div>
-    </section>
+      <TripOverview plan={plan} />
+      <div aria-label="选择行程日期" className="my-7 flex flex-wrap gap-3">
+        {plan.days.map((item, index) => <button key={item.day} type="button" aria-pressed={selectedDay === index} onClick={() => setSelectedDay(index)} className={`min-h-12 rounded-xl border px-5 py-3 text-sm font-semibold transition focus-visible:outline-2 focus-visible:outline-offset-2 ${selectedDay === index ? "border-[#18392f] bg-[#18392f] text-white" : "border-[#18201d]/15 bg-white text-[#56605c] hover:border-[#315f51]"}`}>Day {item.day} <span className="ml-2 text-xs font-normal">{item.date.slice(5)}</span></button>)}
+      </div>
+      <div className="grid items-start gap-7 lg:grid-cols-[minmax(0,1.6fr)_minmax(0,1fr)]">
+        <div aria-live="polite"><DayTimeline day={day} /></div>
+        <aside className="min-w-0 space-y-5" aria-label="旅行摘要">
+          <BudgetSummary plan={plan} />
+          <WeatherSummary weather={day.weather} />
+          <MapPlaceholder day={day} />
+        </aside>
+      </div>
+    </div>
   );
 }

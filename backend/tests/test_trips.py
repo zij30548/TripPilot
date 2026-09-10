@@ -1,8 +1,11 @@
 import unittest
+from datetime import date, timedelta
+
+from pydantic import ValidationError
 
 from fastapi.testclient import TestClient
 
-from app.schemas.trip import TripPlan
+from app.schemas.trip import TripPlan, WeatherSummary
 from main import app
 
 
@@ -38,7 +41,8 @@ class TripApiTests(unittest.TestCase):
         plan = TripPlan.model_validate(response.json())
         self.assertEqual(plan.destination, "上海")
         self.assertTrue(plan.is_mock)
-        self.assertEqual(plan.estimated_cost, 1000)
+        self.assertEqual(plan.estimated_cost, 460)
+        self.assertEqual(plan.request.travelers, 2)
         self.assertEqual([day.day for day in plan.days], [1, 2])
         for day in plan.days:
             self.assertGreater(len(day.activities), 0)
@@ -53,7 +57,54 @@ class TripApiTests(unittest.TestCase):
                     payload = valid_request() | {"end_date": end_date, "pace": pace}
                     response = self.client.post("/trips/plan", json=payload)
                     self.assertEqual(response.status_code, 200)
-                    self.assertEqual(response.json(), expected)
+                    self.assertEqual(response.json()["days"], expected["days"])
+                    self.assertEqual(response.json()["request"]["end_date"], end_date)
+                    self.assertEqual(response.json()["request"]["pace"], pace)
+
+    def test_budget_totals_match_itemized_costs(self) -> None:
+        plan = TripPlan.model_validate(self.client.post("/trips/plan", json=valid_request()).json())
+        activities = [activity for day in plan.days for activity in day.activities]
+        self.assertEqual(plan.budget_breakdown.food, sum(a.estimated_cost for a in activities if a.category == "food"))
+        self.assertEqual(plan.budget_breakdown.tickets, sum(a.estimated_cost for a in activities if a.category == "museum"))
+        self.assertEqual(plan.budget_breakdown.other, sum(a.estimated_cost for a in activities if a.category in ("sightseeing", "shopping")))
+        self.assertEqual(plan.budget_breakdown.transport, sum(t.estimated_cost for d in plan.days for t in d.transports))
+        self.assertEqual(plan.estimated_cost, sum(plan.budget_breakdown.model_dump().values()))
+
+    def test_day_dates_weather_and_transport_links(self) -> None:
+        for start in ["2026-12-31", "2028-02-28"]:
+            with self.subTest(start=start):
+                payload = valid_request() | {"start_date": start, "end_date": start}
+                plan = TripPlan.model_validate(self.client.post("/trips/plan", json=payload).json())
+                all_ids: list[str] = []
+                for index, day in enumerate(plan.days):
+                    self.assertEqual(day.date, date.fromisoformat(start) + timedelta(days=index))
+                    self.assertEqual(day.weather.date, day.date)
+                    self.assertLessEqual(day.weather.min_temperature, day.weather.max_temperature)
+                    self.assertTrue(0 <= day.weather.rain_risk <= 100)
+                    self.assertEqual(len(day.transports), len(day.activities) - 1)
+                    for i, transport in enumerate(day.transports):
+                        before, after = day.activities[i:i + 2]
+                        self.assertEqual(transport.from_activity_id, before.id)
+                        self.assertEqual(transport.to_activity_id, after.id)
+                        gap = (after.start_time.hour * 60 + after.start_time.minute
+                               - before.end_time.hour * 60 - before.end_time.minute)
+                        self.assertLessEqual(transport.duration_minutes, gap)
+                    all_ids.extend(a.id for a in day.activities)
+                self.assertEqual(len(all_ids), len(set(all_ids)))
+
+    def test_low_budget_is_not_claimed_to_be_satisfied(self) -> None:
+        response = self.client.post("/trips/plan", json=valid_request() | {"budget": 100})
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.json()["request"]["budget"], 100)
+        self.assertGreater(response.json()["estimated_cost"], 100)
+        self.assertTrue(response.json()["is_mock"])
+
+    def test_invalid_weather_values(self) -> None:
+        weather = {"date": "2026-10-01", "condition": "多云", "min_temperature": 20,
+                   "max_temperature": 27, "rain_risk": 20}
+        for change in [{"rain_risk": -1}, {"rain_risk": 101}, {"min_temperature": 30}]:
+            with self.subTest(change=change), self.assertRaises(ValidationError):
+                WeatherSummary.model_validate(weather | change)
 
     def test_invalid_requests(self) -> None:
         cases = [
