@@ -16,19 +16,38 @@
 - Form → loading → full-width result flow, with day switching and an edit button that preserves form input
 - Expanded Pydantic and TypeScript response models, with runtime response validation
 - Backend validation and API tests
+- Independent GET /places/search with AMap Web Service POI 2.0 keyword search and typed Place responses
+- Backend-only AMAP_WEB_KEY configuration from environment or backend/.env; safe errors and request-log key redaction
+- Mock-only tests for POI conversion, upstream failures, query validation and configuration
 
 ## Current
 
-- Milestone 2: componentized Mock Trip Result UI implemented and verified (2026-09-10)
+- Milestone 3: independent AMap POI search implemented and mock-tested (2026-09-15); live AMap verification remains pending
+- GET /places/search accepts keyword + city and maps them to AMap v5 keywords + region with city_limit=true, page 1 and page size 20
+- Place returns id, name, nullable address/category, validated latitude/longitude, and source="amap"; invalid POIs are skipped without fabricating coordinates
+- Missing key returns 503, upstream timeout 504, other upstream failures or malformed payloads 502, invalid query parameters 422, and empty valid results 200 with []
+- Milestone 2's Trip Result UI and POST /trips/plan remain unchanged and use Mock data, independent of Place search
 - Valid 1-3 day requests use a fixed two-day activity template; dates are aligned to the requested start date and the validated request is echoed for the overview
 - A notice explains when the requested duration differs from the two-day example; the fixture is not optimized for people, budget, preferences or daily time constraints
 - Activity and transport costs reconcile to a fictional CNY 460 total for all travelers (transport 40, food 240, tickets 100, other 80); remaining or exceeded budget is derived from the submitted budget
 - Weather, transport, costs and activities are clearly marked Mock; the map only shows place order, and replanning is a disabled placeholder
-- No real travel data, external integrations, new dependencies or global state libraries were added
+- AMap POI search is the only real-service integration added; no map, routing, weather, LLM, database, global state library or new dependency was added
 
 ## Next
 
 - Await the user's next scoped task; no next-stage work started
+- To verify live POI data, configure a valid AMap Web Service key locally and manually test /places/search; automatic tests must remain offline
+
+## Verification (2026-09-15)
+
+- Backend: `cd backend && .venv/bin/python -B -m unittest discover -s tests -v` — 27 tests passed (16 new and all 11 existing tests)
+- Tests use httpx.MockTransport and isolated settings; no real AMap API or local credentials are used
+- Covered normal conversion and v5 parameter/timeout mapping, empty results, invalid/missing locations, invalid identity, nullable optional fields, upstream status/HTTP/network errors, redirects, timeouts, malformed JSON/response shape, key absence, query validation, GET CORS, key redaction, client closure and dotenv/environment precedence
+- Python syntax checks and `git diff --check` passed; no standalone backend lint command is currently configured
+- FastAPI started successfully on 127.0.0.1:8000 with an explicitly empty AMAP_WEB_KEY; actual HTTP GET /health returned 200 and /places/search returned the expected safe 503 response
+- Local server checks needed execution-environment network/port permission; the temporary server was stopped after verification
+- Real AMap responses were not requested or verified in this run
+- Frontend and existing trip models/API were not changed; frontend lint/build were not rerun for this backend-only task
 
 ## Verification (2026-09-10)
 
@@ -62,6 +81,9 @@
 - Frontend: `cd frontend && npm run dev` (port 3000)
 - If Turbopack is unavailable in the execution environment, use `npm run dev -- --webpack`, or build with `npm run build -- --webpack` and run `npm run start -- --hostname 127.0.0.1 --port 3000`
 - Browser requests target `http://127.0.0.1:8000/trips/plan`; both services must be running locally
+- POI search: create local `backend/.env` using `backend/.env.example` as a template and set `AMAP_WEB_KEY`; never commit the real file or key. Process environment takes priority, including an explicitly empty key. The dotenv path is resolved relative to the backend code, not the working directory
+- POI smoke check: `curl --get --data-urlencode 'keyword=武康路' --data-urlencode 'city=上海' http://127.0.0.1:8000/places/search`
+- Without a key, FastAPI still starts and the health/Mock trip APIs work; only Place search returns 503. No frontend search UI or Trip Planner integration is included in Milestone 3
 
 ## Known Issues
 
