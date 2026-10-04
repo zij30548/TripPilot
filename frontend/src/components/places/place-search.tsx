@@ -2,11 +2,12 @@
 
 import { useState, type FormEvent } from "react";
 
-export default function PlaceSearch({ loading, onSearch }: {
+export default function PlaceSearch({ loading, onSearch, initialKeyword = "" }: {
   loading: boolean;
   onSearch: (keyword: string) => void;
+  initialKeyword?: string;
 }) {
-  const [keyword, setKeyword] = useState("");
+  const [keyword, setKeyword] = useState(initialKeyword);
 
   function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();

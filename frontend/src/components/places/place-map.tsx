@@ -7,11 +7,14 @@ import { hasValidCoordinates, type Place } from "@/types/place";
 type MapStatus = { status: "loading" } | { status: "ready" } | { status: "error"; message: string };
 type MarkerEntry = { marker: AMap.Marker; element: HTMLDivElement; onClick: () => void };
 
-export default function PlaceMap({ places, selectedPlaceId, selectionVersion = 0, onSelect }: {
+export default function PlaceMap({ places, selectedPlaceId, selectionVersion = 0, onSelect,
+  fitAllLabel = "查看全部搜索结果", footnote = "编号对应搜索候选地点，不代表行程顺序或路线。" }: {
   places: Place[];
   selectedPlaceId: string | null;
   selectionVersion?: number;
   onSelect: (id: string) => void;
+  fitAllLabel?: string;
+  footnote?: string;
 }) {
   const container = useRef<HTMLDivElement>(null);
   const map = useRef<AMap.Map | null>(null);
@@ -119,7 +122,7 @@ export default function PlaceMap({ places, selectedPlaceId, selectionVersion = 0
       <div className="flex flex-wrap items-center justify-between gap-3 border-b border-[#18201d]/10 bg-white px-3 py-2">
         <p className="text-xs text-[#56605c]">上海地图 · 高德地图</p>
         <button type="button" onClick={fitAll} disabled={mapStatus.status !== "ready" || places.length === invalidCount}
-          className="rounded-lg border border-[#315f51]/30 px-3 py-1.5 text-xs font-medium text-[#315f51] focus-visible:outline-2 focus-visible:outline-offset-2 disabled:cursor-not-allowed disabled:opacity-45">查看全部搜索结果</button>
+          className="rounded-lg border border-[#315f51]/30 px-3 py-1.5 text-xs font-medium text-[#315f51] focus-visible:outline-2 focus-visible:outline-offset-2 disabled:cursor-not-allowed disabled:opacity-45">{fitAllLabel}</button>
       </div>
       <div className="relative">
         <div ref={container} aria-label="上海地点地图" className="h-80 w-full sm:h-96" />
@@ -128,7 +131,7 @@ export default function PlaceMap({ places, selectedPlaceId, selectionVersion = 0
         </div>}
       </div>
       {invalidCount > 0 && <p role="alert" className="border-t border-[#18201d]/10 px-3 py-2 text-xs leading-5 text-[#a63d2d]">{invalidCount} 个地点坐标无效，未在地图上显示。</p>}
-      <p className="border-t border-[#18201d]/10 px-3 py-2 text-[11px] leading-5 text-[#68726c]">编号对应搜索候选地点，不代表行程顺序或路线。</p>
+      <p className="border-t border-[#18201d]/10 px-3 py-2 text-[11px] leading-5 text-[#68726c]">{footnote}</p>
     </div>
   );
 }
