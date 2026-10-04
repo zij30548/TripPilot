@@ -23,10 +23,12 @@
 - Restricted backend serviceHost proxy with server-only JS security code, fixed upstream, credential checks, safe responses and HTTP log redaction
 - Frontend offline component/API/SDK tests and backend proxy security regression tests
 - Milestone 4B: explicitly confirmed activity-to-real-POI bindings, replacement/unbinding, per-day bound maps, activity ↔ marker selection, POI deduplication and result-local lifecycle protection
+- Milestone 4C-1: explicitly requested real walking routes between originally adjacent, confirmed bound activities; normalized backend route data, estimated distance/time, one selected map polyline and stale-request isolation
 
 ## Current
 
-- Milestone 4B implemented in the actual project and focused real Chrome acceptance passed (2026-10-04). Frontend 99 tests, lint, typecheck, webpack production build and backend 53 regression tests passed. Default Turbopack build remains environment-blocked; physical-phone/touch acceptance remains separate. See the latest 4B record below
+- Milestone 4B is the committed baseline `0eeba167766216ffbaecfa4610c83539ae36577d` (`feat: complete Milestone 4B activity-to-POI binding`), committed/pushed before this authorized 4C-1 task. Its acceptance record remains below
+- Milestone 4C-1 implemented and focused real Chrome acceptance passed in the actual project (2026-10-05). Frontend 164 tests, backend 78 tests, lint, typecheck and webpack production build passed. Default Turbopack's historical environment restriction remains documented, not retried this round; physical-phone/touch acceptance remains separate
 - GET /places/search accepts keyword + city and maps them to AMap v5 keywords + region with city_limit=true, page 1 and page size 20
 - Place returns id, name, nullable address/category, validated latitude/longitude, and source="amap"; invalid POIs are skipped without fabricating coordinates
 - Missing key returns 503, upstream timeout 504, other upstream failures or malformed payloads 502, invalid query parameters 422, and empty valid results 200 with []
@@ -34,21 +36,103 @@
 - Valid 1-3 day requests use a fixed two-day activity template; dates are aligned to the requested start date and the validated request is echoed for the overview
 - A notice explains when the requested duration differs from the two-day example; the fixture is not optimized for people, budget, preferences or daily time constraints
 - Activity and transport costs reconcile to a fictional CNY 460 total for all travelers (transport 40, food 240, tickets 100, other 80); remaining or exceeded budget is derived from the submitted budget
-- Weather, transport, costs and activity times remain clearly marked Mock. Map numbers identify either search candidates or deduplicated daily bound POIs, NOT routes or real transport times. Associating a real POI does not validate Mock information. Replanning remains disabled
+- Weather, original transport, costs and activity times remain clearly marked Mock. Map numbers identify search candidates or deduplicated daily bound POIs. A separate blue walking polyline appears only after a successful explicit real query, and only in the daily bound view. Real walking estimates do not validate or overwrite Mock information. Replanning remains disabled
 - Search is explicitly submitted, fixed to Shanghai, and uses GET /places/search. Candidate/marker selection only previews; activity binding requires a separate “确认绑定”. Each new binding session clears candidates/selection, and abort/request ID/context checks prevent stale requests from affecting a different activity/day/result
 - Bindings are keyed by day number + date + activity ID, retained across day switches, and removed on editing/regenerating or refreshing. Multiple activities may share one POI marker; unbinding one activity preserves the others. No localStorage, database or server persistence is used
 - SDK loading is shared and browser-only. Shanghai's center is obtained via DistrictSearch before map construction; no hardcoded POI coordinates, IP/GPS initialization or geolocation plugin is used
 - Map creation is independent of candidate updates; search cancellation/request IDs prevent stale results, and unmount cleans listeners, markers, map and late async results
 - Only GET /_AMapService/v3/config/district is proxied to https://restapi.amap.com/v3/config/district, limited to Shanghai/province/subdistrict=0/extensions=base/page=1. No catch-all proxy, custom-style endpoint, POI bypass, routing, weather or IP endpoint is allowed
 - serviceHost is set before SDK loading. Every supplied JS Key must match backend configuration; jscode is appended only by the backend. Identical, individually validated key/s copies from the real SDK are folded; other duplicate/unknown parameters are rejected. Known SDK diagnostic fields are validated and stripped. Client security-code overrides, unsafe paths/callbacks, redirects and sensitive upstream responses are still rejected; TLS verification and the existing explicit CORS origins are retained
-- 4B adds only frontend local activity/POI association. No route planning, real weather, LLM/Agent, database, global state manager, Browser Agent or Playwright was added; backend proxy restrictions and credentials remain unchanged
+- 4C-1 adds only an independent walking endpoint and result-local route reference. No transit/driving, scheduling, real weather, LLM/Agent, database, global state manager, Browser Agent or Playwright was added; backend SDK proxy restrictions and credentials remain unchanged
+- POST /routes/walking accepts origin/destination POI IDs and finite longitude/latitude, uses the fixed AMap walking upstream and returns source, UTC query time, status and normalized meters/seconds/coordinate segments. Only the first upstream proposal is validated and used; an invalid first proposal fails safely. No straight-line or Mock fallback exists
+- Walking queries follow original activity adjacency, not a filtered list of bound activities. Missing endpoints and same-place pairs do not trigger a route request. Replacement/removal of an endpoint, day switch, edit/regeneration and unmount invalidate route state and pending requests; day bindings themselves remain preserved
 
 ## Next
 
-- Stop after this authorized 4B delivery; no next milestone or commit/push is authorized. Physical-phone/touch acceptance remains available for manual review
+- 4C-1 review accepted; normal commit/push of the 18 listed deliverables is authorized for closeout. Stop afterward; 4C-2 is not authorized. Physical-phone/touch acceptance remains available for manual review
 - Review existing dependency security advisories as a separate, approved maintenance task before deployment
 
-## Milestone 4B Actual Implementation and Acceptance (2026-10-04, latest)
+## Milestone 4C-1 Actual Implementation and Acceptance (2026-10-05, latest)
+
+### Baseline, scope and data contract
+
+- Re-read root/frontend instructions, PROJECT_CONTEXT and this progress file; inspected the actual checkout, existing APIs, maps, tests and startup commands. Implementation started from the accepted 4B baseline `0eeba167766216ffbaecfa4610c83539ae36577d`. Preserved the five pre-existing tracked/untracked Python cache changes; no full staging, commit or push occurred during implementation acceptance
+- Reused 4A POI search, the configured HTTPX client/Web Service key/safe logging, 4B confirmed bindings and daily map/marker interactions. No dependency, environment variable, lockfile, proxy allowlist, CORS origin or original Mock TripPlan change
+- Checked the current [official Web Service directions documentation](https://lbs.amap.com/api/webservice/guide/api/direction): fixed GET `https://restapi.amap.com/v3/direction/walking`, longitude then latitude (up to six decimals), distance in meters and duration in seconds. The existing SDK proxy is not used or widened for walking
+- New business endpoint: `POST /routes/walking`, body `{ origin: { place_id, longitude, latitude }, destination: { place_id, longitude, latitude } }`. Reject extra fields, blank/invalid POI IDs, strings/booleans/non-finite or out-of-range coordinates; safe 422 validation does not echo user input. The client cannot supply an upstream URL or key
+- Response: `{ status: "ok" | "no_route" | "same_place", source: "amap", queried_at, route }`. `route` is null for no-route/same-place, otherwise `{ distance_meters, duration_seconds, segments }`; each segment is an array of `[longitude, latitude]` points from one upstream step. Validate positive finite metrics, the documented 100km walking limit and drawable bounded geometry; malformed responses return safe 502, not fabricated routes
+- Missing server configuration returns 503; upstream timeout returns 504; other HTTP/business/data failures return 502. Reuse existing timeout/TLS behavior and at most one retry only for connection errors/timeouts; no retry for read timeout, business failure or malformed data. Logs contain exception type/attempt only, never full credential-bearing URLs or raw upstream errors
+
+### Frontend behavior and implementation choices
+
+- Every adjacent pair is derived from `day.activities[index + 1]`; the result handler checks the same original adjacency again. An unbound middle activity never creates an A→C shortcut. Query buttons are explicit; missing endpoints prompt binding, same POI/equal coordinates show same-place state without a meaningless request
+- Loading, success, no route, same place, timeout and other failures have separate UI states. Successful distance/time is formatted from normalized units, with “预计”, AMap source and query time. Original Mock transport, activity time, weather and budget remain separate and unchanged
+- `use-walking-route.ts` owns one selected query. Every cancellation/query/invalidation increments a monotonic request version and aborts the previous controller; responses and failures must still match the version and a live signal before updating state. This protects even A→B→A and transports that ignore abort
+- `trip-plan-result.tsx` invalidates synchronously before committing replacement/removal; day switch and edit invalidate all. Unmount aborts via the hook cleanup. Cancelled replacement does not invalidate a still-valid route; a late success cannot switch a newer candidate-search view back to itinerary
+- `place-map.tsx` adds one AMap Polyline to the existing map; paths retain upstream step boundaries, so gaps are not joined with invented straight lines. Replacement, hiding in candidate view and unmount remove the old overlay. Full-route fit uses the polyline bounds independently of marker fit-all; markers keep their existing selection/centering behavior and remain above the route
+- Deliberate limits: one selected route, first upstream proposal, no route cache/history and no automatic query; returning to a day requires an explicit new query. No schedule/budget optimization or persistence. “Same place” is based on POI identity/coordinates, not matching display names
+
+### Automated verification — Mock upstream/SDK, not live acceptance
+
+| Command | Result |
+| --- | --- |
+| `cd backend && .venv/bin/python -B -m unittest discover -s tests -v` | Passed: 78/78 (53 existing + 25 new). Existing Starlette/httpx deprecation warning remains |
+| `cd frontend && npm run test` | Passed: 10 files / 164 tests (99 existing + 65 new: 41 API, 19 route interaction, 5 map overlay tests) |
+| `cd frontend && npm run lint` | Passed |
+| `cd frontend && npm run typecheck` | Passed: Next type generation + `tsc --noEmit` |
+| `cd frontend && npm run build -- --webpack` | Passed: optimized production compilation, TypeScript, static generation and build traces; this production build was used in Chrome |
+| `git diff --check` | Passed |
+
+- Backend coverage: strict input/safe 422, longitude/latitude ordering and six-decimal serialization, meters/seconds, same-place no upstream call, empty paths, malformed geometry/metrics, timeout, bounded connection retry, upstream HTTP/business errors and secret-safe output/logs
+- Frontend coverage: explicit query, missing/same endpoints, original adjacency without skipping, route replacement/cleanup, cancelled replacement, invalidation on both endpoints, endpoint A→B→A, cross-day late responses, search-view isolation, edit/regenerate/unmount, input/response validation and map overlay/fit cleanup. All existing 4A/4B tests remain passing
+- Automated tests mock AMap HTTP and the map SDK and consume no real quota. Adversarial late responses, empty routes, malformed data and upstream failures were verified here, not deliberately induced against live AMap
+- Did not retry the default Turbopack build: used the already-verified webpack fallback as requested. The historical internal-port permission limitation below is retained, not claimed newly fixed. No lint/typecheck scripts exist for the backend; its available unittest suite is the recorded backend check
+
+### Actual Chrome acceptance — real service, separately verified
+
+- Used native Chrome controls against the actual production frontend `http://localhost:3000` and FastAPI `http://127.0.0.1:8000`. Restarted only the previous agent-owned sessions to load this implementation; no user-owned service was stopped. FastAPI startup was clean, `/health` returned 200 and OpenAPI contained the new endpoint
+- Submitted October 10–11, 2026, budget 3000, 2 travelers, accommodation near Jing'an Temple, balanced pace. Actual POST /trips/plan returned the existing Mock result. Explicitly searched and confirmed Day 1 activity 1 → 武康大楼 (淮海中路1850号), activity 2 → 静安寺 (南京西路1686号)
+- Made four explicitly triggered real POI searches (an initial activity-name search, 武康大楼, 静安寺, and 武康大楼 again for replacement) and three explicitly triggered walking queries; no batch/stress requests. All three queries produced real route UI/geometry. The first walking POST was inspected in Chrome Network: 200 OK, 93ms; its preflight also returned 200
+- The first response contained `distance_meters: 2691`, `duration_seconds: 2153`, `status: "ok"`, `source: "amap"`, query time and coordinate segments. UI showed **2.69 公里 · 预计 36 分钟** (2691 / 1000 rounded to two decimals; ceil(2153 / 60)). The observed polyline follows road bends between the selected POIs, not a straight-line placeholder
+- Screenshots are local-only in `/private/tmp/trippilot-4c1-acceptance.7W66aF/`. Only page content and Network filtered to the local walking endpoint were saved; no HAR, .env data, credentials or unredacted SDK URLs were saved/shared
+
+| Test | Result | Actual observation / screenshot |
+| --- | --- | --- |
+| Form → result, real POI binding and explicit walking request | Passed | Confirmed both adjacent activities, then clicked query. Network response metrics match the UI; original Mock traffic remains alongside it. `01-route-response.png` |
+| Real map geometry | Passed | AMap roads/place labels/attribution and blue road-following polyline visibly rendered between 武康大楼 and 静安寺. `02-real-walking-map.png` |
+| Activity ↔ Marker while route visible | Passed | Clicked real marker 1: 外滩漫步 gained focus/highlight; clicked 午餐与休息 title: marker 2 centered/highlighted and route remained. `03-marker-link-with-route.png` captures the latter |
+| View full walking route | Passed | After activity selection zoomed into 静安寺, the full-route button restored a viewport containing both endpoints and the full path. `04-full-route-fit.png` |
+| Candidate/route separation | Passed | Switched to candidate search: no bound markers or blue line. Returning to daily bound view restored the still-valid route. `05-candidate-view-no-route.png` |
+| Cancel replacement / reopen | Passed | Cancelled activity 2 replacement: original 静安寺 binding and route retained. Reopening prefilled the activity name, showed no old candidate selection and disabled confirmation. `06-cancel-keeps-binding-route.png` |
+| Confirm replacement clears old route | Passed | Searched and confirmed 武康大楼主题邮局 for activity 2: old 2.69km/36min and old line disappeared immediately. No automatic query. `07-replacement-clears-route.png` |
+| Query new endpoints | Passed | A new explicit query displayed 123米 / 预计2分钟 and the new short road-following path. `08-new-route-after-replacement.png` |
+| Day switch invalidation / binding retention | Passed | Switching to Day 2 removed the line and bound markers; returning to Day 1 retained both bindings but did not restore the old route. Only another explicit query restored 123米 / 预计2分钟. `09-day-switch-clears-route.png` |
+| Narrow viewport | Passed | Chrome responsive 400×748: route card and action controls wrap correctly; “在地图查看路线” scrolls to a real map with both endpoints, blue line, full-route control and attribution. `10-narrow-route-card.png`, `11-narrow-route-map.png` |
+| Unbind endpoint clears route | Passed | After the third successful query, unbound activity 2. Both affected pair controls show missing-endpoint/disabled state; old metric and line disappear, activity 1 and its marker remain. `12-unbind-clears-route.png` |
+| Mock data unchanged | Passed | Existing activity times, transport/costs and weather remain explicitly Mock. Estimated total stayed ¥460, transport ¥40, remaining budget ¥2540; real walking query never rewrote them. Visible throughout screenshots |
+
+- Console inspection: three AMap Canvas2D `willReadFrequently` performance warnings, no observed application exception. DevTools also showed two Issues, not diagnosed or declared fixed in this scope. No claim of a completely clean browser console or permanent external network reliability
+
+### Remaining items and handoff
+
+- No observed blocking 4C-1 issue in the focused actual Chrome acceptance. Physical-phone/touch and broader browser/device matrix remain **manual acceptance pending**; responsive Chrome is not a physical-device test
+- Live upstream fault/empty-route and adversarial race scenarios were intentionally not manufactured. Their automated Mock results do not constitute real-fault acceptance. External AMap connectivity remains dependent on the user's network and service quota; historical 4A intermittency notes remain applicable
+- Default Turbopack environment restriction, existing dependency advisories and Python/Starlette environment warnings remain separate maintenance items. No credentials/proxy security limits were changed to bypass them
+- Exact-value review found no locally configured credentials in the 17 code/test deliverables; 31 built frontend static assets contained neither the backend Web Service key nor the JS security code. No secret values were printed
+- At implementation handoff, services remained available on localhost:3000 (webpack production build) and 127.0.0.1:8000; no commit/push had occurred. Subsequent review authorizes normal commit/push of only the 18 listed deliverables, excluding the five existing caches. Acceptance limitations above remain unchanged; no next-stage work is authorized
+
+### Actual changed files (18; excludes five preserved pre-existing caches)
+
+- Backend added: `backend/app/schemas/route.py`, `backend/app/integrations/amap_walking.py`, `backend/app/api/routes.py`, `backend/tests/test_routes.py`
+- Backend modified: `backend/main.py` (register walking router)
+- Frontend added: `frontend/src/types/route.ts`, `frontend/src/lib/routes-api.ts`, `frontend/src/lib/use-walking-route.ts`, `frontend/src/components/trip/walking-route-segment.tsx`
+- Frontend modified: `frontend/src/components/trip-plan-result.tsx`, `frontend/src/components/trip/day-timeline.tsx`, `frontend/src/components/places/place-explorer.tsx`, `frontend/src/components/places/place-map.tsx`, `frontend/src/lib/amap-loader.ts`
+- Frontend tests added: `frontend/src/lib/routes-api.test.ts`, `frontend/src/components/trip/walking-route.test.tsx`, `frontend/src/components/places/place-map-route.test.tsx`
+- Documentation updated: `docs/PROGRESS.md`
+
+## Milestone 4B Actual Implementation and Acceptance (2026-10-04)
+
+- Subsequent closeout: committed and pushed as `0eeba167766216ffbaecfa4610c83539ae36577d` before 4C-1. The implementation-time no-commit statement below is historical; the accepted baseline is now recorded above. Turbopack, physical-phone and live-fault limitations are retained
 
 ### Scope and implementation
 

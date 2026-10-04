@@ -1,0 +1,54 @@
+from collections.abc import Callable, Coroutine
+from typing import Annotated, Any
+
+import httpx
+from fastapi import APIRouter, Depends, HTTPException, Request, Response
+from fastapi.exceptions import RequestValidationError
+from fastapi.routing import APIRoute
+
+from app.api.places import get_http_client
+from app.config import Settings, get_settings
+from app.integrations.amap import AmapError, AmapTimeoutError
+from app.integrations.amap_walking import AmapWalkingClient
+from app.schemas.route import WalkingRouteRequest, WalkingRouteResponse
+
+
+class SafeRouteValidation(APIRoute):
+    def get_route_handler(self) -> Callable[[Request], Coroutine[Any, Any, Response]]:
+        handler = super().get_route_handler()
+
+        async def safe_handler(request: Request) -> Response:
+            try:
+                return await handler(request)
+            except RequestValidationError:
+                # Avoid echoing arbitrary input (including NaN/Infinity, which
+                # cannot be serialized by JSONResponse) in validation errors.
+                raise HTTPException(status_code=422, detail="步行路线请求参数无效，请检查地点和坐标。") from None
+
+        return safe_handler
+
+
+router = APIRouter(prefix="/routes", tags=["routes"], route_class=SafeRouteValidation)
+
+
+def get_walking_client(
+    settings: Annotated[Settings, Depends(get_settings)],
+    client: Annotated[httpx.AsyncClient, Depends(get_http_client)],
+) -> AmapWalkingClient:
+    key = settings.amap_web_key.get_secret_value().strip()
+    if not key:
+        raise HTTPException(status_code=503, detail="步行路线服务未配置 AMAP_WEB_KEY。")
+    return AmapWalkingClient(client, key)
+
+
+@router.post("/walking", response_model=WalkingRouteResponse)
+async def walking_route(
+    request: WalkingRouteRequest,
+    amap: Annotated[AmapWalkingClient, Depends(get_walking_client)],
+) -> WalkingRouteResponse:
+    try:
+        return await amap.walking(request)
+    except AmapTimeoutError as error:
+        raise HTTPException(status_code=504, detail=str(error)) from None
+    except AmapError as error:
+        raise HTTPException(status_code=502, detail=str(error)) from None

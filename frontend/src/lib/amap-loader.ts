@@ -2,7 +2,7 @@ type DistrictSearchClient = {
   search: (keyword: string, callback: (status: string, result: unknown) => void) => void;
 };
 
-export type AMapSDK = Pick<typeof AMap, "Map" | "Marker"> & {
+export type AMapSDK = Pick<typeof AMap, "Map" | "Marker" | "Polyline"> & {
   DistrictSearch: new (options: {
     level: "province";
     subdistrict: 0;

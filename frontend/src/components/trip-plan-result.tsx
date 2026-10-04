@@ -4,6 +4,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import type { TripPlan } from "@/types/trip";
 import type { Place } from "@/types/place";
 import { activityPlaceKey, type ActivityPlaceBindings } from "@/lib/activity-places";
+import { useWalkingRoute, walkingSegmentKey } from "@/lib/use-walking-route";
 import TripOverview from "./trip/trip-overview";
 import DayTimeline from "./trip/day-timeline";
 import BudgetSummary from "./trip/budget-summary";
@@ -19,6 +20,8 @@ export default function TripPlanResult({ plan, onEdit }: { plan: TripPlan; onEdi
   const [mapView, setMapView] = useState<"search" | "itinerary">("search");
   const [selectionVersion, setSelectionVersion] = useState(0);
   const [bindingMessage, setBindingMessage] = useState("");
+  const [routeSelectionVersion, setRouteSelectionVersion] = useState(0);
+  const walking = useWalkingRoute();
   const result = useRef<HTMLDivElement>(null);
   const explorer = useRef<HTMLDivElement>(null);
   const activityCards = useRef(new Map<string, HTMLElement>());
@@ -48,6 +51,8 @@ export default function TripPlanResult({ plan, onEdit }: { plan: TripPlan; onEdi
 
   function bindPlace(place: Place) {
     if (!target || !bindingTargetKey) return;
+    // Invalidate before state updates; a late response cannot revive replaced endpoints.
+    walking.invalidateActivity(bindingTargetKey);
     // Binding is a local user decision; the backend Mock TripPlan stays immutable.
     setBindings((current) => ({ ...current, [bindingTargetKey]: { ...place } }));
     setSelectedActivityKey(bindingTargetKey);
@@ -66,6 +71,7 @@ export default function TripPlanResult({ plan, onEdit }: { plan: TripPlan; onEdi
   }
 
   function removePlace(key: string) {
+    walking.invalidateActivity(key);
     setBindings((current) => {
       const next = { ...current };
       delete next[key];
@@ -90,10 +96,34 @@ export default function TripPlanResult({ plan, onEdit }: { plan: TripPlan; onEdi
 
   function switchDay(index: number) {
     if (index === selectedDay) return;
+    walking.invalidate();
     setSelectedDay(index);
     setSelectedActivityKey(null);
     setBindingTargetKey(null);
     setBindingMessage("");
+  }
+
+  function queryWalking(fromKey: string, toKey: string) {
+    const index = day.activities.findIndex((activity) => activityPlaceKey(day, activity) === fromKey);
+    const next = day.activities[index + 1];
+    if (index < 0 || !next || activityPlaceKey(day, next) !== toKey || !bindings[fromKey] || !bindings[toKey]) return;
+    setMapView("itinerary");
+    setRouteSelectionVersion((version) => version + 1);
+    // Only this click chooses the map view. A late response never steals a newer search view.
+    void walking.query({ key: walkingSegmentKey(fromKey, toKey), fromActivityKey: fromKey, toActivityKey: toKey,
+      origin: { ...bindings[fromKey] }, destination: { ...bindings[toKey] } });
+  }
+
+  function showWalkingRoute() {
+    if (walking.state.status !== "success") return;
+    setMapView("itinerary");
+    setRouteSelectionVersion((version) => version + 1);
+    explorer.current?.scrollIntoView({ block: "start", behavior: "smooth" });
+  }
+
+  function editRequest() {
+    walking.invalidate();
+    onEdit();
   }
 
   return (
@@ -101,7 +131,7 @@ export default function TripPlanResult({ plan, onEdit }: { plan: TripPlan; onEdi
       <div className="mb-6 flex flex-wrap items-center justify-between gap-4">
         <p role="status" className="text-sm font-medium text-[#315f51]">行程已就绪 · Mock 示例</p>
         <div className="flex flex-wrap gap-3">
-          <button type="button" onClick={onEdit} className="min-h-11 rounded-full border border-[#315f51] bg-white px-5 py-2 text-sm font-semibold text-[#315f51] focus-visible:outline-2 focus-visible:outline-offset-2">修改旅行需求</button>
+          <button type="button" onClick={editRequest} className="min-h-11 rounded-full border border-[#315f51] bg-white px-5 py-2 text-sm font-semibold text-[#315f51] focus-visible:outline-2 focus-visible:outline-offset-2">修改旅行需求</button>
           <button type="button" disabled className="min-h-11 cursor-not-allowed rounded-full border border-[#18201d]/10 px-5 py-2 text-sm text-[#68726c]">重新规划 · 暂未开放</button>
         </div>
       </div>
@@ -113,6 +143,7 @@ export default function TripPlanResult({ plan, onEdit }: { plan: TripPlan; onEdi
       <div className="grid items-start gap-7 lg:grid-cols-[minmax(0,1.6fr)_minmax(0,1fr)]">
         <div aria-live="polite"><DayTimeline day={day} bindings={bindings} selectedActivityKey={selectedActivityKey}
           bindingTargetKey={bindingTargetKey} onChoosePlace={choosePlace} onShowPlace={showPlace} onRemovePlace={removePlace}
+          walkingRouteState={walking.state} onQueryWalkingRoute={queryWalking} onShowWalkingRoute={showWalkingRoute}
           activityRef={(key) => (element) => {
             if (element) activityCards.current.set(key, element);
             else activityCards.current.delete(key);
@@ -122,6 +153,8 @@ export default function TripPlanResult({ plan, onEdit }: { plan: TripPlan; onEdi
           <WeatherSummary weather={day.weather} />
           <div ref={explorer} className="scroll-mt-6">
             <PlaceExplorer key={day.date} view={mapView} onViewChange={setMapView}
+              walkingRoute={walking.state.status === "success" ? walking.state.response : null}
+              routeSelectionVersion={routeSelectionVersion}
               bindingTarget={target && bindingTargetKey ? {
                 key: JSON.stringify([bindingTargetKey, bindingSessionVersion]),
                 label: `Day ${day.day} · ${target.name}`, keyword: target.name,
