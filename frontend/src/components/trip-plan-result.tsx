@@ -6,7 +6,7 @@ import TripOverview from "./trip/trip-overview";
 import DayTimeline from "./trip/day-timeline";
 import BudgetSummary from "./trip/budget-summary";
 import WeatherSummary from "./trip/weather-summary";
-import MapPlaceholder from "./trip/map-placeholder";
+import PlaceExplorer from "./places/place-explorer";
 
 export default function TripPlanResult({ plan, onEdit }: { plan: TripPlan; onEdit: () => void }) {
   const [selectedDay, setSelectedDay] = useState(0);
@@ -36,7 +36,7 @@ export default function TripPlanResult({ plan, onEdit }: { plan: TripPlan; onEdi
         <aside className="min-w-0 space-y-5" aria-label="旅行摘要">
           <BudgetSummary plan={plan} />
           <WeatherSummary weather={day.weather} />
-          <MapPlaceholder day={day} />
+          <PlaceExplorer />
         </aside>
       </div>
     </div>

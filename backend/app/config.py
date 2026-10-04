@@ -16,6 +16,8 @@ class Settings(BaseSettings):
 
     # Optional at startup: the existing health and Mock trip APIs need no key.
     amap_web_key: SecretStr = SecretStr("")
+    amap_js_key: SecretStr = SecretStr("")
+    amap_js_security_code: SecretStr = SecretStr("")
 
 
 def get_settings() -> Settings:

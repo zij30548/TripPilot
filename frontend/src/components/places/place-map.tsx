@@ -1,0 +1,134 @@
+"use client";
+
+import { useEffect, useRef, useState } from "react";
+import { getShanghaiCenter, loadAMap, type AMapSDK } from "@/lib/amap-loader";
+import { hasValidCoordinates, type Place } from "@/types/place";
+
+type MapStatus = { status: "loading" } | { status: "ready" } | { status: "error"; message: string };
+type MarkerEntry = { marker: AMap.Marker; element: HTMLDivElement; onClick: () => void };
+
+export default function PlaceMap({ places, selectedPlaceId, selectionVersion = 0, onSelect }: {
+  places: Place[];
+  selectedPlaceId: string | null;
+  selectionVersion?: number;
+  onSelect: (id: string) => void;
+}) {
+  const container = useRef<HTMLDivElement>(null);
+  const map = useRef<AMap.Map | null>(null);
+  const sdk = useRef<AMapSDK | null>(null);
+  const markers = useRef(new Map<string, MarkerEntry>());
+  const onSelectRef = useRef(onSelect);
+  const [mapStatus, setMapStatus] = useState<MapStatus>({ status: "loading" });
+  const invalidCount = places.filter((place) => !hasValidCoordinates(place)).length;
+
+  useEffect(() => {
+    onSelectRef.current = onSelect;
+  }, [onSelect]);
+
+  useEffect(() => {
+    const controller = new AbortController();
+    const markerEntries = markers.current;
+    const timeout = setTimeout(() => {
+      controller.abort();
+      setMapStatus({ status: "error", message: "地图加载超时，请检查网络或刷新后重试。" });
+    }, 20_000);
+
+    async function initialize() {
+      try {
+        const amap = await loadAMap();
+        if (controller.signal.aborted) return;
+        const center = await getShanghaiCenter(amap, controller.signal);
+        if (controller.signal.aborted || !container.current) return;
+        // Passing a verified center prevents the SDK from using IP location.
+        map.current = new amap.Map(container.current, { center, zoom: 11, viewMode: "2D" });
+        sdk.current = amap;
+        clearTimeout(timeout);
+        setMapStatus({ status: "ready" });
+      } catch (error) {
+        if (controller.signal.aborted) return;
+        clearTimeout(timeout);
+        setMapStatus({ status: "error", message: error instanceof Error ? error.message : "地图加载失败，请刷新后重试。" });
+      }
+    }
+    void initialize();
+
+    return () => {
+      clearTimeout(timeout);
+      controller.abort();
+      markerEntries.forEach(({ marker, onClick }) => {
+        marker.off("click", onClick);
+        marker.setMap(null);
+      });
+      markerEntries.clear();
+      map.current?.destroy();
+      map.current = null;
+      sdk.current = null;
+    };
+  }, []);
+
+  useEffect(() => {
+    if (mapStatus.status !== "ready" || !map.current || !sdk.current) return;
+    const currentMap = map.current;
+    const markerEntries = markers.current;
+    markerEntries.forEach(({ marker, onClick }) => {
+      marker.off("click", onClick);
+      marker.setMap(null);
+    });
+    markerEntries.clear();
+
+    places.forEach((place, index) => {
+      if (!hasValidCoordinates(place)) return;
+      const element = document.createElement("div");
+      element.textContent = String(index + 1);
+      element.style.cssText = "display:grid;place-items:center;width:30px;height:30px;border-radius:50%;border:2px solid white;background:#315f51;color:white;font:600 13px sans-serif;box-shadow:0 2px 6px #0004;cursor:pointer";
+      const marker = new sdk.current!.Marker({ position: [place.longitude, place.latitude], title: place.name, content: element, anchor: "center", map: currentMap });
+      const onClick = () => onSelectRef.current(place.id);
+      marker.on("click", onClick);
+      markerEntries.set(place.id, { marker, element, onClick });
+    });
+    if (markerEntries.size > 0) currentMap.setFitView(Array.from(markerEntries.values(), ({ marker }) => marker), false, [40, 40, 40, 40], 16);
+
+    return () => {
+      markerEntries.forEach(({ marker, onClick }) => {
+        marker.off("click", onClick);
+        marker.setMap(null);
+      });
+      markerEntries.clear();
+    };
+  }, [places, mapStatus.status]);
+
+  useEffect(() => {
+    if (mapStatus.status !== "ready") return;
+    markers.current.forEach(({ marker, element }, id) => {
+      const selected = id === selectedPlaceId;
+      element.style.background = selected ? "#bd4c35" : "#315f51";
+      element.style.transform = selected ? "scale(1.2)" : "scale(1)";
+      marker.setzIndex(selected ? 200 : 100);
+    });
+    const selected = places.find((place) => place.id === selectedPlaceId && hasValidCoordinates(place));
+    if (selected) map.current?.setZoomAndCenter(16, [selected.longitude, selected.latitude]);
+  }, [selectedPlaceId, selectionVersion, places, mapStatus.status]);
+
+  function fitAll() {
+    if (!map.current || markers.current.size === 0) return;
+    map.current.setFitView(Array.from(markers.current.values(), ({ marker }) => marker), false, [40, 40, 40, 40], 16);
+  }
+
+  return (
+    <div className="overflow-hidden rounded-xl border border-[#18201d]/15 bg-[#f3f2ec]">
+      <div className="flex flex-wrap items-center justify-between gap-3 border-b border-[#18201d]/10 bg-white px-3 py-2">
+        <p className="text-xs text-[#56605c]">上海地图 · 高德地图</p>
+        <button type="button" onClick={fitAll} disabled={mapStatus.status !== "ready" || places.length === invalidCount}
+          className="rounded-lg border border-[#315f51]/30 px-3 py-1.5 text-xs font-medium text-[#315f51] focus-visible:outline-2 focus-visible:outline-offset-2 disabled:cursor-not-allowed disabled:opacity-45">查看全部搜索结果</button>
+      </div>
+      <div className="relative">
+        <div ref={container} aria-label="上海地点地图" className="h-80 w-full sm:h-96" />
+        {mapStatus.status !== "ready" && <div className="absolute inset-0 grid place-items-center bg-[#f3f2ec] px-5 text-center text-sm leading-6 text-[#56605c]">
+          {mapStatus.status === "loading" ? <p role="status">正在加载上海地图…</p> : <p role="alert">{mapStatus.message}</p>}
+        </div>}
+      </div>
+      {invalidCount > 0 && <p role="alert" className="border-t border-[#18201d]/10 px-3 py-2 text-xs leading-5 text-[#a63d2d]">{invalidCount} 个地点坐标无效，未在地图上显示。</p>}
+      <p className="border-t border-[#18201d]/10 px-3 py-2 text-[11px] leading-5 text-[#68726c]">编号对应搜索候选地点，不代表行程顺序或路线。</p>
+    </div>
+  );
+}

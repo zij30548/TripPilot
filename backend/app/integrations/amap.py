@@ -1,9 +1,9 @@
 import logging
-import re
 
 import httpx
 
 from app.schemas.place import Place
+from app.logging_filters import install_http_log_redaction
 
 
 SEARCH_URL = "https://restapi.amap.com/v5/place/text"
@@ -11,17 +11,7 @@ REQUEST_TIMEOUT = httpx.Timeout(10.0, connect=3.0)
 logger = logging.getLogger(__name__)
 
 
-class _RedactAmapKey(logging.Filter):
-    def filter(self, record: logging.LogRecord) -> bool:
-        message = record.getMessage()
-        if "restapi.amap.com" in message:
-            record.msg = re.sub(r"([?&]key=)[^&\s\"']+", r"\1[REDACTED]", message)
-            record.args = ()
-        return True
-
-
-# httpx emits full request URLs at INFO level, including query-string keys.
-logging.getLogger("httpx").addFilter(_RedactAmapKey())
+install_http_log_redaction()
 
 
 class AmapError(Exception):
@@ -69,25 +59,32 @@ class AmapClient:
         self._key = key
 
     async def search(self, keyword: str, city: str) -> list[Place]:
-        try:
-            response = await self._client.get(
-                SEARCH_URL,
-                params={
-                    "key": self._key,
-                    "keywords": keyword,
-                    "region": city,
-                    "city_limit": "true",
-                    "page_size": 20,
-                    "page_num": 1,
-                },
-                timeout=REQUEST_TIMEOUT,
-                follow_redirects=False,
-            )
-            response.raise_for_status()
-        except httpx.TimeoutException:
-            raise AmapTimeoutError("地点搜索服务请求超时，请稍后重试。") from None
-        except httpx.HTTPError:
-            raise AmapError("暂时无法连接地点搜索服务，请稍后重试。") from None
+        for attempt in (1, 2):
+            try:
+                response = await self._client.get(
+                    SEARCH_URL,
+                    params={
+                        "key": self._key,
+                        "keywords": keyword,
+                        "region": city,
+                        "city_limit": "true",
+                        "page_size": 20,
+                        "page_num": 1,
+                    },
+                    timeout=REQUEST_TIMEOUT,
+                    follow_redirects=False,
+                )
+                response.raise_for_status()
+                break
+            except httpx.HTTPError as error:
+                # Log only the failure stage, never exception text or request data.
+                logger.warning("AMap POI request failed (%s, attempt %d/2)", type(error).__name__, attempt)
+                if attempt == 1 and isinstance(error, (httpx.ConnectTimeout, httpx.ConnectError)):
+                    # This fixed, read-only GET can recover from one transient connection failure.
+                    continue
+                if isinstance(error, httpx.TimeoutException):
+                    raise AmapTimeoutError("地点搜索服务请求超时，请稍后重试。") from None
+                raise AmapError("暂时无法连接地点搜索服务，请稍后重试。") from None
 
         try:
             data = response.json()

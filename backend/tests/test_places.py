@@ -26,16 +26,20 @@ def sample_poi() -> dict[str, object]:
 
 class PlaceApiTests(unittest.TestCase):
     def setUp(self) -> None:
+        # Isolate every setting, including JS credentials added in Milestone 4A.
+        self.enterContext(patch.dict(os.environ, {}, clear=True))
         self.requests: list[httpx.Request] = []
         self.clients: list[httpx.AsyncClient] = []
         self.response = httpx.Response(200, json={"status": "1", "pois": [sample_poi()]})
         self.failure: type[httpx.RequestError] | None = None
+        self.failures: list[type[httpx.RequestError] | None] = []
         self.settings = Settings(_env_file=None, amap_web_key=TEST_KEY)
 
         def handle(request: httpx.Request) -> httpx.Response:
             self.requests.append(request)
-            if self.failure:
-                raise self.failure(f"Sensitive upstream URL: {request.url}", request=request)
+            failure = self.failures.pop(0) if self.failures else self.failure
+            if failure:
+                raise failure(f"Sensitive upstream URL: {request.url}", request=request)
             return self.response
 
         async def mock_http_client() -> AsyncIterator[httpx.AsyncClient]:
@@ -121,6 +125,7 @@ class PlaceApiTests(unittest.TestCase):
         })
         response = self.search()
         self.assertEqual(response.status_code, 502)
+        self.assertEqual(len(self.requests), 1)
         self.assertNotIn(TEST_KEY, response.text)
 
     def test_http_errors_and_redirects(self) -> None:
@@ -136,14 +141,45 @@ class PlaceApiTests(unittest.TestCase):
                 self.assertNotIn(TEST_KEY, response.text)
 
     def test_network_failure_and_timeout(self) -> None:
-        for failure, status in [(httpx.ConnectError, 502), (httpx.ReadTimeout, 504),
-                                (httpx.ConnectTimeout, 504)]:
+        for failure, status, attempts in [(httpx.ConnectError, 502, 2),
+                                          (httpx.ConnectTimeout, 504, 2),
+                                          (httpx.ReadTimeout, 504, 1),
+                                          (httpx.WriteTimeout, 504, 1),
+                                          (httpx.PoolTimeout, 504, 1)]:
             with self.subTest(failure=failure):
+                self.requests.clear()
                 self.failure = failure
-                response = self.search()
+                with self.assertLogs("app.integrations.amap", level="WARNING") as logs:
+                    response = self.search()
                 self.assertEqual(response.status_code, status)
+                self.assertEqual(len(self.requests), attempts)
+                self.assertEqual(len(logs.output), attempts)
+                self.assertIn(f"{failure.__name__}, attempt {attempts}/2", logs.output[-1])
+                output = " ".join(logs.output)
+                self.assertNotIn(TEST_KEY, output)
+                self.assertNotIn("restapi.amap.com", output)
+                self.assertNotIn("Sensitive upstream URL", output)
                 self.assertNotIn(TEST_KEY, response.text)
                 self.assertNotIn("restapi.amap.com", response.text)
+                self.assertTrue(all(client.is_closed for client in self.clients))
+
+    def test_transient_connection_failures_retry_once_and_recover(self) -> None:
+        for failure in [httpx.ConnectTimeout, httpx.ConnectError]:
+            with self.subTest(failure=failure):
+                self.requests.clear()
+                self.failures = [failure, None]
+                with self.assertLogs("app.integrations.amap", level="WARNING") as logs:
+                    response = self.search()
+                self.assertEqual(response.status_code, 200)
+                self.assertEqual(len(response.json()), 1)
+                self.assertEqual(len(self.requests), 2)
+                self.assertEqual(self.requests[0].url, self.requests[1].url)
+                self.assertEqual(self.requests[0].extensions["timeout"], self.requests[1].extensions["timeout"])
+                self.assertEqual(len(logs.output), 1)
+                self.assertIn(f"{failure.__name__}, attempt 1/2", logs.output[0])
+                self.assertNotIn(TEST_KEY, logs.output[0])
+                self.assertNotIn("restapi.amap.com", logs.output[0])
+                self.assertNotIn("Sensitive upstream URL", logs.output[0])
                 self.assertTrue(all(client.is_closed for client in self.clients))
 
     def test_malformed_payloads(self) -> None:
@@ -200,18 +236,33 @@ class SettingsTests(unittest.TestCase):
     def test_env_file_and_environment_precedence(self) -> None:
         with TemporaryDirectory() as directory, patch.dict(os.environ, {}, clear=True):
             env_file = Path(directory) / ".env"
-            env_file.write_text("AMAP_WEB_KEY=fixture-file-key\nUNRELATED_SETTING=ok\n", encoding="utf-8")
+            env_file.write_text(
+                "AMAP_WEB_KEY=fixture-file-key\nAMAP_JS_KEY=fixture-js-key\n"
+                "AMAP_JS_SECURITY_CODE=fixture-security-code\nUNRELATED_SETTING=ok\n",
+                encoding="utf-8",
+            )
             settings = Settings(_env_file=env_file)
             self.assertEqual(settings.amap_web_key.get_secret_value(), "fixture-file-key")
             self.assertNotIn("fixture-file-key", repr(settings))
+            self.assertEqual(settings.amap_js_key.get_secret_value(), "fixture-js-key")
+            self.assertEqual(settings.amap_js_security_code.get_secret_value(), "fixture-security-code")
+            self.assertNotIn("fixture-js-key", repr(settings))
+            self.assertNotIn("fixture-security-code", repr(settings))
             with patch.dict(os.environ, {"AMAP_WEB_KEY": "fixture-env-key"}):
                 self.assertEqual(Settings(_env_file=env_file).amap_web_key.get_secret_value(), "fixture-env-key")
             with patch.dict(os.environ, {"AMAP_WEB_KEY": ""}):
                 self.assertEqual(Settings(_env_file=env_file).amap_web_key.get_secret_value(), "")
+            with patch.dict(os.environ, {"AMAP_JS_KEY": "env-js", "AMAP_JS_SECURITY_CODE": "env-code"}):
+                settings = Settings(_env_file=env_file)
+                self.assertEqual(settings.amap_js_key.get_secret_value(), "env-js")
+                self.assertEqual(settings.amap_js_security_code.get_secret_value(), "env-code")
 
     def test_missing_key_is_allowed_in_settings(self) -> None:
         with patch.dict(os.environ, {}, clear=True):
-            self.assertEqual(Settings(_env_file=None).amap_web_key.get_secret_value(), "")
+            settings = Settings(_env_file=None)
+            self.assertEqual(settings.amap_web_key.get_secret_value(), "")
+            self.assertEqual(settings.amap_js_key.get_secret_value(), "")
+            self.assertEqual(settings.amap_js_security_code.get_secret_value(), "")
 
     def test_dotenv_path_does_not_depend_on_working_directory(self) -> None:
         expected = Path(__file__).resolve().parents[1] / ".env"

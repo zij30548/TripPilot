@@ -2,6 +2,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from app.api.places import router as places_router
+from app.api.amap_proxy import router as amap_proxy_router
 from app.api.trips import router as trips_router
 
 app = FastAPI(
@@ -17,6 +18,7 @@ app.add_middleware(
 )
 app.include_router(trips_router)
 app.include_router(places_router)
+app.include_router(amap_proxy_router)
 
 
 @app.get("/health")
