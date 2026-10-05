@@ -1,13 +1,36 @@
+from collections.abc import Callable, Coroutine
 from datetime import time, timedelta
+from typing import Any
 
-from fastapi import APIRouter
+from fastapi import APIRouter, HTTPException, Request, Response
+from fastapi.exceptions import RequestValidationError
+from fastapi.routing import APIRoute
 
 from app.schemas.trip import (
     Activity, BudgetBreakdown, DayPlan, TransportSegment,
-    TripPlan, TripRequest, WeatherSummary,
+    TripPlan, TripRequest, TripRequestEcho, WeatherSummary,
 )
 
-router = APIRouter(prefix="/trips", tags=["trips"])
+
+class SafeTripValidation(APIRoute):
+    def get_route_handler(self) -> Callable[[Request], Coroutine[Any, Any, Response]]:
+        handler = super().get_route_handler()
+
+        async def safe_handler(request: Request) -> Response:
+            try:
+                return await handler(request)
+            except RequestValidationError:
+                # Do not echo input, including NaN/Infinity that JSONResponse
+                # cannot serialize, or arbitrary client-supplied sensitive text.
+                raise HTTPException(
+                    status_code=422,
+                    detail="旅行需求参数无效，请检查日期、住宿参考点和必去地点等信息。",
+                ) from None
+
+        return safe_handler
+
+
+router = APIRouter(prefix="/trips", tags=["trips"], route_class=SafeTripValidation)
 
 
 @router.post("/plan", response_model=TripPlan)
@@ -73,7 +96,7 @@ async def plan_trip(request: TripRequest) -> TripPlan:
     )
     return TripPlan(
         destination="上海",
-        request=request,
+        request=TripRequestEcho.model_validate(request.model_dump()),
         budget_breakdown=breakdown,
         estimated_cost=sum(breakdown.model_dump().values()),
         notice=(

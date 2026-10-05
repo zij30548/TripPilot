@@ -1,21 +1,6 @@
-import { hasValidCoordinates, type Place } from "@/types/place";
+import { isPlace, type Place } from "@/types/place";
 
 const SEARCH_URL = "http://127.0.0.1:8000/places/search";
-
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return typeof value === "object" && value !== null && !Array.isArray(value);
-}
-
-function isPlace(value: unknown): value is Place {
-  return isRecord(value) &&
-    typeof value.id === "string" && value.id.trim().length > 0 &&
-    typeof value.name === "string" && value.name.trim().length > 0 &&
-    (value.address === null || typeof value.address === "string") &&
-    (value.category === null || typeof value.category === "string") &&
-    typeof value.latitude === "number" && typeof value.longitude === "number" &&
-    hasValidCoordinates({ latitude: value.latitude, longitude: value.longitude }) &&
-    value.source === "amap";
-}
 
 export async function searchPlaces(keyword: string, signal?: AbortSignal): Promise<Place[]> {
   const query = keyword.trim();

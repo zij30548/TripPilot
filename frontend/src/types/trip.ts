@@ -1,3 +1,5 @@
+import type { Place } from "./place";
+
 export type Pace = "relaxed" | "balanced" | "packed";
 
 export type TripRequest = {
@@ -6,9 +8,11 @@ export type TripRequest = {
   budget: number;
   travelers: number;
   accommodation_location: string;
+  accommodation_place?: Place | null;
   pace: Pace;
   interests: string[];
   must_visit: string[];
+  must_visit_places?: Place[];
   avoid_places: string[];
   daily_start_time: string;
   daily_end_time: string;

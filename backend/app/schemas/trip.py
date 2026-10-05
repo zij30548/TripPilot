@@ -3,6 +3,8 @@ from typing import Annotated, Literal, Self
 
 from pydantic import BaseModel, ConfigDict, Field, StringConstraints, field_validator, model_validator
 
+from app.schemas.place import ConfirmedPlace
+
 
 NonBlankString = Annotated[str, StringConstraints(strip_whitespace=True, min_length=1)]
 Pace = Literal["relaxed", "balanced", "packed"]
@@ -16,9 +18,11 @@ class TripRequest(BaseModel):
     budget: float = Field(gt=0, allow_inf_nan=False, strict=True)
     travelers: int = Field(gt=0, strict=True)
     accommodation_location: NonBlankString
+    accommodation_place: ConfirmedPlace | None = None
     pace: Pace
     interests: list[NonBlankString]
     must_visit: list[NonBlankString]
+    must_visit_places: list[ConfirmedPlace] = Field(default_factory=list)
     avoid_places: list[NonBlankString]
     daily_start_time: time
     daily_end_time: time
@@ -36,6 +40,38 @@ class TripRequest(BaseModel):
             raise ValueError("行程必须为 1～3 天（包含开始和结束日期）。")
         if self.daily_start_time >= self.daily_end_time:
             raise ValueError("每天结束时间必须晚于出发时间。")
+        return self
+
+    @model_validator(mode="after")
+    def validate_confirmed_places(self) -> Self:
+        if (self.accommodation_place is not None
+                and self.accommodation_location != self.accommodation_place.name):
+            raise ValueError("住宿参考点与住宿文字信息不一致。")
+        place_ids = [place.id for place in self.must_visit_places]
+        if len(place_ids) != len(set(place_ids)):
+            raise ValueError("必去地点不能包含重复的 POI ID。")
+        if self.must_visit_places and self.must_visit != [place.name for place in self.must_visit_places]:
+            raise ValueError("必去地点与必去文字信息不一致。")
+        return self
+
+    @model_validator(mode="after")
+    def validate_explicit_empty_places(self) -> Self:
+        if ("must_visit_places" in self.model_fields_set
+                and not self.must_visit_places and self.must_visit):
+            raise ValueError("空的结构化必去地点列表必须对应空的必去文字列表。")
+        return self
+
+
+class TripRequestEcho(TripRequest):
+    """The response includes defaults even for legacy text-only requests.
+
+    Empty echoed defaults carry no confirmed POI, so legacy text is retained.
+    Incoming TripRequest still rejects explicitly conflicting empty lists.
+    Nonempty structured data keeps all the ordinary request validation.
+    """
+
+    @model_validator(mode="after")
+    def validate_explicit_empty_places(self) -> Self:
         return self
 
 
@@ -90,7 +126,7 @@ class DayPlan(BaseModel):
 
 class TripPlan(BaseModel):
     destination: str
-    request: TripRequest
+    request: TripRequestEcho
     budget_breakdown: BudgetBreakdown
     estimated_cost: float = Field(ge=0, allow_inf_nan=False)
     currency: Literal["CNY"] = "CNY"

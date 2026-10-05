@@ -1,9 +1,10 @@
 import type { TripPlan, TripRequest } from "@/types/trip";
+import { isConfirmedPlace, type Place } from "@/types/place";
 
 const PLAN_URL = "http://127.0.0.1:8000/trips/plan";
 
 function isRecord(value: unknown): value is Record<string, unknown> {
-  return typeof value === "object" && value !== null;
+  return typeof value === "object" && value !== null && !Array.isArray(value);
 }
 
 function isAmount(value: unknown): value is number {
@@ -12,6 +13,41 @@ function isAmount(value: unknown): value is number {
 
 function isStringList(value: unknown): value is string[] {
   return Array.isArray(value) && value.every((item) => typeof item === "string");
+}
+
+function validConfirmedInputs(value: Record<string, unknown>, legacyEcho = false): boolean {
+  const accommodation = value.accommodation_place;
+  if (accommodation !== undefined && accommodation !== null &&
+    (!isConfirmedPlace(accommodation) || typeof value.accommodation_location !== "string" ||
+      value.accommodation_location.trim() !== accommodation.name.trim())) return false;
+  const places = value.must_visit_places;
+  if (places === undefined) return true;
+  if (!Array.isArray(places) || !places.every(isConfirmedPlace)) return false;
+  if (new Set(places.map((place) => place.id.trim())).size !== places.length) return false;
+  // Old text-only requests are echoed with the server's default empty list.
+  // A new outbound explicit list (even []) must agree with its legacy names.
+  if (legacyEcho && places.length === 0) return true;
+  return isStringList(value.must_visit) && value.must_visit.length === places.length &&
+    places.every((place, index) => (value.must_visit as string[])[index].trim() === place.name.trim());
+}
+
+function samePlace(left: Place | null | undefined, right: Place | null | undefined): boolean {
+  if (!left || !right) return left === right;
+  return left.id.trim() === right.id.trim() && left.name.trim() === right.name.trim() &&
+    left.address === right.address && left.category === right.category && left.source === right.source &&
+    left.longitude === right.longitude && left.latitude === right.latitude;
+}
+
+function matchesConfirmedRequest(sent: TripRequest, echoed: TripRequest): boolean {
+  if (sent.accommodation_place !== undefined && !samePlace(sent.accommodation_place, echoed.accommodation_place)) return false;
+  if (sent.must_visit_places !== undefined) {
+    const actual = echoed.must_visit_places;
+    if (!actual || actual.length !== sent.must_visit_places.length ||
+      !sent.must_visit_places.every((place, index) => samePlace(place, actual[index])) ||
+      echoed.must_visit.length !== sent.must_visit_places.length ||
+      !sent.must_visit_places.every((place, index) => echoed.must_visit[index].trim() === place.name.trim())) return false;
+  }
+  return true;
 }
 
 function isTripRequest(value: unknown): value is TripRequest {
@@ -23,7 +59,8 @@ function isTripRequest(value: unknown): value is TripRequest {
     typeof value.accommodation_location === "string" &&
     ["relaxed", "balanced", "packed"].includes(String(value.pace)) &&
     isStringList(value.interests) && isStringList(value.must_visit) && isStringList(value.avoid_places) &&
-    typeof value.daily_start_time === "string" && typeof value.daily_end_time === "string";
+    typeof value.daily_start_time === "string" && typeof value.daily_end_time === "string" &&
+    validConfirmedInputs(value, true);
 }
 
 // TypeScript types alone do not validate JSON received over the network.
@@ -84,6 +121,9 @@ function isTripPlan(value: unknown): value is TripPlan {
 }
 
 export async function planTrip(request: TripRequest): Promise<TripPlan> {
+  if (!validConfirmedInputs(request)) {
+    throw new Error("已确认地点数据无效或与需求名称不一致，请重新选择地点。");
+  }
   const controller = new AbortController();
   const timeout = setTimeout(() => controller.abort(), 15_000);
 
@@ -97,13 +137,13 @@ export async function planTrip(request: TripRequest): Promise<TripPlan> {
 
     if (!response.ok) {
       if (response.status === 422) {
-        throw new Error("旅行需求校验未通过，请检查日期、预算、人数、住宿位置和时间。住宿位置不能只有空格。");
+        throw new Error("旅行需求校验未通过，请检查日期、预算、人数、已确认地点和时间。");
       }
       throw new Error(`暂时无法获取行程（${response.status}），请稍后重试。`);
     }
 
     const data: unknown = await response.json();
-    if (!isTripPlan(data)) {
+    if (!isTripPlan(data) || !matchesConfirmedRequest(request, data.request)) {
       throw new Error("返回的行程格式不正确，请稍后重试。");
     }
     return data;

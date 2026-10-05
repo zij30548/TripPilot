@@ -2,7 +2,10 @@
 
 import { useRef, useState, type FormEvent } from "react";
 import { planTrip } from "@/lib/api";
+import type { Place } from "@/types/place";
 import type { Pace, TripPlan, TripRequest } from "@/types/trip";
+import PlaceDetails from "./places/place-details";
+import RequirementPlacePicker from "./places/requirement-place-picker";
 
 const paces = [
   { value: "relaxed", label: "轻松", description: "少走一点，慢慢感受" },
@@ -29,10 +32,8 @@ type FormState = {
   endDate: string;
   totalBudget: string;
   travelers: string;
-  accommodation: string;
   pace: Pace;
   interests: string[];
-  mustVisitPlaces: string;
   excludedPlaces: string;
   earliestStartTime: string;
   latestEndTime: string;
@@ -43,10 +44,8 @@ const initialFormState: FormState = {
   endDate: "",
   totalBudget: "",
   travelers: "1",
-  accommodation: "",
   pace: "balanced",
   interests: [],
-  mustVisitPlaces: "",
   excludedPlaces: "",
   earliestStartTime: "09:00",
   latestEndTime: "21:00",
@@ -80,13 +79,74 @@ function splitPlaces(value: string) {
     .filter(Boolean);
 }
 
+type PickerTarget =
+  | { role: "accommodation" }
+  | { role: "must_visit"; replacingId?: string };
+
+type PickerSession = {
+  version: number;
+  target: PickerTarget;
+  initialKeyword: string;
+  controller: AbortController;
+};
+
+const placeButtonClass = "min-h-10 rounded-lg border border-[#315f51]/30 bg-white px-3 py-2 text-xs font-semibold text-[#315f51] disabled:opacity-50";
+
 export default function TripRequestForm({ onSuccess }: { onSuccess: (plan: TripPlan) => void }) {
   const [form, setForm] = useState<FormState>(initialFormState);
   const [dateError, setDateError] = useState("");
   const [timeError, setTimeError] = useState("");
+  const [placeError, setPlaceError] = useState("");
+  const [accommodationPlace, setAccommodationPlace] = useState<Place | null>(null);
+  const [mustVisitPlaces, setMustVisitPlaces] = useState<Place[]>([]);
+  const [picker, setPicker] = useState<PickerSession | null>(null);
+  const pickerSession = useRef<PickerSession | null>(null);
+  const pickerVersion = useRef(0);
   const [submission, setSubmission] = useState<SubmissionState>({ status: "idle" });
   const submitting = useRef(false);
   const isLoading = submission.status === "loading";
+  const replacingMustVisitId = picker?.target.role === "must_visit" ? picker.target.replacingId : undefined;
+  const excludedPlaceIds = picker?.target.role === "must_visit"
+    ? mustVisitPlaces.filter((place) => place.id !== replacingMustVisitId).map((place) => place.id)
+    : [];
+
+  function closePicker() {
+    pickerSession.current?.controller.abort();
+    pickerSession.current = null;
+    pickerVersion.current += 1;
+    setPicker(null);
+    setPlaceError("");
+  }
+
+  function openPicker(target: PickerTarget, initialKeyword = "") {
+    if (submitting.current) return;
+    pickerSession.current?.controller.abort();
+    const session: PickerSession = {
+      version: ++pickerVersion.current, target, initialKeyword, controller: new AbortController(),
+    };
+    pickerSession.current = session;
+    setPicker(session);
+    setPlaceError("");
+    setSubmission({ status: "idle" });
+  }
+
+  function confirmPlace(session: PickerSession, place: Place) {
+    if (submitting.current || pickerSession.current !== session || session.controller.signal.aborted) return;
+    if (session.target.role === "accommodation") {
+      setAccommodationPlace(place);
+    } else {
+      const replacingId = session.target.replacingId;
+      if (mustVisitPlaces.some((confirmed) => confirmed.id === place.id && confirmed.id !== replacingId)) {
+        setPlaceError("该 POI 已在必去地点中，请选择其他地点。");
+        return;
+      }
+      setMustVisitPlaces((current) => replacingId
+        ? current.map((confirmed) => confirmed.id === replacingId ? place : confirmed)
+        : [...current, place]);
+    }
+    closePicker();
+    setSubmission({ status: "idle" });
+  }
 
   const updateField = <Key extends keyof FormState>(
     field: Key,
@@ -107,6 +167,14 @@ export default function TripRequestForm({ onSuccess }: { onSuccess: (plan: TripP
   const handleSubmit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     if (submitting.current) return;
+    if (pickerSession.current) {
+      setPlaceError("请先确认或取消当前地点选择，再生成行程。");
+      return;
+    }
+    if (!accommodationPlace) {
+      setPlaceError("请先搜索并确认一个住宿参考点。");
+      return;
+    }
 
     const tripDays = getTripDays(form.startDate, form.endDate);
     const nextDateError =
@@ -127,15 +195,19 @@ export default function TripRequestForm({ onSuccess }: { onSuccess: (plan: TripP
       end_date: form.endDate,
       budget: Number(form.totalBudget),
       travelers: Number(form.travelers),
-      accommodation_location: form.accommodation.trim(),
+      accommodation_location: accommodationPlace.name,
+      accommodation_place: accommodationPlace,
       pace: form.pace,
       interests: form.interests,
-      must_visit: splitPlaces(form.mustVisitPlaces),
+      must_visit: mustVisitPlaces.map((place) => place.name),
+      must_visit_places: mustVisitPlaces,
       avoid_places: splitPlaces(form.excludedPlaces),
       daily_start_time: form.earliestStartTime,
       daily_end_time: form.latestEndTime,
     };
 
+    // Even an already closed selection session is invalidated before the form hides.
+    closePicker();
     submitting.current = true;
     setSubmission({ status: "loading" });
     try {
@@ -177,6 +249,13 @@ export default function TripRequestForm({ onSuccess }: { onSuccess: (plan: TripP
           上海 · 1～3 天
         </span>
       </div>
+
+      {picker && <RequirementPlacePicker key={picker.version}
+        title={picker.target.role === "accommodation" ? "住宿参考点" : "必去地点"}
+        initialKeyword={picker.initialKeyword}
+        sessionSignal={picker.controller.signal}
+        excludedIds={excludedPlaceIds}
+        onConfirm={(place) => confirmPlace(picker, place)} onCancel={closePicker} />}
 
       <form className="space-y-9" onSubmit={handleSubmit} aria-busy={isLoading}>
         <fieldset disabled={isLoading}>
@@ -279,28 +358,21 @@ export default function TripRequestForm({ onSuccess }: { onSuccess: (plan: TripP
             </label>
           </div>
 
-          <label
-            className="mt-5 block text-sm font-medium"
-            htmlFor="accommodation"
-          >
-            住宿位置 <span className="text-[#bd4c35]">*</span>
-            <input
-              autoComplete="street-address"
-              className={inputClassName}
-              id="accommodation"
-              name="accommodation"
-              placeholder="例如：静安寺附近、南京东路某酒店"
-              required
-              type="text"
-              value={form.accommodation}
-              onChange={(event) =>
-                updateField("accommodation", event.target.value)
-              }
-            />
-            <span className="mt-2 block text-xs leading-5 font-normal text-[#858a87]">
-              填写大致区域或酒店名称即可。
-            </span>
-          </label>
+          <section aria-label="已确认住宿参考点" className="mt-5 rounded-xl border border-[#18201d]/15 bg-[#fbfaf7] p-4">
+            <h3 className="text-sm font-medium">住宿参考点 <span className="text-[#bd4c35]">*</span></h3>
+            <p className="mt-2 text-xs leading-5 text-[#68726c]">选择酒店或代表大致住宿区域的真实地标，仅作位置参考，不代表已预订酒店。</p>
+            {accommodationPlace ? <>
+              <div className="mt-3"><PlaceDetails place={accommodationPlace} /></div>
+              <p className="mt-2 text-xs font-medium text-[#315f51]">已确认</p>
+              <div className="mt-3 flex flex-wrap gap-2">
+                <button type="button" className={placeButtonClass} onClick={() => openPicker({ role: "accommodation" }, accommodationPlace.name)}>更换住宿参考点</button>
+                <button type="button" className={placeButtonClass} onClick={() => { closePicker(); setAccommodationPlace(null); setSubmission({ status: "idle" }); }}>清除住宿参考点</button>
+              </div>
+            </> : <>
+              <p className="mt-3 text-sm text-[#68726c]">尚未确认住宿参考点。</p>
+              <button type="button" className={`${placeButtonClass} mt-3`} onClick={() => openPicker({ role: "accommodation" })}>选择住宿参考点</button>
+            </>}
+          </section>
         </fieldset>
 
         <fieldset disabled={isLoading} className="border-t border-[#18201d]/8 pt-8">
@@ -396,41 +468,40 @@ export default function TripRequestForm({ onSuccess }: { onSuccess: (plan: TripP
             地点与时间
           </legend>
 
-          <div className="grid gap-5 sm:grid-cols-2">
-            <label className="text-sm font-medium" htmlFor="must-visit">
-              必去地点
-              <textarea
-                className={`${inputClassName} min-h-28 resize-y`}
-                id="must-visit"
-                name="mustVisitPlaces"
-                placeholder="例如：外滩、武康路、上海博物馆"
-                value={form.mustVisitPlaces}
-                onChange={(event) =>
-                  updateField("mustVisitPlaces", event.target.value)
-                }
-              />
-              <span className="mt-2 block text-xs leading-5 font-normal text-[#858a87]">
-                多个地点可用逗号或换行分隔。
-              </span>
-            </label>
+          <section aria-label="已确认必去地点" className="rounded-xl border border-[#18201d]/15 bg-[#fbfaf7] p-4">
+            <h3 className="text-sm font-medium">必去地点</h3>
+            <p className="mt-2 text-xs leading-5 text-[#68726c]">可留空，或逐个搜索并确认。按 POI ID 去重；同名地点请核对地址。</p>
+            {mustVisitPlaces.length === 0 ? <p className="mt-3 text-sm text-[#68726c]">尚未确认必去地点。</p> : <ul className="mt-3 space-y-3">
+              {mustVisitPlaces.map((place) => <li key={place.id} className="rounded-xl border border-[#18201d]/10 bg-white p-3">
+                <PlaceDetails place={place} />
+                <p className="mt-2 text-xs font-medium text-[#315f51]">已确认</p>
+                <div className="mt-3 flex flex-wrap gap-2">
+                  <button type="button" aria-label={`更换必去地点：${place.name}`} className={placeButtonClass}
+                    onClick={() => openPicker({ role: "must_visit", replacingId: place.id }, place.name)}>更换</button>
+                  <button type="button" aria-label={`移除必去地点：${place.name}`} className={placeButtonClass}
+                    onClick={() => { closePicker(); setMustVisitPlaces((current) => current.filter((confirmed) => confirmed.id !== place.id)); setSubmission({ status: "idle" }); }}>移除</button>
+                </div>
+              </li>)}
+            </ul>}
+            <button type="button" className={`${placeButtonClass} mt-3`} onClick={() => openPicker({ role: "must_visit" })}>添加必去地点</button>
+          </section>
 
-            <label className="text-sm font-medium" htmlFor="excluded-places">
-              不想去的地点
-              <textarea
-                className={`${inputClassName} min-h-28 resize-y`}
-                id="excluded-places"
-                name="excludedPlaces"
-                placeholder="例如：大型商场、热门排队景点"
-                value={form.excludedPlaces}
-                onChange={(event) =>
-                  updateField("excludedPlaces", event.target.value)
-                }
-              />
-              <span className="mt-2 block text-xs leading-5 font-normal text-[#858a87]">
-                地点或类型都可以填写。
-              </span>
-            </label>
-          </div>
+          <label className="mt-5 block text-sm font-medium" htmlFor="excluded-places">
+            不想去的地点
+            <textarea
+              className={`${inputClassName} min-h-28 resize-y`}
+              id="excluded-places"
+              name="excludedPlaces"
+              placeholder="例如：大型商场、热门排队景点"
+              value={form.excludedPlaces}
+              onChange={(event) =>
+                updateField("excludedPlaces", event.target.value)
+              }
+            />
+            <span className="mt-2 block text-xs leading-5 font-normal text-[#858a87]">
+              地点或类型都可以填写；当前仅记录需求，尚未用于规划。
+            </span>
+          </label>
 
           <div className="mt-5 grid gap-5 sm:grid-cols-2">
             <label className="text-sm font-medium" htmlFor="earliest-start">
@@ -477,6 +548,8 @@ export default function TripRequestForm({ onSuccess }: { onSuccess: (plan: TripP
         </fieldset>
 
         <div className="border-t border-[#18201d]/8 pt-7">
+          {picker && <p className="mb-3 text-sm text-[#315f51]">地点选择尚未完成，请先确认或取消再生成。</p>}
+          {placeError && <p role="alert" className="mb-4 rounded-xl bg-red-50 p-3 text-sm text-[#b3422d]">{placeError}</p>}
           {submission.status === "error" && (
             <p role="alert" className="mb-4 rounded-xl bg-red-50 p-3 text-sm text-[#b3422d]">
               {submission.message}
@@ -501,6 +574,7 @@ export default function TripRequestForm({ onSuccess }: { onSuccess: (plan: TripP
           <p className="mt-3 text-center text-xs leading-5 text-[#8a8f8c]">
             当前返回固定上海两日 Mock 示例，暂不按你的需求调整行程。
           </p>
+          <p className="mt-1 text-center text-xs leading-5 text-[#8a8f8c]">已确认地点在返回修改需求时保留，刷新页面后清空。尚未用于安排当前 Mock 行程，也不会自动绑定活动。</p>
         </div>
       </form>
     </section>

@@ -25,15 +25,17 @@
 - Milestone 4B: explicitly confirmed activity-to-real-POI bindings, replacement/unbinding, per-day bound maps, activity ↔ marker selection, POI deduplication and result-local lifecycle protection
 - Milestone 4C-1: explicitly requested real walking routes between originally adjacent, confirmed bound activities; normalized backend route data, estimated distance/time, one selected map polyline and stale-request isolation
 - Milestone 4C-2: explicitly requested Shanghai bus/subway reference schemes, normalized ordered access-walking/ride steps, nullable fare, segmented real map geometry and cross-mode stale-request isolation
+- Milestone 5A-1: explicitly confirmed accommodation reference and optional must-visit POIs, strict backward-compatible request/echo validation, isolated search drafts and confirmed requirements displayed separately from the Mock plan
 
 ## Current
 
 - Milestone 4B was committed/pushed as `0eeba167766216ffbaecfa4610c83539ae36577d`; 4C-1 was subsequently committed/pushed as `84f0eb17f618a13b01e5e16f4b906c32ac1c5e9b` (`feat: add real walking routes between bound activities`). Both acceptance records remain below
-- Milestone 4C-2 implementation and supplemental browser acceptance reviewed and approved for closeout (2026-10-06). Core real Chrome query/map/mode/endpoint/day/narrow-screen acceptance passed in the actual project (2026-10-05), based on committed 4C-1. Focused activity→Marker centering/highlight recheck passed on 2026-10-06 with complete-map screenshots, retained transit geometry/results and no additional route request (details below). Frontend 244 tests, backend 119 tests, lint, typecheck and webpack production build passed during implementation; neither the documentation-only recheck nor this commit/push closeout reruns that suite. User authorized only the 16 listed deliverables for normal main → origin/main commit/push, excluding the five existing Python caches. No business code changes during closeout. Earlier no-commit/push statements below describe historical implementation/acceptance handoffs. Default Turbopack's historical environment restriction remains documented, not retried; physical-phone/touch acceptance remains separate
+- Milestone 4C-2 was reviewed, committed and pushed as `cb1a2605af312b9c8dcb319358615691ca56b0be` (`feat: add real transit routes between bound activities`). Its implementation, supplemental activity→Marker acceptance and historical limitations remain below. This is the verified starting HEAD for 5A-1; the five pre-existing Python cache changes remain excluded from this work
+- Milestone 5A-1 implementation and actual Chrome acceptance reviewed and approved for commit/push closeout (2026-10-06). Backend 140 tests, frontend 300 tests, lint, typecheck and Webpack production build passed during implementation, not rerun in this closeout. Real searches, explicit confirmation, duplicate prevention, request/response identity, edit/regeneration/refresh lifecycle and one real walking/Marker regression passed; see the separate automated and live evidence below. Only the 16 listed deliverables are authorized for normal main → origin/main commit/push; no business code changes during closeout. Confirmed Places remain requirement echoes, not inputs to the current Mock scheduling. Earlier no-commit/push statements describe the historical implementation handoff
 - GET /places/search accepts keyword + city and maps them to AMap v5 keywords + region with city_limit=true, page 1 and page size 20
 - Place returns id, name, nullable address/category, validated latitude/longitude, and source="amap"; invalid POIs are skipped without fabricating coordinates
 - Missing key returns 503, upstream timeout 504, other upstream failures or malformed payloads 502, invalid query parameters 422, and empty valid results 200 with []
-- The result page supports real Place search/preview and user-confirmed activity bindings. POST /trips/plan and its Mock activities, transport, weather and costs remain unchanged; bindings are separate result-local React state, not a backend TripPlan mutation
+- The result page supports real Place search/preview and user-confirmed activity bindings. POST /trips/plan now accepts/echoes optional structured confirmed requirements; its Mock activities, transport, weather and costs remain unchanged. Requirement POIs do not automatically bind activities or change the example plan; activity bindings are still separate result-local React state
 - Valid 1-3 day requests use a fixed two-day activity template; dates are aligned to the requested start date and the validated request is echoed for the overview
 - A notice explains when the requested duration differs from the two-day example; the fixture is not optimized for people, budget, preferences or daily time constraints
 - Activity and transport costs reconcile to a fictional CNY 460 total for all travelers (transport 40, food 240, tickets 100, other 80); remaining or exceeded budget is derived from the submitted budget
@@ -51,10 +53,87 @@
 
 ## Next
 
-- Complete only the approved 4C-2 commit/push closeout, then stop; no subsequent-stage work. Physical-phone/touch, dedicated live subway/transfer samples and real upstream fault acceptance remain separate; the existing limitations and historical evidence below are retained
+- Complete only the approved 5A-1 commit/push closeout, then stop; no 5A-2 work. Physical-phone/touch, dedicated live subway/transfer samples and real upstream fault acceptance remain separate; the existing limitations and historical evidence below are retained
 - Review existing dependency security advisories as a separate, approved maintenance task before deployment
 
+## Milestone 5A-1 Actual Implementation and Acceptance (2026-10-06)
+
+### Baseline, scope and data flow
+
+- Read the applicable root/frontend AGENTS, PROJECT_CONTEXT, this progress file and local Next.js client/form guidance. Worked directly in `/Users/zijing/projects/trippilot` at `cb1a2605af312b9c8dcb319358615691ca56b0be`, not a temporary copy. Preserved all five pre-existing Python caches, including the three already-untracked files; no staging, commit or push
+- Flow: user opens one requirement picker → explicitly submits a Shanghai search through existing `GET /places/search` → previews a candidate → explicitly confirms it into form state → form derives legacy text from confirmed names → `POST /trips/plan` → strict Pydantic request/echo → frontend runtime validation → confirmed requirements shown alongside, not applied to, the existing Mock result
+- Reused the existing `Place` field semantics and search request module, `PlaceSearch`, React/fetch and test frameworks. Added a shared text-only `PlaceDetails` display and one on-demand requirement picker; no requirement map was needed. No dependency, lockfile, environment, key, proxy allowlist, CORS or persistence changes
+- Accommodation is a required **住宿参考点** in the new UI, not a hotel booking. Hotels or real landmarks may represent the general area. Must-visit POIs are optional and support explicit add/replace/remove; duplicate IDs are blocked while same-name/different-ID places remain distinct with their addresses. The same POI can serve both roles
+- The result explicitly says these are confirmed submitted requirements, not scheduled stops or validated Mock time/traffic/cost/weather. The client-provided `source="amap"` is a snapshot label, not proof of independent backend verification; no POI-details lookup was added. Avoid-place and other existing inputs remain recorded requirements, not planning claims
+
+### Contract and state decisions
+
+- `TripRequest.accommodation_place` defaults to `null`; `must_visit_places` defaults to `[]`. Legacy text-only requests still return the original Mock example. The new form derives `accommodation_location` from the confirmed accommodation name and ordered `must_visit` names from the confirmed list; there is no second independently editable text representation
+- Supplied structured places require all existing fields: `id`, `name`, nullable `address`, numeric `latitude`/`longitude`, nullable `category`, and explicit `source="amap"`. `ConfirmedPlace` rejects extra fields, blank IDs/names, string/boolean/non-finite/out-of-range coordinates and invalid sources. It strips outer ID/name whitespace and validates must-visit ID uniqueness and ordered text/name consistency. No price, opening hours or visit duration was invented
+- An explicitly submitted empty must-visit list cannot contradict nonempty legacy text. The response-only `TripRequestEcho` permits the default empty structured list alongside an old text-only request's must-visit text, so legacy echoes remain valid. Nonempty structured places still use the same strict validation. The frontend separately compares all confirmed snapshot fields to the submitted request and enforces text consistency for every new explicit list, including `[]`; malformed, missing or changed echoes cannot be treated as valid confirmed requirements
+- The trips route returns a fixed safe 422 for request validation errors, including non-finite input that must not cause JSON error serialization to crash or reflect raw input. Existing Mock itinerary and budget construction were not changed
+- Confirmed form values are separate from search drafts. Opening a different target or reopening a cancelled picker creates a new session and clears candidates/selection. Parent session identity plus AbortController and child monotonically increasing request version protect both late successes and errors, including accommodation→must-visit→accommodation and overlapping keywords. Confirmation rechecks the active session and duplicate IDs
+- The picker is a sibling of the travel form, not a nested form. Search Enter only searches; it does not generate a trip. An unfinished picker blocks generation with an explicit prompt to confirm or cancel. A valid submission closes/invalidates the picker before hiding the form. Submission failure and returning to edit preserve confirmed values because the existing planner keeps the form mounted; refresh/remount clears them. The result component still unmounts on editing, so 4B bindings and 4C routes cannot carry into a new result
+
+### Automated checks — mocked HTTP/SDK, not live AMap acceptance
+
+| Command | Result |
+| --- | --- |
+| `cd backend && .venv/bin/python -B -m unittest discover -s tests -v` | Passed: **140/140** (119 existing + 21 new tests, including table-driven validation cases) |
+| `cd frontend && npm run test` | Passed: **15 files / 300 tests** (244 existing + 33 request/echo tests + 23 form/picker/lifecycle tests) |
+| `cd frontend && npm run lint` | Passed |
+| `cd frontend && npm run typecheck` | Passed: Next type generation + `tsc --noEmit` |
+| `cd frontend && npm run build -- --webpack` | Passed: optimized production build, TypeScript, static pages and traces; this build was used for the Chrome acceptance below |
+| `git diff --check` | Passed |
+
+- Backend coverage includes old requests/response round-trip, default null/empty fields, strict complete snapshots, missing/invalid source, illegal coordinates and extra fields, duplicate IDs, same-name distinct IDs, shared roles, text consistency, safe validation errors and unchanged Mock activities/costs
+- Frontend coverage includes preview versus confirm, required accommodation, optional/multiple must-visits, ID deduplication, same-name distinct IDs/shared roles, replacement/removal/cancel/reentry, failure/empty-result preservation, stale success and error isolation across sessions/keywords, search Enter, unfinished-session submit prevention, failed submission, echo/runtime validation, edit preservation and remount clearing
+- A full component test also confirms requirements → result → explicit activity bindings → walking query → edit/regenerate, asserting old activity bindings/map lines are cleared and the original Mock plan remains intact. Existing 4A/4B/4C walking/transit/map tests remain passing
+- These tests make no real AMap requests. Backend still emits the existing Starlette/httpx deprecation warning; no backend lint/typecheck script is configured. Used the established Webpack build rather than retrying or claiming to resolve the historical Turbopack restriction. Final documentation-only work does not represent another run of the whole suite
+
+### Actual Chrome acceptance — live searches and route, not mocks
+
+- Used the existing browser-control connection to real Chrome 154 on macOS, without installing tools or project dependencies. Loaded the newly built production frontend at `http://localhost:3000` and current FastAPI at `http://127.0.0.1:8000`. Restarted only the prior agent-owned service processes after verifying ownership; FastAPI startup was clean. Services remain available for review
+- Submitted October 10–11 2026, budget 3000, two travelers. Confirmed accommodation **静安寺** and two must-visits **武康大楼**, **静安寺**. IDs, names, addresses, coordinates, categories and sources were checked from actual search responses through the browser POST body and returned `TripPlan.request`; all fields matched. The accommodation/must-visit shared-POI case was deliberately exercised
+- This acceptance made **7 explicitly triggered real POI searches, 2 plan submissions and 1 walking query**, all successful 200 responses. No transit query or synthetic upstream fault was triggered this round. After the first result, requirements had not automatically bound any Mock activity
+- Screenshot directory: `/private/tmp/trippilot-5a1-evidence.Apu8wI/`. Each of the 11 screenshots below was opened and visually checked. Shared evidence contains page content, not credentials, environment files, HAR or raw SDK network logs. Browser-tool diagnostic artifacts are kept outside the repository and are not shared as acceptance evidence
+
+| Action / check | Result | Actual observation / screenshot |
+| --- | --- | --- |
+| Missing accommodation and search Enter | Passed | Generation without confirmation showed the required-reference prompt and no plan request. Enter in the Shanghai search field made only the real POI search, not a plan submission |
+| Candidate preview is not saved | Passed | Selected 静安寺 showed “尚未保存”; confirmed accommodation remained empty until the explicit confirm click. `01-preview-not-saved.png` |
+| Cancel replacement preserves confirmed value | Passed | Searched/previewed 武康大楼 as replacement, then cancelled; confirmed accommodation remained 静安寺. Reopening a picker had no old candidates. `02-cancel-keeps-lodging.png` |
+| Two must-visits and duplicate prevention | Passed | Confirmed 武康大楼 and 静安寺 separately. Searching/selecting 武康大楼 again displayed the duplicate warning and disabled confirmation; cancellation retained both originals. `03-duplicate-blocked.png` |
+| 400px form and result | Passed, simulated | At **400×820**, document width remained 400px and inspected controls/cards wrapped without horizontal overflow. `04-narrow-confirmed-form.png`, `05-narrow-result-echo.png` |
+| Structured submission and result echo | Passed | Real `POST /trips/plan` 200; search snapshots, submitted IDs/coordinates/names and response matched. Confirmed name/address/source displayed with “not yet used for Mock scheduling” notice. `06-result-echo.png` |
+| Existing activity binding and real walking regression | Passed | Independently confirmed Day 1 外滩漫步 → 武康大楼 and adjacent 午餐与休息 → 静安寺, then explicitly queried. `POST /routes/walking` 200 returned **2691m / 2153s / 5 segments**; UI showed **2.69公里 / 预计36分钟**. Full real AMap roads/labels/attribution, bent blue route and both markers were visible. `07-real-walking-regression.png` |
+| Existing activity ↔ Marker regression | Passed by live observation | Activity 1 “在地图查看” centered its highlighted Marker (rendered center offset 0px/0px); after fit-all, clicking the 静安寺 Marker focused 午餐与休息. Route control remained and no extra route query occurred. Screenshot 07 records the full route context, not every intermediate selection state |
+| Return to edit retains confirmations | Passed | Accommodation 静安寺 and both must-visits remained. `08-edit-keeps-lodging.png`, `09-edit-keeps-must-visit.png` |
+| Regenerate clears old bindings/routes | Passed | Second plan request matched the first confirmed requirements. New result had zero bound markers, no retained route/full-route control and disabled missing-endpoint query buttons; requirements did not auto-bind. `10-regenerated-no-bindings-route.png` |
+| Actual browser refresh clears form confirmations | Passed | Reload returned to an empty form with no confirmed accommodation/must-visits and no result. `11-refresh-clears-confirmations.png` |
+
+- Console inspection before refresh: **0 errors, 2 warnings**; warnings were not claimed resolved. Only local business request paths/statuses and normalized data were inspected for reporting; no sensitive SDK URLs or key values are included
+
+### Limits and handoff
+
+- No observed blocking 5A-1 defect remains in this focused acceptance. Same-name/different-ID variants, search failures/empty responses and adversarial races were verified with controlled tests, not artificially produced against real AMap. They are not live fault acceptance
+- 400px Chrome emulation is not a physical-phone/touch test. Broader devices, dedicated live subway/transfer samples, real upstream faults and the historical Turbopack/environment/dependency caveats remain as documented below; the earlier 4C-2 evidence is preserved, not relabelled as rerun in 5A-1
+- Confirmed Places are client-submitted snapshots, not an independent authenticity guarantee or POI-detail validation. They are only echoed requirements: no scheduling, candidate recommendation pool, automatic transport, budget recalculation, persistence or 5A-2 work
+- Final checks retain the original five cache files byte-for-byte; no real credentials are present in the 16 deliverables, and built frontend assets do not contain the backend Web Service key or JS security code. No environment/configuration or dependency files changed. Nothing staged, committed or pushed
+
+### Actual changed files (16; excludes five preserved pre-existing caches)
+
+- Backend modified: `backend/app/schemas/place.py`, `backend/app/schemas/trip.py`, `backend/app/api/trips.py`
+- Backend test added: `backend/tests/test_trip_places.py`
+- Frontend types/API modified: `frontend/src/types/place.ts`, `frontend/src/types/trip.ts`, `frontend/src/lib/places-api.ts`, `frontend/src/lib/api.ts`
+- Frontend UI modified: `frontend/src/components/trip-request-form.tsx`, `frontend/src/components/trip-plan-result.tsx`
+- Frontend UI added: `frontend/src/components/places/place-details.tsx`, `frontend/src/components/places/requirement-place-picker.tsx`, `frontend/src/components/trip/confirmed-places.tsx`
+- Frontend tests added: `frontend/src/lib/api.test.ts`, `frontend/src/components/trip-request-form.test.tsx`
+- Documentation updated: `docs/PROGRESS.md`
+
 ## Milestone 4C-2 Actual Implementation and Acceptance (2026-10-05, latest)
+
+- Subsequent closeout: committed/pushed as `cb1a2605af312b9c8dcb319358615691ca56b0be` before the explicitly authorized 5A-1 task. The no-commit/push statements below describe the historical implementation/acceptance handoff; its evidence and limitations remain preserved
 
 ### Baseline, scope and data flow
 

@@ -7,6 +7,7 @@ import { activityPlaceKey, type ActivityPlaceBindings } from "@/lib/activity-pla
 import { useWalkingRoute, walkingSegmentKey } from "@/lib/use-walking-route";
 import { useTransitRoute } from "@/lib/use-transit-route";
 import TripOverview from "./trip/trip-overview";
+import ConfirmedPlaces from "./trip/confirmed-places";
 import DayTimeline from "./trip/day-timeline";
 import BudgetSummary from "./trip/budget-summary";
 import WeatherSummary from "./trip/weather-summary";
@@ -153,6 +154,7 @@ export default function TripPlanResult({ plan, onEdit }: { plan: TripPlan; onEdi
         </div>
       </div>
       <TripOverview plan={plan} />
+      <ConfirmedPlaces request={plan.request} />
       <p aria-live="polite" aria-atomic="true" className="mt-3 text-sm leading-6 text-[#315f51]">{bindingMessage}</p>
       <div aria-label="选择行程日期" className="my-7 flex flex-wrap gap-3">
         {plan.days.map((item, index) => <button key={item.day} type="button" aria-pressed={selectedDay === index} onClick={() => switchDay(index)} className={`min-h-12 rounded-xl border px-5 py-3 text-sm font-semibold transition focus-visible:outline-2 focus-visible:outline-offset-2 ${selectedDay === index ? "border-[#18392f] bg-[#18392f] text-white" : "border-[#18201d]/15 bg-white text-[#56605c] hover:border-[#315f51]"}`}>Day {item.day} <span className="ml-2 text-xs font-normal">{item.date.slice(5)}</span></button>)}
