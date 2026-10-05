@@ -4,13 +4,14 @@ import { useEffect, useRef, useState } from "react";
 import { getShanghaiCenter, loadAMap, type AMapSDK } from "@/lib/amap-loader";
 import { hasValidCoordinates, type Place } from "@/types/place";
 import type { WalkingRouteResponse } from "@/types/route";
+import type { TransitRouteResponse } from "@/types/transit";
 
 type MapStatus = { status: "loading" } | { status: "ready" } | { status: "error"; message: string };
 type MarkerEntry = { marker: AMap.Marker; element: HTMLDivElement; onClick: () => void };
 
 export default function PlaceMap({ places, selectedPlaceId, selectionVersion = 0, onSelect,
   fitAllLabel = "查看全部搜索结果", footnote = "编号对应搜索候选地点，不代表行程顺序或路线。",
-  walkingRoute, routeSelectionVersion = 0 }: {
+  walkingRoute, transitRoute, routeSelectionVersion = 0 }: {
   places: Place[];
   selectedPlaceId: string | null;
   selectionVersion?: number;
@@ -18,20 +19,27 @@ export default function PlaceMap({ places, selectedPlaceId, selectionVersion = 0
   fitAllLabel?: string;
   footnote?: string;
   walkingRoute?: WalkingRouteResponse | null;
+  transitRoute?: TransitRouteResponse | null;
   routeSelectionVersion?: number;
 }) {
   const container = useRef<HTMLDivElement>(null);
   const map = useRef<AMap.Map | null>(null);
   const sdk = useRef<AMapSDK | null>(null);
   const markers = useRef(new Map<string, MarkerEntry>());
-  const routeLine = useRef<AMap.Polyline | null>(null);
+  const routeLines = useRef<AMap.Polyline[]>([]);
   const onSelectRef = useRef(onSelect);
   const [mapStatus, setMapStatus] = useState<MapStatus>({ status: "loading" });
   const invalidCount = places.filter((place) => !hasValidCoordinates(place)).length;
-  const route = walkingRoute?.status === "ok" ? walkingRoute.route : null;
+  // Render only one mode, even if a caller accidentally provides both results.
+  const transit = transitRoute?.status === "ok" ? transitRoute.route : null;
+  const route = !transit && walkingRoute?.status === "ok" ? walkingRoute.route : null;
   const validRoute = route && route.segments.length > 0 && route.segments.every((segment) =>
     segment.length >= 2 && segment.every(([longitude, latitude]) => hasValidCoordinates({ longitude, latitude })),
   );
+  const validTransit = transit && transit.legs.every((leg) => leg.geometry.every((segment) =>
+    segment.length >= 2 && segment.every(([longitude, latitude]) => hasValidCoordinates({ longitude, latitude })),
+  ));
+  const hasTransitGeometry = validTransit && transit.legs.some((leg) => leg.geometry.length > 0);
 
   useEffect(() => {
     onSelectRef.current = onSelect;
@@ -72,8 +80,8 @@ export default function PlaceMap({ places, selectedPlaceId, selectionVersion = 0
         marker.setMap(null);
       });
       markerEntries.clear();
-      routeLine.current?.setMap(null);
-      routeLine.current = null;
+      routeLines.current.forEach((line) => line.setMap(null));
+      routeLines.current = [];
       map.current?.destroy();
       map.current = null;
       sdk.current = null;
@@ -124,33 +132,44 @@ export default function PlaceMap({ places, selectedPlaceId, selectionVersion = 0
   }, [selectedPlaceId, selectionVersion, places, mapStatus.status]);
 
   useEffect(() => {
-    if (mapStatus.status !== "ready" || !map.current || !sdk.current || !route || !validRoute) return;
-    // Keep upstream steps separate: never bridge gaps with an invented line.
-    const line = new sdk.current.Polyline({
-      path: route.segments,
-      strokeColor: "#2563eb",
-      strokeWeight: 6,
-      strokeOpacity: 0.9,
-      isOutline: true,
-      outlineColor: "#ffffff",
-      borderWeight: 2,
-      lineJoin: "round",
-      lineCap: "round",
-      zIndex: 50,
+    if (mapStatus.status !== "ready" || !map.current || !sdk.current) return;
+    const parts = transit && validTransit
+      ? transit.legs.filter((leg) => leg.geometry.length > 0).map((leg) => ({
+        path: leg.geometry,
+        color: leg.mode === "walking" ? "#2563eb" : leg.mode === "bus" ? "#7c3aed" : "#db2777",
+        dashed: leg.mode === "walking",
+      }))
+      : route && validRoute ? [{ path: route.segments, color: "#2563eb", dashed: false }] : [];
+    // Each leg and upstream step keeps its boundary. Missing geometry creates no line.
+    const lines = parts.map((part) => {
+      const line = new sdk.current!.Polyline({
+        path: part.path,
+        strokeColor: part.color,
+        strokeStyle: part.dashed ? "dashed" : "solid",
+        strokeWeight: 6,
+        strokeOpacity: 0.9,
+        isOutline: true,
+        outlineColor: "#ffffff",
+        borderWeight: 2,
+        lineJoin: "round",
+        lineCap: "round",
+        zIndex: 50,
+      });
+      line.setMap(map.current);
+      return line;
     });
-    line.setMap(map.current);
-    routeLine.current = line;
+    routeLines.current = lines;
     return () => {
-      line.setMap(null);
-      if (routeLine.current === line) routeLine.current = null;
+      lines.forEach((line) => line.setMap(null));
+      if (routeLines.current === lines) routeLines.current = [];
     };
-  }, [route, validRoute, mapStatus.status]);
+  }, [route, validRoute, transit, validTransit, mapStatus.status]);
 
   useEffect(() => {
-    if (routeLine.current && map.current) {
-      map.current.setFitView([routeLine.current], false, [48, 48, 48, 48], 17);
+    if (routeLines.current.length && map.current) {
+      map.current.setFitView(routeLines.current, false, [48, 48, 48, 48], 17);
     }
-  }, [route, routeSelectionVersion, mapStatus.status]);
+  }, [route, transit, routeSelectionVersion, mapStatus.status]);
 
   function fitAll() {
     if (!map.current || markers.current.size === 0) return;
@@ -158,8 +177,8 @@ export default function PlaceMap({ places, selectedPlaceId, selectionVersion = 0
   }
 
   function fitRoute() {
-    if (map.current && routeLine.current) {
-      map.current.setFitView([routeLine.current], false, [48, 48, 48, 48], 17);
+    if (map.current && routeLines.current.length) {
+      map.current.setFitView(routeLines.current, false, [48, 48, 48, 48], 17);
     }
   }
 
@@ -175,6 +194,18 @@ export default function PlaceMap({ places, selectedPlaceId, selectionVersion = 0
         <button type="button" onClick={fitRoute} disabled={mapStatus.status !== "ready" || !validRoute}
           className="min-h-10 rounded-lg border border-blue-300 bg-white px-3 py-2 text-xs font-medium text-blue-800 focus-visible:outline-2 focus-visible:outline-offset-2 disabled:cursor-not-allowed disabled:opacity-45">查看完整步行路线</button>
       </div>}
+      {transit && <div className="space-y-2 border-b border-[#18201d]/10 bg-blue-50 px-3 py-2">
+        <div aria-label="公交方案地图图例" className="flex flex-wrap gap-x-3 gap-y-1 text-xs">
+          <span className="text-blue-700">蓝色虚线：步行接驳</span>
+          <span className="text-violet-700">紫色实线：公交</span>
+          <span className="text-pink-700">粉色实线：地铁</span>
+        </div>
+        {!transit.geometry_complete && <p role="status" className="text-xs leading-5 text-[#8a4d18]">地图不完整：部分路段没有提供几何，仅展示已知部分；未用直线补齐。</p>}
+        <button type="button" onClick={fitRoute} disabled={mapStatus.status !== "ready" || !hasTransitGeometry}
+          className="min-h-10 rounded-lg border border-blue-300 bg-white px-3 py-2 text-xs font-medium text-blue-800 focus-visible:outline-2 focus-visible:outline-offset-2 disabled:cursor-not-allowed disabled:opacity-45">
+          {transit.geometry_complete ? "查看公交方案全貌" : "查看已知路段"}
+        </button>
+      </div>}
       <div className="relative">
         <div ref={container} aria-label="上海地点地图" className="h-80 w-full sm:h-96" />
         {mapStatus.status !== "ready" && <div className="absolute inset-0 grid place-items-center bg-[#f3f2ec] px-5 text-center text-sm leading-6 text-[#56605c]">
@@ -183,6 +214,7 @@ export default function PlaceMap({ places, selectedPlaceId, selectionVersion = 0
       </div>
       {invalidCount > 0 && <p role="alert" className="border-t border-[#18201d]/10 px-3 py-2 text-xs leading-5 text-[#a63d2d]">{invalidCount} 个地点坐标无效，未在地图上显示。</p>}
       {route && !validRoute && <p role="alert" className="border-t border-[#18201d]/10 px-3 py-2 text-xs text-[#a63d2d]">步行路线坐标无效，未绘制路线。</p>}
+      {transit && !validTransit && <p role="alert" className="border-t border-[#18201d]/10 px-3 py-2 text-xs text-[#a63d2d]">公交方案坐标无效，未绘制路线。</p>}
       <p className="border-t border-[#18201d]/10 px-3 py-2 text-[11px] leading-5 text-[#68726c]">{footnote}</p>
     </div>
   );

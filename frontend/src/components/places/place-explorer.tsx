@@ -4,6 +4,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { searchPlaces } from "@/lib/places-api";
 import type { Place } from "@/types/place";
 import type { WalkingRouteResponse } from "@/types/route";
+import type { TransitRouteResponse } from "@/types/transit";
 import PlaceMap from "./place-map";
 import PlaceSearch from "./place-search";
 
@@ -40,12 +41,13 @@ function emptySession(context: string): SearchSession {
   return { context, places: emptyPlaces, selectedPlaceId: null, selectionVersion: 0, state: { status: "idle" } };
 }
 
-export default function PlaceExplorer({ bindingTarget, itinerary, view = "search", onViewChange, walkingRoute, routeSelectionVersion }: {
+export default function PlaceExplorer({ bindingTarget, itinerary, view = "search", onViewChange, walkingRoute, transitRoute, routeSelectionVersion }: {
   bindingTarget?: PlaceBindingTarget;
   itinerary?: ItineraryPlaces;
   view?: "search" | "itinerary";
   onViewChange?: (view: "search" | "itinerary") => void;
   walkingRoute?: WalkingRouteResponse | null;
+  transitRoute?: TransitRouteResponse | null;
   routeSelectionVersion?: number;
 }) {
   const context = bindingTarget?.key ?? "browse";
@@ -97,7 +99,7 @@ export default function PlaceExplorer({ bindingTarget, itinerary, view = "search
           <span className="rounded-full bg-[#edf3ef] px-2.5 py-1 text-xs text-[#315f51]">高德真实 POI</span>
         </div>
         <p className="mt-2 text-xs leading-5 text-[#68726c]">搜索并查看候选地点。为活动选择地点后，点击“确认绑定”确认；只选中卡片或标记不会自动绑定。</p>
-        {itinerary && <p className="mt-1 text-[11px] leading-5 text-[#68726c]">绑定仅保留在本次结果页；修改需求或刷新后清除。步行路线仅作参考，切换日期或更换端点后需重新查询。</p>}
+        {itinerary && <p className="mt-1 text-[11px] leading-5 text-[#68726c]">绑定仅保留在本次结果页；修改需求或刷新后清除。真实交通仅作参考，切换方式、日期或更换端点后需重新查询。</p>}
       </div>
       <div className="space-y-4 p-5 sm:p-6">
         {itinerary && <div className="flex flex-wrap gap-2" aria-label="选择地图内容">
@@ -118,9 +120,10 @@ export default function PlaceExplorer({ bindingTarget, itinerary, view = "search
           selectionVersion={showingItinerary ? itinerary.selectionVersion : selectionVersion}
           onSelect={showingItinerary ? itinerary.onSelect : selectPlace}
           walkingRoute={showingItinerary ? walkingRoute : null}
+          transitRoute={showingItinerary ? transitRoute : null}
           routeSelectionVersion={routeSelectionVersion}
           fitAllLabel={showingItinerary ? "查看当天全部地点" : "查看全部搜索结果"}
-          footnote={showingItinerary ? "编号对应当天已绑定地点；步行折线仅在主动查询成功后显示，不代表 Mock 交通已验证。" : undefined} />
+          footnote={showingItinerary ? "编号对应当天已绑定地点；真实路线仅在主动查询成功后显示，不代表 Mock 交通已验证。" : undefined} />
         {showingItinerary ? <p aria-live="polite" className="text-xs leading-5 text-[#56605c]">
           {itinerary.activityCount ? `当天 ${itinerary.activityCount} 个活动已绑定，共 ${itinerary.places.length} 个地图地点。点击活动的“在地图查看”或地图标记联动。` : "当天尚未绑定地点，请在活动卡片上点击“绑定地点”。"}
         </p> : <>

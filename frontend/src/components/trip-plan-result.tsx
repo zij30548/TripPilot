@@ -5,6 +5,7 @@ import type { TripPlan } from "@/types/trip";
 import type { Place } from "@/types/place";
 import { activityPlaceKey, type ActivityPlaceBindings } from "@/lib/activity-places";
 import { useWalkingRoute, walkingSegmentKey } from "@/lib/use-walking-route";
+import { useTransitRoute } from "@/lib/use-transit-route";
 import TripOverview from "./trip/trip-overview";
 import DayTimeline from "./trip/day-timeline";
 import BudgetSummary from "./trip/budget-summary";
@@ -21,7 +22,9 @@ export default function TripPlanResult({ plan, onEdit }: { plan: TripPlan; onEdi
   const [selectionVersion, setSelectionVersion] = useState(0);
   const [bindingMessage, setBindingMessage] = useState("");
   const [routeSelectionVersion, setRouteSelectionVersion] = useState(0);
+  const [routeMode, setRouteMode] = useState<"walking" | "transit">("walking");
   const walking = useWalkingRoute();
+  const transit = useTransitRoute();
   const result = useRef<HTMLDivElement>(null);
   const explorer = useRef<HTMLDivElement>(null);
   const activityCards = useRef(new Map<string, HTMLElement>());
@@ -53,6 +56,7 @@ export default function TripPlanResult({ plan, onEdit }: { plan: TripPlan; onEdi
     if (!target || !bindingTargetKey) return;
     // Invalidate before state updates; a late response cannot revive replaced endpoints.
     walking.invalidateActivity(bindingTargetKey);
+    transit.invalidateActivity(bindingTargetKey);
     // Binding is a local user decision; the backend Mock TripPlan stays immutable.
     setBindings((current) => ({ ...current, [bindingTargetKey]: { ...place } }));
     setSelectedActivityKey(bindingTargetKey);
@@ -72,6 +76,7 @@ export default function TripPlanResult({ plan, onEdit }: { plan: TripPlan; onEdi
 
   function removePlace(key: string) {
     walking.invalidateActivity(key);
+    transit.invalidateActivity(key);
     setBindings((current) => {
       const next = { ...current };
       delete next[key];
@@ -97,25 +102,36 @@ export default function TripPlanResult({ plan, onEdit }: { plan: TripPlan; onEdi
   function switchDay(index: number) {
     if (index === selectedDay) return;
     walking.invalidate();
+    transit.invalidate();
     setSelectedDay(index);
     setSelectedActivityKey(null);
     setBindingTargetKey(null);
     setBindingMessage("");
   }
 
-  function queryWalking(fromKey: string, toKey: string) {
+  function switchRouteMode(mode: "walking" | "transit") {
+    if (mode === routeMode) return;
+    // Invalidate both generations synchronously, before changing the visible mode.
+    // Walking → transit → walking cannot re-enable an earlier response or error.
+    walking.invalidate();
+    transit.invalidate();
+    setRouteMode(mode);
+  }
+
+  function queryRoute(fromKey: string, toKey: string) {
     const index = day.activities.findIndex((activity) => activityPlaceKey(day, activity) === fromKey);
     const next = day.activities[index + 1];
     if (index < 0 || !next || activityPlaceKey(day, next) !== toKey || !bindings[fromKey] || !bindings[toKey]) return;
     setMapView("itinerary");
     setRouteSelectionVersion((version) => version + 1);
     // Only this click chooses the map view. A late response never steals a newer search view.
-    void walking.query({ key: walkingSegmentKey(fromKey, toKey), fromActivityKey: fromKey, toActivityKey: toKey,
+    const query = routeMode === "walking" ? walking.query : transit.query;
+    void query({ key: walkingSegmentKey(fromKey, toKey), fromActivityKey: fromKey, toActivityKey: toKey,
       origin: { ...bindings[fromKey] }, destination: { ...bindings[toKey] } });
   }
 
-  function showWalkingRoute() {
-    if (walking.state.status !== "success") return;
+  function showRoute() {
+    if ((routeMode === "walking" ? walking.state : transit.state).status !== "success") return;
     setMapView("itinerary");
     setRouteSelectionVersion((version) => version + 1);
     explorer.current?.scrollIntoView({ block: "start", behavior: "smooth" });
@@ -123,6 +139,7 @@ export default function TripPlanResult({ plan, onEdit }: { plan: TripPlan; onEdi
 
   function editRequest() {
     walking.invalidate();
+    transit.invalidate();
     onEdit();
   }
 
@@ -143,7 +160,9 @@ export default function TripPlanResult({ plan, onEdit }: { plan: TripPlan; onEdi
       <div className="grid items-start gap-7 lg:grid-cols-[minmax(0,1.6fr)_minmax(0,1fr)]">
         <div aria-live="polite"><DayTimeline day={day} bindings={bindings} selectedActivityKey={selectedActivityKey}
           bindingTargetKey={bindingTargetKey} onChoosePlace={choosePlace} onShowPlace={showPlace} onRemovePlace={removePlace}
-          walkingRouteState={walking.state} onQueryWalkingRoute={queryWalking} onShowWalkingRoute={showWalkingRoute}
+          walkingRouteState={walking.state} onQueryWalkingRoute={queryRoute} onShowWalkingRoute={showRoute}
+          routeMode={routeMode} onRouteModeChange={switchRouteMode} transitRouteState={transit.state}
+          onQueryTransitRoute={queryRoute} onShowTransitRoute={showRoute}
           activityRef={(key) => (element) => {
             if (element) activityCards.current.set(key, element);
             else activityCards.current.delete(key);
@@ -153,7 +172,8 @@ export default function TripPlanResult({ plan, onEdit }: { plan: TripPlan; onEdi
           <WeatherSummary weather={day.weather} />
           <div ref={explorer} className="scroll-mt-6">
             <PlaceExplorer key={day.date} view={mapView} onViewChange={setMapView}
-              walkingRoute={walking.state.status === "success" ? walking.state.response : null}
+              walkingRoute={routeMode === "walking" && walking.state.status === "success" ? walking.state.response : null}
+              transitRoute={routeMode === "transit" && transit.state.status === "success" ? transit.state.response : null}
               routeSelectionVersion={routeSelectionVersion}
               bindingTarget={target && bindingTargetKey ? {
                 key: JSON.stringify([bindingTargetKey, bindingSessionVersion]),

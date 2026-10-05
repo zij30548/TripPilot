@@ -24,11 +24,12 @@
 - Frontend offline component/API/SDK tests and backend proxy security regression tests
 - Milestone 4B: explicitly confirmed activity-to-real-POI bindings, replacement/unbinding, per-day bound maps, activity ↔ marker selection, POI deduplication and result-local lifecycle protection
 - Milestone 4C-1: explicitly requested real walking routes between originally adjacent, confirmed bound activities; normalized backend route data, estimated distance/time, one selected map polyline and stale-request isolation
+- Milestone 4C-2: explicitly requested Shanghai bus/subway reference schemes, normalized ordered access-walking/ride steps, nullable fare, segmented real map geometry and cross-mode stale-request isolation
 
 ## Current
 
-- Milestone 4B is the committed baseline `0eeba167766216ffbaecfa4610c83539ae36577d` (`feat: complete Milestone 4B activity-to-POI binding`), committed/pushed before this authorized 4C-1 task. Its acceptance record remains below
-- Milestone 4C-1 implemented and focused real Chrome acceptance passed in the actual project (2026-10-05). Frontend 164 tests, backend 78 tests, lint, typecheck and webpack production build passed. Default Turbopack's historical environment restriction remains documented, not retried this round; physical-phone/touch acceptance remains separate
+- Milestone 4B was committed/pushed as `0eeba167766216ffbaecfa4610c83539ae36577d`; 4C-1 was subsequently committed/pushed as `84f0eb17f618a13b01e5e16f4b906c32ac1c5e9b` (`feat: add real walking routes between bound activities`). Both acceptance records remain below
+- Milestone 4C-2 implementation and supplemental browser acceptance reviewed and approved for closeout (2026-10-06). Core real Chrome query/map/mode/endpoint/day/narrow-screen acceptance passed in the actual project (2026-10-05), based on committed 4C-1. Focused activity→Marker centering/highlight recheck passed on 2026-10-06 with complete-map screenshots, retained transit geometry/results and no additional route request (details below). Frontend 244 tests, backend 119 tests, lint, typecheck and webpack production build passed during implementation; neither the documentation-only recheck nor this commit/push closeout reruns that suite. User authorized only the 16 listed deliverables for normal main → origin/main commit/push, excluding the five existing Python caches. No business code changes during closeout. Earlier no-commit/push statements below describe historical implementation/acceptance handoffs. Default Turbopack's historical environment restriction remains documented, not retried; physical-phone/touch acceptance remains separate
 - GET /places/search accepts keyword + city and maps them to AMap v5 keywords + region with city_limit=true, page 1 and page size 20
 - Place returns id, name, nullable address/category, validated latitude/longitude, and source="amap"; invalid POIs are skipped without fabricating coordinates
 - Missing key returns 503, upstream timeout 504, other upstream failures or malformed payloads 502, invalid query parameters 422, and empty valid results 200 with []
@@ -36,23 +37,127 @@
 - Valid 1-3 day requests use a fixed two-day activity template; dates are aligned to the requested start date and the validated request is echoed for the overview
 - A notice explains when the requested duration differs from the two-day example; the fixture is not optimized for people, budget, preferences or daily time constraints
 - Activity and transport costs reconcile to a fictional CNY 460 total for all travelers (transport 40, food 240, tickets 100, other 80); remaining or exceeded budget is derived from the submitted budget
-- Weather, original transport, costs and activity times remain clearly marked Mock. Map numbers identify search candidates or deduplicated daily bound POIs. A separate blue walking polyline appears only after a successful explicit real query, and only in the daily bound view. Real walking estimates do not validate or overwrite Mock information. Replanning remains disabled
+- Weather, original transport, costs and activity times remain clearly marked Mock. Map numbers identify search candidates or deduplicated daily bound POIs. One selected walking/transit scheme appears only after a successful explicit real query, and only in the daily bound view. Real estimates do not validate or overwrite Mock information. Replanning remains disabled
 - Search is explicitly submitted, fixed to Shanghai, and uses GET /places/search. Candidate/marker selection only previews; activity binding requires a separate “确认绑定”. Each new binding session clears candidates/selection, and abort/request ID/context checks prevent stale requests from affecting a different activity/day/result
 - Bindings are keyed by day number + date + activity ID, retained across day switches, and removed on editing/regenerating or refreshing. Multiple activities may share one POI marker; unbinding one activity preserves the others. No localStorage, database or server persistence is used
 - SDK loading is shared and browser-only. Shanghai's center is obtained via DistrictSearch before map construction; no hardcoded POI coordinates, IP/GPS initialization or geolocation plugin is used
 - Map creation is independent of candidate updates; search cancellation/request IDs prevent stale results, and unmount cleans listeners, markers, map and late async results
 - Only GET /_AMapService/v3/config/district is proxied to https://restapi.amap.com/v3/config/district, limited to Shanghai/province/subdistrict=0/extensions=base/page=1. No catch-all proxy, custom-style endpoint, POI bypass, routing, weather or IP endpoint is allowed
 - serviceHost is set before SDK loading. Every supplied JS Key must match backend configuration; jscode is appended only by the backend. Identical, individually validated key/s copies from the real SDK are folded; other duplicate/unknown parameters are rejected. Known SDK diagnostic fields are validated and stripped. Client security-code overrides, unsafe paths/callbacks, redirects and sensitive upstream responses are still rejected; TLS verification and the existing explicit CORS origins are retained
-- 4C-1 adds only an independent walking endpoint and result-local route reference. No transit/driving, scheduling, real weather, LLM/Agent, database, global state manager, Browser Agent or Playwright was added; backend SDK proxy restrictions and credentials remain unchanged
+- 4C-1 added an independent walking endpoint; 4C-2 adds an independent Shanghai transit endpoint and result-local mode selection. No driving, scheduling, real weather, LLM/Agent, database, global state manager, Browser Agent or Playwright was added; backend SDK proxy restrictions and credentials remain unchanged
 - POST /routes/walking accepts origin/destination POI IDs and finite longitude/latitude, uses the fixed AMap walking upstream and returns source, UTC query time, status and normalized meters/seconds/coordinate segments. Only the first upstream proposal is validated and used; an invalid first proposal fails safely. No straight-line or Mock fallback exists
 - Walking queries follow original activity adjacency, not a filtered list of bound activities. Missing endpoints and same-place pairs do not trigger a route request. Replacement/removal of an endpoint, day switch, edit/regeneration and unmount invalidate route state and pending requests; day bindings themselves remain preserved
+- POST /routes/transit reuses validated endpoint coordinates, fixes both cities to Shanghai and calls only AMap v3 transit/integrated. It selects the first complete supported valid proposal, and one valid supported alternative per ride; it does not claim the fastest/optimal route. Mode switches invalidate both modes without automatically querying. Trip dates/Mock activity times are not sent as real departure times
 
 ## Next
 
-- 4C-1 review accepted; normal commit/push of the 18 listed deliverables is authorized for closeout. Stop afterward; 4C-2 is not authorized. Physical-phone/touch acceptance remains available for manual review
+- Complete only the approved 4C-2 commit/push closeout, then stop; no subsequent-stage work. Physical-phone/touch, dedicated live subway/transfer samples and real upstream fault acceptance remain separate; the existing limitations and historical evidence below are retained
 - Review existing dependency security advisories as a separate, approved maintenance task before deployment
 
-## Milestone 4C-1 Actual Implementation and Acceptance (2026-10-05, latest)
+## Milestone 4C-2 Actual Implementation and Acceptance (2026-10-05, latest)
+
+### Baseline, scope and data flow
+
+- Read root/frontend AGENTS, PROJECT_CONTEXT, this document and applicable local Next.js instructions; checked the actual worktree against `84f0eb1`. Preserved the five pre-existing Python cache changes, without staging or committing any file
+- Reused the existing Web Service key/configuration, HTTPX client/timeout and safe errors, strict route endpoints, 4A real POI search, 4B confirmed/day-scoped bindings, 4C-1 walking API and existing AMap instance/markers. No dependency, environment/configuration, lockfile, CORS or SDK proxy allowlist changes
+- Data flow: original adjacent activities → explicitly confirmed Place bindings → user selects a mode and clicks query → `POST /routes/transit` → fixed `https://restapi.amap.com/v3/direction/transit/integrated` → normalized Pydantic response → frontend runtime validation → ordered steps and existing map overlays. No automatic routing when switching mode, no skipping unbound middle activities
+- Request: `{ origin: { place_id, longitude, latitude }, destination: { place_id, longitude, latitude } }`, reusing the strict walking endpoint validator. Extra city/key/upstream URL fields are rejected; Shanghai is fixed on the server. Same POI/equal normalized coordinates avoid an upstream call
+- Checked the [official directions documentation](https://lbs.amap.com/api/webservice/guide/api/direction). Use v3 default query conditions with `extensions=all`; do not send a Mock departure time, trip date or optimization strategy. UI explicitly says operating schedules for the travel date have not been verified
+- Response: `{ status: "ok" | "no_route" | "unsupported" | "same_place", source: "amap", queried_at, selection_rule: "first_supported_complete", route }`. A successful route contains `duration_seconds`, `walking_distance_meters`, nullable `fare_cny`, `geometry_complete`, and ordered `legs`. Each leg has walking/bus/subway mode, nullable distance/duration, instruction, ride line and departure/arrival stop names, separate real geometry parts and completeness flag
+
+### Selection, validation and implementation choices
+
+- Iterate proposals in upstream order and select the first complete, supported, valid proposal. Never combine pieces from different proposals or claim the fastest/optimal scheme. Inside one ride segment, `buslines` are alternatives: take the first valid supported line with its own stops/geometry, not every line as a transfer
+- City buses and subway types are explicitly supported. Required taxi, long-distance railway, unknown nonempty segment or unsupported ride type rejects the entire candidate. A walking-only result is not a transit scheme. Empty proposal list returns `no_route`; only unsupported candidates return `unsupported`; malformed available candidates with no valid fallback return a safe data error
+- Real integration found that AMap emits `railway: { via_stops: [], alters: [], spaces: [] }` even in ordinary metro/bus segments. Added a narrowly validated empty-placeholder exception plus regression tests. Actual railway information, unknown fields and malformed nested placeholders remain rejected; no general recursive relaxation
+- Use only proposal `duration` as total seconds and `walking_distance` as total access walking meters. Do not sum access time into the total again or label top-level `route.distance` as transit mileage. Fare missing is `null`/“未知”, never zero; invalid/non-finite/negative values fail. No per-person multiplication or Mock budget mutation. Nullable/zero optional leg metrics are allowed; the walking-only 100km limit is not reused
+- Supplied geometry must contain bounded finite `[longitude, latitude]` points and be drawable. Missing geometry is allowed for an otherwise complete textual scheme but marks the leg/route incomplete. Each leg with known geometry gets an overlay preserving separate geometry parts; gaps are never bridged. Unknown/degenerate supplied geometry is conservatively rejected rather than invented
+- Missing configuration 503, timeout 504, other upstream/business/data error 502, invalid input 422. Fixed upstream, TLS and redirects restrictions remain. At most two attempts, only retrying connection failure/connection timeout, not read timeout/business/data errors. Error bodies/logs do not reflect raw upstream errors or credential-bearing URLs
+- Mode isolation: `trip-plan-result.tsx` synchronously invalidates **both** hooks before mode/day/edit changes and affected endpoint commits. `use-transit-route.ts` uses an AbortController plus monotonically increasing request version; both success and catch paths check version/signal. Separate mode hooks plus invalidation prevent walking→transit→walking and endpoint A→B→A old successes/errors from reappearing. Unmount aborts; a late response cannot steal a newer candidate-search view
+- Map uses the existing instance and independent polylines: access walking blue dashed, bus purple solid, subway pink solid. One selected scheme only; switch/replace/hide/unmount removes old overlays. Route fit uses all known parts, marker fit is separate. Partial maps have a warning and “查看已知路段”, not a full-route claim
+
+### Automated checks — offline Mock HTTP/SDK
+
+| Command | Result |
+| --- | --- |
+| `cd backend && .venv/bin/python -B -m unittest discover -s tests -v` | Passed: **119/119** (78 existing + 41 new, including the real empty-railway shape regression) |
+| `cd frontend && npm run test` | Passed: **13 files / 244 tests** (164 existing + 80 new: 48 API, 26 interaction, 6 map) |
+| `cd frontend && npm run lint` | Passed |
+| `cd frontend && npm run typecheck` | Passed: Next type generation + `tsc --noEmit` |
+| `cd frontend && npm run build -- --webpack` | Passed: optimized production compilation, TypeScript, static generation and build traces; used this build in Chrome |
+| `git diff --check` | Passed |
+
+- Backend tests cover access walks, transfers, alternative-line consistency, candidate fallback, missing fare, malformed metrics/geometry, empty/unsupported plans, actual empty railway placeholders, same endpoints, safe validation/errors/key reflection, timeout and bounded retry. Existing 4A/4B/4C-1 coverage retained
+- Frontend tests cover explicit query/no automatic mode request, missing/same endpoints, original adjacency, steps/units/unknown fare/no double counting or multiplying by travelers, Mock immutability, segmented map geometry/style/cleanup, Marker regression and candidate separation. Old successes **and errors** are tested across mode ABA, endpoint ABA, day switch and edit/regeneration; unmount explicitly covers abort/late-success cleanup
+- These tests consume no real AMap quota. Live fault/empty/unsupported/missing-geometry and adversarial timing were not manufactured in Chrome. Existing backend Starlette/httpx deprecation warning remains; no separate backend lint/typecheck command is configured
+- Used the requested known-good Webpack path, including network permission for the pre-existing Google Fonts setup. Historical Turbopack internal-port restriction is retained, not retried or claimed fixed
+
+### Real HTTP and actual Chrome acceptance — not Mock tests
+
+- Restarted only previous agent-owned frontend/backend sessions, using FastAPI at `http://127.0.0.1:8000` and the Webpack production frontend at `http://localhost:3000`. FastAPI started cleanly. No user-owned process was stopped, no new browser tooling/configuration installed
+- The native Chrome connection initially produced gray screenshots/unresponsive date controls. After the user confirmed visibility and the window became responsive, actual form, search, binding, query, map and narrow-screen interactions were completed. No gray screenshot or code/API-only check is counted as browser acceptance
+- Independent real HTTP: `/places/search` for 静安寺 and 东方明珠 returned 200; selected coordinates came from these real results. Initial transit response exposed the empty-railway compatibility issue above. After the targeted fix/retest/restart, `/routes/transit` returned 200/`ok`, a walking→01路→walking scheme; no Mock or hardcoded fixture was substituted
+- Actual Chrome: submitted October 10–11 2026, budget 3000, two travelers, accommodation 静安寺附近, balanced pace. Explicitly searched/selected/confirmed adjacent Day 1 activity 1 → 静安寺（南京西路1686号）, activity 2 → 东方明珠广播电视塔. User-selected real POIs are independent of the original Mock activity names
+- Inspected Chrome Network on the explicit first transit query: `POST /routes/transit` **200**, preflight **200**; normalized `duration_seconds=4331`, `walking_distance_meters=2144`, `fare_cny=2`, `geometry_complete=true`, source/query time and `first_supported_complete`. UI correctly displayed **预计73分钟、接驳步行2.14公里、参考票价¥2.00**. The scheme used **01路（上海西站--蓝村路南泉路）**, boarding **延安西路华山路**, alighting **世纪大道浦东南路**. Later queries can differ slightly in upstream duration
+- Screenshots are local-only in `/private/tmp/trippilot-4c2-evidence.UGQFZM/`; page screenshots and Network filtered to `/routes/transit`, no HAR/raw network log or environment/credential values saved to the repo
+
+| Test | Result | Actual observation / evidence |
+| --- | --- | --- |
+| Form, real searches and explicit confirmed bindings | Passed | Actual form reached Mock result; 静安寺 and 东方明珠 returned real names/addresses/markers; no default automatic binding |
+| Mode switch does not query | Passed | Walking→transit showed idle query button without scheme; transit→walking→transit cleared old values/legend, requiring new explicit clicks. `05-mode-clears-transit.png` |
+| Real transit values, ride and stops | Passed | 200 response matched 73min / 2.14km / ¥2 and the 01路 stations, with ordered access/ride/egress steps. `01-real-network.png`, `02-transit-steps.png` |
+| Real segmented map and route-fit | Passed | Visible AMap roads/labels/attribution, purple ride and blue dashed walks, both real endpoint markers; “查看公交方案全貌” restored full scheme viewport. `03-transit-map-full.png` |
+| Marker ↔ activity while route visible | Passed; reverse direction rechecked 2026-10-06 | Earlier marker 1 click visibly focused/highlighted 外滩漫步. The earlier `04-activity-marker-link.png` remains insufficient evidence of reverse centering. The focused recheck below clicked each activity's “在地图查看”, waited for animation, and captured its centered/highlighted Marker plus restored full-route views; previous selection returned to normal and no route request was added |
+| Walking regression | Passed | Explicit walking query after mode switch produced **8.67km / 预计116min** with blue walking geometry and full-route control. `06-walking-regression.png` |
+| Day isolation | Passed | Day 2 removed scheme/markers and showed missing endpoints; return to Day 1 retained both bindings without restoring old route. `09-day-switch-clears.png` |
+| Replace, cancel/reenter, candidate separation | Passed | Replacing activity 2 hid itinerary route from candidate view. Cancel kept original binding; reenter reset keyword/candidates/selection and disabled confirmation. Explicitly searched 东方明珠 again, selected 旅游码头 and confirmed |
+| Endpoint replacement cleanup/requery | Passed | Confirming 东方明珠旅游码头 immediately cleared old total/steps/line. New explicit query returned **预计72min / 2.11km / ¥2** for the changed endpoint. `10-endpoint-change-clears.png` captures cleared state |
+| Unbind cleanup | Passed | Unbound activity 2 after the new successful query: both adjacent controls disabled/missing-endpoint, old route removed, only activity 1 marker retained. `11-unbind-clears.png` |
+| Edit/regenerate | Passed | Form retained original request; resubmission created an unbound result, default walking mode, no prior scheme or candidates |
+| Narrow layout | Passed, simulated | Chrome responsive **400×748**: controls/steps/long instructions wrap; map, legend and fit control usable without observed horizontal clipping. `07-narrow-steps.png`, `08-narrow-map.png`. Not a physical phone test |
+| Mock remains separate | Passed | Activity time/transport/cost/weather still labelled Mock; estimated total ¥460, transport ¥40, remaining ¥2540 unchanged |
+
+- Console inspected: two AMap Canvas2D `willReadFrequently` performance warnings, no observed application exception at that point; DevTools showed an additional Issue, not diagnosed/claimed fixed. This is not a guarantee of an entirely clean browser log or external network reliability
+
+### Focused activity → Marker recheck (2026-10-06, Asia/Shanghai)
+
+- Scope: only the previously incomplete reverse-link visual evidence. Reused the running frontend on `localhost:3000` and backend on `127.0.0.1:8000`; no restart or service termination. The browser-loaded `page-b4ff3e980b973224.js` matched the current local Webpack build byte-for-byte; that build postdates the current frontend source changes
+- Native computer control could not connect (`native pipe startup failed`). Used the already available browser-control tool connected to real Chrome 154 instead; no new tool installation, project dependency, application mock, or browser configuration change. The screenshot helper initially timed out; bringing the page to the foreground and allowing a longer capture timeout produced the verified screenshots below. Failed captures are not counted as evidence
+- Submitted a fresh two-day result, explicitly searched and confirmed Day 1 外滩漫步 → 静安寺（南京西路1686号）and the originally adjacent 午餐与休息 → 东方明珠广播电视塔（世纪大道1号）. Both real `GET /places/search` calls returned 200. Switched to transit, then explicitly queried once: `POST /routes/transit` returned 200. This later live response displayed **预计124分钟 / 接驳步行1.28公里 / 参考票价¥6.00**, with blue dashed walking and purple bus segments; values were not substituted from the earlier 01路 sample
+- Evidence directory: `/private/tmp/trippilot-4c2-marker-review.uKBu9i/`. Each PNG was opened and visually checked: the full 454×384 map canvas, target Marker, map attribution and route controls are visible within the 1440×1100 page screenshot. No credentials or raw network logs are included in the shared evidence
+
+| Action / check | Result | Actual observation / screenshot |
+| --- | --- | --- |
+| Explicit transit query, then full scheme view | Passed | Real roads/labels, blue walking and purple bus geometry plus both endpoint markers visible. `01-transit-full-before.png` |
+| Click 外滩漫步 → “在地图查看” | Passed | Waited 3 seconds; 静安寺 Marker **1** centered and red/orange at 1.2× scale. Rendered DOM center offset rounded to **0px / 0px**; Marker 2 returned to green/1×. `02-activity-1-centered.png` shows the complete map and centered target; `03-activity-1-full-route.png` shows both markers, with only 1 highlighted, and retained full geometry |
+| Click 午餐与休息 → “在地图查看” | Passed | Waited 3 seconds; 东方明珠 Marker **2** centered and red/orange at 1.2× scale, center offset **0px / 0px**; Marker 1 returned to green/1×. `04-activity-2-centered.png` shows the complete map, centered target and local walking/bus geometry |
+| Click “查看公交方案全貌” after the second activity action | Passed | Waited 3 seconds; all scheme geometry and both endpoints visible again, Marker 2 highlighted and Marker 1 normal. `05-activity-2-full-route.png` |
+| Retained result / no implicit requery | Passed | The same 124min / 1.28km / ¥6 result and steps remained throughout. Browser Network filtered to `/routes/(transit\|walking)` showed exactly **one POST /routes/transit → 200** after the query, after each activity click and after the final fit operation; zero walking requests |
+
+- Console error-level check returned **0 errors**; one warning remained, not claimed resolved. No application defect observed in this focused check. Only `docs/PROGRESS.md` changed this round; no dependency/source/test changes, no repeat of the full automated suite. `git diff --check` passed; the five original Python cache files remain unchanged. No commit/push
+- The later response included several bus rides, but this round checked activity/Marker selection and geometry retention only. It does not constitute a separate subway/transfer-sample acceptance campaign or real-fault test; the limitations below remain
+
+### Limits and handoff
+
+- Focused real **bus** scheme acceptance passed. Live subway, multi-transfer, missing-fare and partial-geometry variants were not separately forced; their parsing/rendering is covered by controlled automated tests, not claimed live samples. No guarantee of fastest route, future-date operations, realtime arrivals or real ticket pricing
+- The formerly pending activity→Marker evidence is closed by the 2026-10-06 focused recheck above. The earlier final recapture interrupted by Chrome window changes and its incomplete search/rebinding attempt remain historical control interruptions, not successful acceptance or evidence of an application failure
+- Physical phone/touch, broader browser/device matrix and real upstream fault behavior remain pending/separate. Historical network intermittency, Turbopack restriction, font download requirement, dependency advisories and backend environment warning remain below
+- Deliberately no persistent route cache/history, automatic routing, multi-scheme comparison, scheduling, budget rewrite, LLM or other stage. Public transit uses its own contract/hook without replacing the accepted walking implementation or introducing a new architecture dependency
+- Final exact-value secret check: all 16 deliverables contain none of the three locally configured AMap credentials; 31 frontend static assets contain neither the backend Web Service key nor the JS security code. Values were not printed. SHA-256 hashes of all five pre-existing Python caches are unchanged; staging remains empty
+- Services remain running for review at the above local addresses. No commit/push; stop at 4C-2
+
+### Actual changed files (16; excludes five preserved pre-existing caches)
+
+- Backend added: `backend/app/schemas/transit.py`, `backend/app/integrations/amap_transit.py`, `backend/tests/test_transit.py`
+- Backend modified: `backend/app/api/routes.py`
+- Frontend added: `frontend/src/types/transit.ts`, `frontend/src/lib/transit-api.ts`, `frontend/src/lib/use-transit-route.ts`, `frontend/src/components/trip/transit-route-segment.tsx`
+- Frontend modified: `frontend/src/components/trip-plan-result.tsx`, `frontend/src/components/trip/day-timeline.tsx`, `frontend/src/components/places/place-explorer.tsx`, `frontend/src/components/places/place-map.tsx`
+- Frontend tests added: `frontend/src/lib/transit-api.test.ts`, `frontend/src/components/trip/transit-route.test.tsx`, `frontend/src/components/places/place-map-transit.test.tsx`
+- Documentation updated: `docs/PROGRESS.md`
+
+## Milestone 4C-1 Actual Implementation and Acceptance (2026-10-05)
+
+- Subsequent closeout: committed/pushed as `84f0eb17f618a13b01e5e16f4b906c32ac1c5e9b` before the explicitly authorized 4C-2 task. Implementation-time no-commit/next-stage statements below are historical; previous acceptance limitations remain applicable
 
 ### Baseline, scope and data contract
 
