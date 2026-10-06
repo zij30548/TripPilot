@@ -26,12 +26,14 @@
 - Milestone 4C-1: explicitly requested real walking routes between originally adjacent, confirmed bound activities; normalized backend route data, estimated distance/time, one selected map polyline and stale-request isolation
 - Milestone 4C-2: explicitly requested Shanghai bus/subway reference schemes, normalized ordered access-walking/ride steps, nullable fare, segmented real map geometry and cross-mode stale-request isolation
 - Milestone 5A-1: explicitly confirmed accommodation reference and optional must-visit POIs, strict backward-compatible request/echo validation, isolated search drafts and confirmed requirements displayed separately from the Mock plan
+- Milestone 5A-2: explicitly requested Shanghai interest-based candidate preparation, bounded backend aggregation, must-visit snapshot preservation, deterministic optional selection and result-local exclusion/restoration
 
 ## Current
 
 - Milestone 4B was committed/pushed as `0eeba167766216ffbaecfa4610c83539ae36577d`; 4C-1 was subsequently committed/pushed as `84f0eb17f618a13b01e5e16f4b906c32ac1c5e9b` (`feat: add real walking routes between bound activities`). Both acceptance records remain below
 - Milestone 4C-2 was reviewed, committed and pushed as `cb1a2605af312b9c8dcb319358615691ca56b0be` (`feat: add real transit routes between bound activities`). Its implementation, supplemental activity→Marker acceptance and historical limitations remain below. This is the verified starting HEAD for 5A-1; the five pre-existing Python cache changes remain excluded from this work
-- Milestone 5A-1 implementation and actual Chrome acceptance reviewed and approved for commit/push closeout (2026-10-06). Backend 140 tests, frontend 300 tests, lint, typecheck and Webpack production build passed during implementation, not rerun in this closeout. Real searches, explicit confirmation, duplicate prevention, request/response identity, edit/regeneration/refresh lifecycle and one real walking/Marker regression passed; see the separate automated and live evidence below. Only the 16 listed deliverables are authorized for normal main → origin/main commit/push; no business code changes during closeout. Confirmed Places remain requirement echoes, not inputs to the current Mock scheduling. Earlier no-commit/push statements describe the historical implementation handoff
+- Milestone 5A-1 was reviewed, committed and pushed as `58cecc300201bf83785a69f520a9b525a1e19eb4` (`feat: confirm accommodation and must-visit places`). Its implementation/acceptance evidence remains below. This is the verified starting HEAD for 5A-2
+- Milestone 5A-2 implementation and actual Chrome acceptance completed in this checkout (2026-10-06) and were reviewed/approved for commit/push closeout. This closeout is limited to the 15 delivery files below, with no business-code changes; the five pre-existing Python caches remain excluded and untouched. Backend 165 tests, frontend 381 tests, lint, typecheck and Webpack production build passed during implementation, not rerun during closeout. Real candidate aggregation, exclusion/restoration without requests, day/mode/Marker retention, edit/regeneration/refresh cleanup, 400px layout and one real walking regression passed during that acceptance. The historical no-commit/push statements below describe the implementation handoff. The 12-second limit is the search deadline, with cancellation cleanup potentially adding brief finalization time; real Chrome did not individually observe upstream HTTP attempts. Confirmed requirements and candidates still do not schedule or automatically bind the Mock activities
 - GET /places/search accepts keyword + city and maps them to AMap v5 keywords + region with city_limit=true, page 1 and page size 20
 - Place returns id, name, nullable address/category, validated latitude/longitude, and source="amap"; invalid POIs are skipped without fabricating coordinates
 - Missing key returns 503, upstream timeout 504, other upstream failures or malformed payloads 502, invalid query parameters 422, and empty valid results 200 with []
@@ -50,13 +52,102 @@
 - POST /routes/walking accepts origin/destination POI IDs and finite longitude/latitude, uses the fixed AMap walking upstream and returns source, UTC query time, status and normalized meters/seconds/coordinate segments. Only the first upstream proposal is validated and used; an invalid first proposal fails safely. No straight-line or Mock fallback exists
 - Walking queries follow original activity adjacency, not a filtered list of bound activities. Missing endpoints and same-place pairs do not trigger a route request. Replacement/removal of an endpoint, day switch, edit/regeneration and unmount invalidate route state and pending requests; day bindings themselves remain preserved
 - POST /routes/transit reuses validated endpoint coordinates, fixes both cities to Shanghai and calls only AMap v3 transit/integrated. It selects the first complete supported valid proposal, and one valid supported alternative per ride; it does not claim the fastest/optimal route. Mode switches invalidate both modes without automatically querying. Trip dates/Mock activity times are not sent as real departure times
+- POST /places/candidates accepts only confirmed accommodation, confirmed must-visits and supported interests. It aggregates fixed Shanghai keyword searches on explicit request, preserves required POIs, returns at most 18 optional POIs and reports each query plus overall success/partial/failed status. The independent whole-trip candidate pool supports local exclusion/restoration, not scheduling or semantic avoid-place filtering
 
 ## Next
 
-- Complete only the approved 5A-1 commit/push closeout, then stop; no 5A-2 work. Physical-phone/touch, dedicated live subway/transfer samples and real upstream fault acceptance remain separate; the existing limitations and historical evidence below are retained
+- Complete only the authorized 5A-2 closeout with a normal main → origin/main commit/push, then stop; no 5B work. Physical-phone/touch, dedicated live subway/transfer samples, real upstream fault acceptance and the Turbopack limitation remain separate; the existing limitations and historical evidence below are retained
 - Review existing dependency security advisories as a separate, approved maintenance task before deployment
 
+## Milestone 5A-2 Actual Implementation and Acceptance (2026-10-06)
+
+### Baseline, scope and data flow
+
+- Read applicable root/frontend AGENTS, PROJECT_CONTEXT, PROGRESS and local Next.js client-component guidance. Implemented directly in `/Users/zijing/projects/trippilot` at `58cecc300201bf83785a69f520a9b525a1e19eb4`. Preserved the five pre-existing Python caches; no temporary implementation copy, staging, commit or push
+- Flow: submitted confirmed requirements → whole-trip candidate panel after ConfirmedPlaces and before day selection → explicit “获取候选地点” → `POST /places/candidates` → existing `AmapClient.search` calls → bounded aggregation/deduplication → frontend runtime validation → independent candidate/exclusion state. No automatic initial request or request on day/mode/Marker changes
+- Reused `ConfirmedPlace`, the existing AMap client/dependencies and connection-only retry, `PlaceDetails`, React/fetch and current test frameworks. `backend/main.py` only registers the independent candidates router; no dependency, key, environment, proxy or CORS changes. Original search/trip/walking/transit APIs, activity binding and map logic remain intact
+- Accommodation is required by this new endpoint; legacy text-only results prompt returning to confirm a reference point and do not guess coordinates. Accommodation identity is used to exclude it from optional visits, not to imply proximity ranking. Must-visits always derive from submitted confirmed snapshots, including before a search or after failure
+
+### Contract, retrieval budget and deterministic selection
+
+- Request contains only `{ accommodation_place, must_visit_places, interests }`. Accommodation is required; missing must-visits/interests default to empty lists. Strict complete ConfirmedPlace validation and must-visit ID uniqueness are reused. Unknown interest, arbitrary city/keyword/upstream/Key or extra fields are rejected with safe 422; malformed coordinates do not leak raw input. Missing server configuration retains the existing safe 503
+- Fixed canonical order and mapping: **摄影 → 公园; Citywalk → 步行街; 美食 → 餐厅; 建筑 → 历史建筑; 博物馆 → 博物馆; 购物 → 商场**. Repeated interests/keywords are merged. No interests produces one **旅游景点** query with `interest: null`, displayed as **通用候选**
+- At most **6 logical searches**, **3 concurrent**, each using existing fixed AMap v5 keyword search for **上海**, **page 1 / page size 20**, without pagination. The existing client alone may retry a connection failure once, so at most **12 upstream HTTP attempts per six-query batch**. There is no aggregation-layer retry or frontend auto-retry
+- `asyncio.wait` imposes a **12-second whole-batch search deadline**, including semaphore wait time. On expiry, cancel and drain running/queued tasks; parent cancellation also cancels/drains children. Already completed results remain available. Cancellation cleanup and serialization may add brief finalization time beyond the search deadline. Frontend timeout is **15 seconds**
+- Candidate metadata is separate from Place: `{ place, role: "must_visit" | "optional", retrieval_sources: [{ interest, keyword }] }`. No metadata is inserted into the strict 5A-1 ConfirmedPlace shape. Only original upstream category/address/coordinates are displayed; no invented ticket, hours, duration, ratings or prices
+- Merge by **POI ID**, not name. Must-visits retain all original snapshot fields and input order, with any search sources added only to metadata. Accommodation is omitted unless also a must-visit. Cross-query optional matches retain the first snapshot in canonical query order and merge every matching retrieval source before limiting the output
+- Select optional POIs round-robin in canonical interest order: each query contributes its next eligible, unselected POI in upstream order. Skip already-selected IDs, accommodation and required IDs; stop at **18 optional**. Must-visits are not capped. Neither asynchronous completion order nor the first interest can decide the entire pool
+- Response: `{ status: "success" | "partial" | "failed", queried_at, keywords, queries, candidates }`. Each query includes interest/keyword, success/failed/timeout, valid result count and nullable safe message. Successful empty searches count as success, not failure; all failed searches remain failed even when required POIs are present. Upstream raw errors/URLs/credentials are never reflected
+
+### Frontend state and tradeoffs
+
+- `use-candidate-pool.ts` lives at the result level, outside the date-keyed PlaceExplorer. Confirmed must-visits are immediately visible and cannot be excluded here. Optional exclusion/restoration changes only a local ID Set, not requests, submitted requirements, bindings, routes, times or budget
+- During refresh, keep the last valid pool and exclusions with a clear updating message and a synchronous duplicate-submit guard. A failed response or transport error preserves that pool; the UI labels it as the previous result. `response` holds the displayed valid batch, while `lastAttempt` holds the latest returned per-query status, so old candidates and new errors are not misrepresented as one successful batch
+- Success or partial success replaces optional entries with this batch only; partial failures are explicitly shown. Successful zero-option batches clear old optional entries and say there are no new optional places. Excluded IDs remain remembered within the same result even if temporarily absent, so later retrieval cannot silently restore them
+- AbortController plus monotonically increasing request version guard both old successes and old errors. The result's edit handler synchronously calls `candidates.invalidate()` before unmount; cleanup aborts again safely. Regeneration/remount starts a new empty optional pool/Set; 5A-1 form confirmations remain on edit and clear on refresh. No global state or persistence
+- `getActivePlaces()` returns required plus non-excluded optional Places for a future consumer; it is not wired into a planner in this milestone. No candidate automatically binds a Mock activity
+- Avoid-place text is echoed with an explicit “not automatically filtered yet” notice and manual exclusion guidance. Interest keywords indicate retrieval provenance only: not optimal recommendations, precise preference satisfaction, budget compliance or nearest-to-accommodation ranking. Ordinary user-facing copy avoids task/thread/version terminology
+
+### Automated checks — mocked AMap HTTP/SDK
+
+| Command | Result |
+| --- | --- |
+| `cd backend && .venv/bin/python -B -m unittest discover -s tests -v` | Passed: **165/165** (140 existing + 25 new candidate tests) |
+| `cd frontend && npm run test` | Passed: **18 files / 381 tests** (300 existing + 47 API/contract + 15 hook + 19 UI/lifecycle tests) |
+| `cd frontend && npm run lint` | Passed |
+| `cd frontend && npm run typecheck` | Passed: Next type generation + `tsc --noEmit` |
+| `cd frontend && npm run build -- --webpack` | Passed: compilation, TypeScript, static generation and traces; the final build after all source changes was used in Chrome |
+| `git diff --check` and new-file whitespace checks | Passed |
+
+- Backend controlled tests cover mapping/default/deduped interests, fixed upstream/city/page, six-query/twelve-attempt budgets, max-three concurrency, whole-batch timeout including queued cancellation/drain, parent cancellation, deterministic completion-independent round-robin, all must-visits beyond 18, original snapshots, shared accommodation/must identity, same-name distinct IDs, merged sources, successful empty/partial/all-failed and safe input/errors/logging
+- Frontend controlled tests cover strict request/response snapshot and metadata validation, real numeric coordinates, query/source/count/status consistency, invalid timestamp/status/role, 18-option cap, 15-second timeout and safe errors; idle/no-auto/duplicate guards; old pool preservation and replacement; exclusions across disappearing/reappearing IDs; both late success/error paths on invalidate/unmount
+- Real component tests cover original Mock immutability, required roles, empty/default/legacy states, exclude/restore without network or route/marker changes, day/mode/Marker retention, actual Form→Planner edit/regeneration with retained confirmations, cleared candidate/binding/route state and stale responses. All prior 4A/4B/4C/5A-1 coverage remains passing
+- Tests use mocked HTTP/SDK and isolated dotenv; they consume no live quota. Backend retains the existing Starlette/httpx deprecation warning and has no configured standalone lint/typecheck script. The historical Turbopack limitation was not retried or claimed fixed; the established Webpack path was used
+
+### Actual Chrome acceptance — live, separately evidenced
+
+- Used the existing connection to **real Chrome 154 on macOS**, with no new browser tooling/dependencies. Reused `localhost:3000` and `127.0.0.1:8000`; restarted only the verified prior agent-owned processes for the current FastAPI and final Webpack build. FastAPI startup was clean. These services remain running for review
+- Entered October 10–11 2026, budget 3000, two travelers, **摄影 + 建筑**. Explicitly searched and confirmed **静安寺** as accommodation and **武康大楼** as required. Avoid-place text was “大型商场、排队过久的地点” and visibly remained unfiltered text guidance
+- First explicit candidate POST returned **200 / success**, actual keywords **公园、历史建筑**, both successful with **20** valid POIs. Returned **1 must-visit + 18 optional**, all unique IDs. 武康大楼 also appeared in the live historical-building search: its original confirmed snapshot remained one required item with added retrieval source, not an extra optional item. Snapshot equality was checked across all Place fields
+- Two candidate batches were deliberately requested: the first acceptance query and a fresh query after regeneration to prove old exclusions were cleared. Each had two logical searches; both returned 200/success and 1+18 candidates. Other live business traffic was **4 explicit POI searches, 2 plan POSTs and 1 walking POST**, all 200; **zero transit queries**. Exclude/restore/day/mode/Marker actions added no candidate or route request
+- Budget evidence distinguishes observation from bounds: Chrome directly observed **2 candidate POSTs × 2 reported logical searches**, no automatic requests and no pagination controls. It did not trace individual server→AMap attempts. Existing retry code and controlled tests establish at most 4 attempts for each of these two-interest batches, and at most 12 for six interests; no unobserved exact upstream attempt count is claimed
+- Evidence directory: `/private/tmp/trippilot-5a2-evidence.AShgqn/`. All 11 screenshots were opened and visually checked. `12-safe-request-evidence.json` contains only local business paths/statuses, normalized public POI/request/response data, counts and observations; no keys, headers, environment content, SDK URLs or raw HAR. Browser-tool diagnostic artifacts were moved outside the repo and are not shared evidence
+
+| Test | Result | Observation / screenshot |
+| --- | --- | --- |
+| Enter result without automatic retrieval | Passed | Required 武康大楼 visible, optional count 0 and explicit button; Network had no candidate POST. `5a2-01-before-explicit-query.png` |
+| Explicit real retrieval, roles and provenance | Passed | 200 success; names, addresses, original categories, sources and two-query detail match the response; required item has no exclude control. `5a2-02-real-candidates.png` |
+| Exclude / restore without requests | Passed | 延中广场公园 changed to excluded and back to retained; repeated local exclusion left 18 optional cards, one excluded. Candidate POST count remained 1 and route count 0 at this point. `5a2-03-excluded.png`; safe request evidence |
+| Day and mode retention | Passed | Day 2 retained all 18 optional items and the exclusion; return to Day 1 and walking→transit→walking did not fetch candidates or routes. `5a2-04-day2-keeps-candidates.png` |
+| 400px responsive controls | Passed, simulated | At **400×820**, document width was 400, long names/addresses and controls wrapped. Restore/exclude remained usable. `5a2-05-narrow-candidates.png` |
+| Existing binding / real walking regression | Passed | Independently bound adjacent 外滩漫步 → 武康大楼 and 午餐与休息 → 静安寺, then explicitly queried once: **2691m / 2153s / 5 segments**, displayed **2.69公里 / 预计36分钟**. Excluding/restoring a candidate afterward preserved both bindings and full real blue geometry, roads/labels/attribution. `5a2-06-real-route-after-exclusion.png` |
+| Existing activity ↔ Marker regression | Passed | Clicking 外滩漫步's map action centered/highlighted Marker 1 (0px/0px center offset); after full-route fit, clicking 静安寺 Marker focused 午餐与休息. Pool stayed 18 with one excluded and no extra request. `5a2-07-activity-marker-regression.png` records the centered Marker 1 and retained route; reverse direction also checked live |
+| Edit retains confirmed form requirements | Passed | Candidate module disappeared; 静安寺、武康大楼 and both interests remained in the form. `5a2-08-edit-keeps-confirmations.png` |
+| Regeneration clears pool/bindings/routes | Passed | Fresh result initially had zero optional candidates, no old binding actions or route control, and no automatic candidate query. Required 武康大楼 remained. `5a2-09-regenerated-empty-pool.png` |
+| New result does not inherit exclusion decisions | Passed | Explicit second retrieval returned previously excluded 延中广场公园 as retained; zero restore buttons and all 19 places retained. `5a2-10-new-result-clears-exclusions.png` |
+| Actual browser refresh clears result state | Passed | Reload from a populated pool returned to the blank form, no result/candidate panel and no confirmed accommodation/must-visits. `5a2-11-refresh-clears.png` |
+
+- Console before refresh: **0 errors, 4 warnings**; warnings were not claimed resolved. No feature defect was observed in the live acceptance. Tool-level selector mismatches were corrected against actual DOM roles/text before retrying; failed automation actions were not counted as acceptance. Screenshot tool paths were restricted to the repo, so generated PNGs were subsequently moved to the evidence directory
+
+### Limits and handoff
+
+- Partial/all-failed batches, timeouts, connection retries, disappearing/reappearing excluded IDs and adversarial races were verified with controlled tests, not manufactured against live AMap. No claim of real upstream fault acceptance or uninterrupted external connectivity
+- Physical phone/touch and broader devices remain pending. Dedicated live subway/transfer samples, historical Turbopack/font/dependency/environment limitations remain below; this round did not repeat transit live acceptance or fix those separate concerns
+- This is a city-wide keyword candidate pool, not semantic recommendations or scheduling. Required snapshot/source claims are not independently reverified. No route matrix, automatic transport, budget rewrite, weather, LLM, database, persistence or 5B work
+- Final scope/security checks: all 15 deliverables exclude actual configured credentials; built frontend assets contain no backend Web Service key or JS security code. Five original cache hashes remain unchanged. No dependency/environment/configuration/proxy/CORS changes; nothing staged, committed or pushed
+
+### Actual changed files (15; excludes five preserved pre-existing caches)
+
+- Backend added: `backend/app/schemas/candidates.py`, `backend/app/services/__init__.py`, `backend/app/services/candidates.py`, `backend/app/api/candidates.py`, `backend/tests/test_candidates.py`
+- Backend modified: `backend/main.py` (router registration only)
+- Frontend added: `frontend/src/types/candidates.ts`, `frontend/src/lib/candidates-api.ts`, `frontend/src/lib/use-candidate-pool.ts`, `frontend/src/components/trip/candidate-preparation.tsx`
+- Frontend tests added: `frontend/src/lib/candidates-api.test.ts`, `frontend/src/lib/use-candidate-pool.test.tsx`, `frontend/src/components/trip/candidate-preparation.test.tsx`
+- Frontend modified: `frontend/src/components/trip-plan-result.tsx` (result-level hook, synchronous edit invalidation and panel placement only)
+- Documentation updated: `docs/PROGRESS.md`
+
 ## Milestone 5A-1 Actual Implementation and Acceptance (2026-10-06)
+
+- Subsequent closeout: committed/pushed as `58cecc300201bf83785a69f520a9b525a1e19eb4` before the explicitly authorized 5A-2 task. The no-commit/push statements below describe historical implementation/acceptance; evidence and limitations are preserved
 
 ### Baseline, scope and data flow
 
