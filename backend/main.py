@@ -6,6 +6,7 @@ from app.api.amap_proxy import router as amap_proxy_router
 from app.api.trips import router as trips_router
 from app.api.routes import router as routes_router
 from app.api.candidates import router as candidates_router
+from app.api.schedule import router as schedule_router
 
 app = FastAPI(
     title="TripPilot API",
@@ -23,6 +24,7 @@ app.include_router(places_router)
 app.include_router(amap_proxy_router)
 app.include_router(routes_router)
 app.include_router(candidates_router)
+app.include_router(schedule_router)
 
 
 @app.get("/health")

@@ -349,7 +349,7 @@ describe("TripPlanResult explicit activity-to-POI binding", () => {
     expect((screen.getByRole("button", { name: "确认绑定" }) as HTMLButtonElement).disabled).toBe(false);
     submitSearch("失败的新查询");
     expect((screen.getByRole("button", { name: "确认绑定" }) as HTMLButtonElement).disabled).toBe(true);
-    await screen.findByRole("alert");
+    await within(screen.getByRole("region", { name: "上海地点搜索" })).findByRole("alert");
     expect(screen.queryByRole("list", { name: "地点搜索结果" })).toBeNull();
     expect(within(activity("测试午餐")).getByText(places[0].name)).toBeTruthy();
     expect(within(activity("测试午餐")).queryByText(places[1].name)).toBeNull();

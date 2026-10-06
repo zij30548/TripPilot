@@ -27,18 +27,20 @@
 - Milestone 4C-2: explicitly requested Shanghai bus/subway reference schemes, normalized ordered access-walking/ride steps, nullable fare, segmented real map geometry and cross-mode stale-request isolation
 - Milestone 5A-1: explicitly confirmed accommodation reference and optional must-visit POIs, strict backward-compatible request/echo validation, isolated search drafts and confirmed requirements displayed separately from the Mock plan
 - Milestone 5A-2: explicitly requested Shanghai interest-based candidate preparation, bounded backend aggregation, must-visit snapshot preservation, deterministic optional selection and result-local exclusion/restoration
+- Milestone 5B-1: independent fixed-order must-visit walking previews, actual 1–3-day dates, editable stays/lunch, bounded real walking queries, verified daily returns and explicit unscheduled reasons
 
 ## Current
 
 - Milestone 4B was committed/pushed as `0eeba167766216ffbaecfa4610c83539ae36577d`; 4C-1 was subsequently committed/pushed as `84f0eb17f618a13b01e5e16f4b906c32ac1c5e9b` (`feat: add real walking routes between bound activities`). Both acceptance records remain below
 - Milestone 4C-2 was reviewed, committed and pushed as `cb1a2605af312b9c8dcb319358615691ca56b0be` (`feat: add real transit routes between bound activities`). Its implementation, supplemental activity→Marker acceptance and historical limitations remain below. This is the verified starting HEAD for 5A-1; the five pre-existing Python cache changes remain excluded from this work
 - Milestone 5A-1 was reviewed, committed and pushed as `58cecc300201bf83785a69f520a9b525a1e19eb4` (`feat: confirm accommodation and must-visit places`). Its implementation/acceptance evidence remains below. This is the verified starting HEAD for 5A-2
-- Milestone 5A-2 implementation and actual Chrome acceptance completed in this checkout (2026-10-06) and were reviewed/approved for commit/push closeout. This closeout is limited to the 15 delivery files below, with no business-code changes; the five pre-existing Python caches remain excluded and untouched. Backend 165 tests, frontend 381 tests, lint, typecheck and Webpack production build passed during implementation, not rerun during closeout. Real candidate aggregation, exclusion/restoration without requests, day/mode/Marker retention, edit/regeneration/refresh cleanup, 400px layout and one real walking regression passed during that acceptance. The historical no-commit/push statements below describe the implementation handoff. The 12-second limit is the search deadline, with cancellation cleanup potentially adding brief finalization time; real Chrome did not individually observe upstream HTTP attempts. Confirmed requirements and candidates still do not schedule or automatically bind the Mock activities
+- Milestone 5A-2 was reviewed, committed and pushed as `3ed0c44e4a3ec1136161cb275c56947d4f15845b` (`feat: prepare interest-based place candidates`), the verified baseline for 5B-1. Its 15-file closeout did not change business code or rerun the implementation suite. Historical evidence and limitations below remain intact: its 12-second search deadline excludes brief cancellation finalization, browser acceptance did not individually trace upstream HTTP attempts, and optional candidates still do not participate in scheduling
+- Milestone 5B-1 implementation and actual Chrome acceptance were reviewed and accepted (2026-10-06); this authorized closeout includes only the 17 delivery files below, with commit message `feat: add fixed-order walking schedule previews` and a normal, non-force push of the current branch. No business code changes or full-suite reruns in this closeout: backend 210 tests, frontend 498 tests, lint, typecheck and Webpack build are the recorded implementation results. The original acceptance/history below is retained, including its then-uncommitted handoff. Launch pacing is batch-local, the 20-second search deadline excludes cancellation finalization, and a six-place live full-load run remains unverified. Five original Python cache contents remain unchanged and excluded from the commit
 - GET /places/search accepts keyword + city and maps them to AMap v5 keywords + region with city_limit=true, page 1 and page size 20
 - Place returns id, name, nullable address/category, validated latitude/longitude, and source="amap"; invalid POIs are skipped without fabricating coordinates
 - Missing key returns 503, upstream timeout 504, other upstream failures or malformed payloads 502, invalid query parameters 422, and empty valid results 200 with []
 - The result page supports real Place search/preview and user-confirmed activity bindings. POST /trips/plan now accepts/echoes optional structured confirmed requirements; its Mock activities, transport, weather and costs remain unchanged. Requirement POIs do not automatically bind activities or change the example plan; activity bindings are still separate result-local React state
-- Valid 1-3 day requests use a fixed two-day activity template; dates are aligned to the requested start date and the validated request is echoed for the overview
+- Legacy POST /trips/plan still uses a fixed two-day activity template for valid 1-3 day requests; dates are aligned to the requested start date and the validated request is echoed for the overview. The separate walking preview uses every actual requested date instead
 - A notice explains when the requested duration differs from the two-day example; the fixture is not optimized for people, budget, preferences or daily time constraints
 - Activity and transport costs reconcile to a fictional CNY 460 total for all travelers (transport 40, food 240, tickets 100, other 80); remaining or exceeded budget is derived from the submitted budget
 - Weather, original transport, costs and activity times remain clearly marked Mock. Map numbers identify search candidates or deduplicated daily bound POIs. One selected walking/transit scheme appears only after a successful explicit real query, and only in the daily bound view. Real estimates do not validate or overwrite Mock information. Replanning remains disabled
@@ -48,18 +50,112 @@
 - Map creation is independent of candidate updates; search cancellation/request IDs prevent stale results, and unmount cleans listeners, markers, map and late async results
 - Only GET /_AMapService/v3/config/district is proxied to https://restapi.amap.com/v3/config/district, limited to Shanghai/province/subdistrict=0/extensions=base/page=1. No catch-all proxy, custom-style endpoint, POI bypass, routing, weather or IP endpoint is allowed
 - serviceHost is set before SDK loading. Every supplied JS Key must match backend configuration; jscode is appended only by the backend. Identical, individually validated key/s copies from the real SDK are folded; other duplicate/unknown parameters are rejected. Known SDK diagnostic fields are validated and stripped. Client security-code overrides, unsafe paths/callbacks, redirects and sensitive upstream responses are still rejected; TLS verification and the existing explicit CORS origins are retained
-- 4C-1 added an independent walking endpoint; 4C-2 adds an independent Shanghai transit endpoint and result-local mode selection. No driving, scheduling, real weather, LLM/Agent, database, global state manager, Browser Agent or Playwright was added; backend SDK proxy restrictions and credentials remain unchanged
+- 4C-1 added an independent walking endpoint; 4C-2 added an independent Shanghai transit endpoint and result-local mode selection. Those milestones added no scheduling. No driving, real weather, LLM/Agent, database, global state manager or new browser dependency has been added; backend SDK proxy restrictions and credentials remain unchanged
 - POST /routes/walking accepts origin/destination POI IDs and finite longitude/latitude, uses the fixed AMap walking upstream and returns source, UTC query time, status and normalized meters/seconds/coordinate segments. Only the first upstream proposal is validated and used; an invalid first proposal fails safely. No straight-line or Mock fallback exists
 - Walking queries follow original activity adjacency, not a filtered list of bound activities. Missing endpoints and same-place pairs do not trigger a route request. Replacement/removal of an endpoint, day switch, edit/regeneration and unmount invalidate route state and pending requests; day bindings themselves remain preserved
 - POST /routes/transit reuses validated endpoint coordinates, fixes both cities to Shanghai and calls only AMap v3 transit/integrated. It selects the first complete supported valid proposal, and one valid supported alternative per ride; it does not claim the fastest/optimal route. Mode switches invalidate both modes without automatically querying. Trip dates/Mock activity times are not sent as real departure times
 - POST /places/candidates accepts only confirmed accommodation, confirmed must-visits and supported interests. It aggregates fixed Shanghai keyword searches on explicit request, preserves required POIs, returns at most 18 optional POIs and reports each query plus overall success/partial/failed status. The independent whole-trip candidate pool supports local exclusion/restoration, not scheduling or semantic avoid-place filtering
+- POST /trips/schedule-preview accepts only confirmed accommodation/must-visits, requested dates/daily window and separate stay/lunch settings. It schedules at most six required POIs in original order using normalized real walking estimates; it does not consume the optional candidate pool or modify the old Mock plan, budget, weather, bindings or selected map route
 
 ## Next
 
-- Complete only the authorized 5A-2 closeout with a normal main → origin/main commit/push, then stop; no 5B work. Physical-phone/touch, dedicated live subway/transfer samples, real upstream fault acceptance and the Turbopack limitation remain separate; the existing limitations and historical evidence below are retained
+- Stop after the authorized 5B-1 commit/push closeout; do not start 5B-2 or another milestone. Physical-phone/touch, dedicated live subway/transfer samples, broader real upstream fault acceptance, six-place live full-load acceptance and the Turbopack limitation remain separate; historical evidence is retained
 - Review existing dependency security advisories as a separate, approved maintenance task before deployment
 
+## Milestone 5B-1 Actual Implementation and Acceptance (2026-10-06)
+
+### Baseline, scope and data flow
+
+- Read root/frontend AGENTS, PROJECT_CONTEXT, PROGRESS and local Next.js client-component documentation; implemented directly in `/Users/zijing/projects/trippilot` at `3ed0c44e4a3ec1136161cb275c56947d4f15845b`. No temporary project copy, dependency, environment, key, SDK proxy or CORS changes. All five pre-existing Python cache hashes remain unchanged
+- Confirmed requirements → independent stay/lunch settings → explicit “生成步行草案” → `POST /trips/schedule-preview` → direct `AmapWalkingClient` calls → pure `build_schedule(request, edges, generated_at)` → validated response → independent daily preview. No HTTP self-calls, optional candidate selection, route matrix, reorder optimization, real weather, budget recalculation, LLM, OR-Tools or persistence
+- The old overview, fixed two-day timeline, original budget/weather and activity map are explicitly grouped as “旧 Mock 行程示例”. They are not sources for the new preview. Candidate preparation remains separate and does not automatically bind or schedule places
+
+### Contract and deterministic rules
+
+- Independent strict request: `start_date`, `end_date`, `daily_start_time`, `daily_end_time`, `accommodation_place`, `must_visit_places`, `duration_settings: [{ place_id, minutes, source }]`, `lunch: { enabled, start_time, end_time }`. Reuses complete ConfirmedPlace snapshots and existing walking endpoint validation; rejects extra fields, duplicate IDs, invalid coordinates, missing/extra stay IDs and arbitrary client route minutes/keys/URLs. Safe 422 never reflects the raw input
+- Supports 1–3 inclusive calendar dates and 1–6 required places; no truncation. Settings are separate from Place: integer 15–480 minutes, default 60/source `default`; any user edit becomes `user` even when changed back to 60. Default provenance cannot claim a non-60 value. An absent accommodation, empty list or over-limit list prevents UI generation with a scope prompt, not an impossibility claim
+- Local clocks use Shanghai minute precision. Enabled lunch defaults to 12:00–13:00 and must lie wholly inside the daily window with increasing bounds; no silent clipping. Disabled lunch does not constrain the schedule. The UI retains its disabled draft but sends valid inactive clocks, so closing an invalid lunch draft unblocks generation
+- Try must-visits in input order on the current date. Each travel estimate uses `ceil(duration_seconds / 60)` for both scheduling and display. Walking and visits are indivisible blocks, do not overlap lunch, and may require an explicit wait followed by the full lunch reservation. No restaurant, detour, reservation, price or inferred visit length is invented
+- Before committing a visit, also simulate its real return to accommodation, including lunch avoidance. If it cannot fit, finish the verified prior prefix and try the same place from accommodation on the next date. A known-too-long stay can roll over before an unused adjacent edge failure is considered. Otherwise a required missing/failed edge stops the current attempt, not an automatic reroute onto another day
+- When dates run out or a required route is unavailable, keep the verified prefix and return. The current place receives `time_window`, `route_timeout`, `no_route`, `route_data_error` or `route_failed`; every later place is `current_order_not_continued`, not independently declared infeasible. Unused edge failures do not invalidate a completed preview
+- Empty requested dates remain present with `items: []` and no return time or fabricated lunch. An accommodation POI that is also required still gets its visit/stay; same ID or equal normalized coordinates creates explicit zero movement without an upstream query
+- Response has `complete | partial | unscheduled`, complete request echo, generation time, dated walk/visit/wait/lunch items, return times, unscheduled reasons, edge results and rules/unknowns. Edge records retain endpoints, original seconds, ceiling minutes, distance, query time and adoption flag; `source="same_place"` is a local identity decision, not a claim of an AMap request. No costs/weather or `is_mock=true` TripPlan wrapper is used
+
+### Route budget and the live QPS correction
+
+- Query only accommodation→each required POI, each required POI→accommodation and originally adjacent required pairs. Deduplicate directed endpoint identity plus six-decimal coordinates; never substitute the reverse direction. At most 17 logical nontrivial edges for six distinct places, at most three concurrent. No cross-generation cache
+- Search deadline is 20 seconds for the batch, including queue and pacing waits. On deadline or parent cancellation, cancel/drain outstanding tasks; finalization may add a little response time, so 20 seconds is not an exact response-time promise. Frontend timeout is 25 seconds. Existing connection-only one retry remains unchanged: at most 34 HTTP attempts, no new retry layer or automatic frontend retry
+- The first actual browser batch returned three valid estimates and two business failures; the UI correctly preserved a one-visit roundtrip prefix. A separate five-request bounded diagnostic exposed only HTTP status, validated numeric business code and a rate-limit boolean: 3×10000, 2×10021, all HTTP 200. [AMap's official error reference](https://lbs.amap.com/api/webservice/guide/tools/info) identifies 10021 as account/service QPS rejection. No raw payload, key or credential-bearing URL was printed or retained
+- Concurrency alone allowed five quick requests within a second. The minimal fix adds a batch-local monotonic-clock lock and at least **0.4 seconds between nontrivial logical starts**. Same-place edges bypass it. No existing AMap client, proxy or credential changes. Four controlled tests cover the fast-response rate-limit reproduction, deadline cleanup while paced, parent cancellation and same-place bypass
+- Pacing reduces this batch's launch bursts; it is not an account-wide rate limiter. Other users/processes and the original connection retry may still consume quota or create additional instantaneous HTTP attempts. External availability and future quota are not guaranteed
+
+### Frontend lifecycle and validation
+
+- `useSchedulePreview` owns result-local settings and state, not the candidate pool or daily map. Only explicit generation calls fetch. A synchronous pending guard blocks duplicate clicks. Any stay/lunch setter immediately aborts, increments the request version and clears the old preview before updating the settings ref/state
+- Success, error and finally paths all check their generation. Changing A→B→A settings cannot revive an earlier response or release a newer request's pending guard. Failure never restores the previous preview as current. Editing synchronously invalidates, unmount aborts, and a new result/refresh resets all preview settings; confirmed form requirements still follow 5A-1 edit retention
+- Request validation and response guards check the exact request echo, all requested dates, input-order visit prefix plus unscheduled remainder, continuous time bounds, lunch exclusion, accommodation returns, referenced edges, `ceil` minutes, provenance and normalized coordinates. Guards do not invent or optimize routes. The legacy search-failure regression assertion was scoped to the search region so the new preview validation hint cannot accidentally satisfy it
+- Preview date tabs only change the display. Candidate fetch/exclude/restore, old date/mode selection, activity bindings and Marker operations cannot change or regenerate the preview. No global store, storage or new map functionality
+
+### Automated checks — controlled HTTP and SDK, not live acceptance
+
+| Command/check | Final result |
+| --- | --- |
+| `cd backend && .venv/bin/python -B -m unittest discover -s tests -q` | **210/210 passed**, after the QPS fix: 165 original + 44 schedule tests + one 150-seed invariant test |
+| `cd frontend && npm run test` | **21 files / 498 tests passed**: 381 original + 66 API/contract + 31 hook + 20 UI/lifecycle |
+| `cd frontend && npm run lint` | Passed |
+| `cd frontend && npm run typecheck` | Passed: Next type generation + TypeScript |
+| `cd frontend && npm run build -- --webpack` | Passed; this production build was used in Chrome. Only backend pacing changed afterward |
+| `git diff --check` plus new-file whitespace checks | Passed |
+| Backend output → actual TypeScript guard | 36 additional controlled cross-language cases passed, including 1/2/3 days, rounded coordinates, same-place, lunch, partial and failed edges |
+
+- Controlled tests cover date counts independent of Mock days, original-order prefixes, forward/return availability, exact lunch/end boundaries, next-day retry, wait/lunch non-overlap, absent/duplicate/over-limit inputs, explicit stay provenance, invalid response data, same-point visits, unused vs required failures, 17-edge/34-attempt bounds, three-way concurrency, deadlines/draining and parent cancellation
+- The 150-seed pure-function check also verifies immutable input snapshots/edge data, deterministic repeat output, continuous day clocks, accommodation return, lunch exclusion, prefix tracking and exact used-edge flags. Frontend race tests cover old success/error/finally, edit/unmount, invalid lunch closure, duplicate submit and A→B→A inputs. Existing candidate/binding/route/Mock regressions remain passing
+- No live requests are made by these automated tests. Existing Starlette/httpx deprecation warning remains; backend has no separate lint/typecheck script. The historical Turbopack restriction was not retried or claimed fixed; established Webpack was used
+
+### Actual Chrome acceptance — live POIs and walking estimates
+
+- Used the existing **Chrome 154.0.8037.93** connection, `localhost:3000` and `127.0.0.1:8000`. Restarted only verified agent-owned project services to load this implementation; final FastAPI startup was clean and the final frontend build was served. Services remain running for review
+- Explicitly searched and confirmed **静安寺** as accommodation, **武康大楼** and **上海图书馆(淮海路馆)** as required places. This is a reference point, not a hotel reservation. One-day request October 10, 2026, daily window 10:30–18:00; afterward edited the same confirmed request to October 10–12
+- Evidence directory: `/private/tmp/trippilot-5b1-evidence.4DdnP0/`. All 11 PNGs were opened and visually checked. `13-safe-request-evidence.json` contains public normalized POI/preview data, safe paths/statuses and observations only, not headers, credentials, SDK URLs or raw HAR
+
+| Test | Result | Actual observation / evidence file |
+| --- | --- | --- |
+| Explicit generation only | Passed | Entering the first result produced zero preview POSTs. After each edit, preview was absent until clicked. Safe request evidence |
+| Initial real partial failure | Observed, diagnosed and fixed | First batch used the valid 武康大楼 prefix and returned at 14:36; library marked route unavailable, not fabricated. `02-live-partial-before-pacing.png`; safe diagnostic codes |
+| Complete one-day real preview after pacing | Passed | All five edges `ok`; adopted 静安寺→武康 **2156s→36min**, 武康→图书馆 **518s→9min**, 图书馆→静安寺 **1699s→29min**. Two 60-minute visits; return **15:38**. Every displayed duration matched the normalized response. `05-real-one-day.png` |
+| Lunch and waiting | Passed | Walk 10:30–11:06, wait 11:06–12:00, lunch 12:00–13:00, visit 13:00–14:00, walk 14:00–14:09, visit 14:09–15:09, return 15:09–15:38; no overlap. `05-real-one-day.png` |
+| Settings invalidate without request | Passed | Changing first stay to 480 immediately removed timeline; request count stayed 2 until explicit click. `03-rule-change-clears.png` |
+| Unscheduled reasons | Passed | Explicit 480-minute generation returned `unscheduled`; 武康 reason `time_window`, library `current_order_not_continued`, empty day/no fake lunch. All five routes were valid, so failure was not mislabelled as network failure. `06-unarranged.png` |
+| Edit retention / regeneration reset | Passed | Both confirmed places and accommodation retained on edit. New three-day result had no preview and default60/default provenance, not prior 480-minute setting; no automatic query. Safe request evidence |
+| Three actual dates / date-only switch | Passed | October 10/11/12 present; days 2/3 empty with null return, no copied Mock activity. Clicking day 3 added no request. Legacy Mock still had only its independent two dates. `07-three-days-empty-day.png` |
+| 400px layout | Passed, simulated | 400×820 viewport/document width400; settings, date controls, times/long names and warnings wrap. `04-narrow-settings.png`, `10-narrow-timeline.png`. `11-narrow-map.png` shows usable map/route controls, but is not evidence that both endpoints fit that narrow screenshot |
+| Existing activity binding / real map route | Passed | Bound 外滩漫步→武康、午餐与休息→静安寺 separately; one real walking request **2691m/2153s/5 geometry segments**. Basemap, roads, labels, attribution and real blue route visible. Both endpoints fit desktop view. `08-existing-map-route.png` |
+| Existing activity ↔ Marker | Passed | Activity action centered/highlighted Marker1 with the route retained; after fit-all, clicking Marker2 focused 午餐与休息 and selected it. No extra route or preview requests. `09-activity-marker.png` records the activity→Marker leg; reverse action verified live |
+| Refresh cleanup | Passed | Reload returned to blank form: no preview, no result-local bindings/route or confirmed POIs; no new business request. `12-refresh-clears.png` and safe observations |
+
+- This session observed **5 POI searches, 2 Mock plan POSTs, 4 preview POSTs and 1 legacy walking POST**, all local business HTTP 200. Preview statuses: initial partial, then complete/unscheduled/complete after pacing. Each preview reported five directed edges. No candidate or transit request was made in this round
+- Browser batches did **not** individually trace server→AMap HTTP attempts. The separate diagnostic observed exactly five upstream attempts; the general 17/34 maxima and retry behavior are code/controlled-test evidence, not an inferred live attempt count
+- Console before final reload: **0 errors, 2 warnings**, not claimed resolved. An initial automation wait used the wrong candidate-list name and another waited for complete when the real response was partial; neither was counted as a passed operation. A screenshot path restriction was handled by moving generated screenshots out of the repo
+
+### Limits and handoff
+
+- No known blocking issue remains in the focused 5B-1 acceptance. Real 10021 rejection was observed and the paced version rechecked successfully; this is not a comprehensive real-fault campaign. Timeouts, no-route, malformed upstream payloads, six-place limits, multi-day spillover and races rely on controlled tests, not forced live faults or a six-place live run
+- Batch pacing is local, not a global quota guarantee. Twenty seconds is a search deadline plus cancellation finalization, not a guaranteed exact response time. Current real queries are reference estimates, not verified future-date traffic
+- Physical phone/touch, broader devices, dedicated real subway/transfer samples and historical Turbopack/font/dependency limitations remain pending/separate. No booking, opening/appointment feasibility, meal detour/price, budget sufficiency or optimal route is claimed
+- Optional candidates remain outside scheduling. The preview does not rewrite confirmed inputs, old Mock times/transport/budget/weather, activity bindings or map routes. No subsequent milestone, staging, commit or push
+
+### Actual changed files (17; excludes five preserved pre-existing caches)
+
+- Backend added: `backend/app/schemas/schedule.py`, `backend/app/services/schedule.py`, `backend/app/services/schedule_routes.py`, `backend/app/api/schedule.py`, `backend/tests/test_schedule.py`, `backend/tests/test_schedule_invariants.py`
+- Backend modified: `backend/main.py` (router registration only)
+- Frontend added: `frontend/src/types/schedule.ts`, `frontend/src/lib/schedule-api.ts`, `frontend/src/lib/use-schedule-preview.ts`, `frontend/src/components/trip/schedule-preview.tsx`
+- Frontend tests added: `frontend/src/lib/schedule-api.test.ts`, `frontend/src/lib/use-schedule-preview.test.tsx`, `frontend/src/components/trip/schedule-preview.test.tsx`
+- Frontend modified: `frontend/src/components/trip-plan-result.tsx` (independent hook/panel, edit invalidation and explicit Mock grouping), `frontend/src/components/trip-plan-result.test.tsx` (scope existing search-error assertion)
+- Documentation updated: `docs/PROGRESS.md`
+
 ## Milestone 5A-2 Actual Implementation and Acceptance (2026-10-06)
+
+- Subsequent closeout: committed/pushed as `3ed0c44e4a3ec1136161cb275c56947d4f15845b` before the authorized 5B-1 task. The no-commit/push statements below describe the historical implementation handoff; evidence and limitations remain intact
 
 ### Baseline, scope and data flow
 

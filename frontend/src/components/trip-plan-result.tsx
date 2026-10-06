@@ -7,9 +7,11 @@ import { activityPlaceKey, type ActivityPlaceBindings } from "@/lib/activity-pla
 import { useWalkingRoute, walkingSegmentKey } from "@/lib/use-walking-route";
 import { useTransitRoute } from "@/lib/use-transit-route";
 import { useCandidatePool } from "@/lib/use-candidate-pool";
+import { useSchedulePreview } from "@/lib/use-schedule-preview";
 import TripOverview from "./trip/trip-overview";
 import ConfirmedPlaces from "./trip/confirmed-places";
 import CandidatePreparation from "./trip/candidate-preparation";
+import SchedulePreview from "./trip/schedule-preview";
 import DayTimeline from "./trip/day-timeline";
 import BudgetSummary from "./trip/budget-summary";
 import WeatherSummary from "./trip/weather-summary";
@@ -29,6 +31,7 @@ export default function TripPlanResult({ plan, onEdit }: { plan: TripPlan; onEdi
   const walking = useWalkingRoute();
   const transit = useTransitRoute();
   const candidates = useCandidatePool(plan.request);
+  const schedule = useSchedulePreview(plan.request);
   const result = useRef<HTMLDivElement>(null);
   const explorer = useRef<HTMLDivElement>(null);
   const activityCards = useRef(new Map<string, HTMLElement>());
@@ -142,6 +145,7 @@ export default function TripPlanResult({ plan, onEdit }: { plan: TripPlan; onEdi
   }
 
   function editRequest() {
+    schedule.invalidate();
     candidates.invalidate();
     walking.invalidate();
     transit.invalidate();
@@ -151,15 +155,19 @@ export default function TripPlanResult({ plan, onEdit }: { plan: TripPlan; onEdi
   return (
     <div ref={result} tabIndex={-1} aria-label="旅行结果" className="scroll-mt-6 outline-none">
       <div className="mb-6 flex flex-wrap items-center justify-between gap-4">
-        <p role="status" className="text-sm font-medium text-[#315f51]">行程已就绪 · Mock 示例</p>
+        <p role="status" className="text-sm font-medium text-[#315f51]">旅行需求已确认</p>
         <div className="flex flex-wrap gap-3">
           <button type="button" onClick={editRequest} className="min-h-11 rounded-full border border-[#315f51] bg-white px-5 py-2 text-sm font-semibold text-[#315f51] focus-visible:outline-2 focus-visible:outline-offset-2">修改旅行需求</button>
           <button type="button" disabled className="min-h-11 cursor-not-allowed rounded-full border border-[#18201d]/10 px-5 py-2 text-sm text-[#68726c]">重新规划 · 暂未开放</button>
         </div>
       </div>
-      <TripOverview plan={plan} />
       <ConfirmedPlaces request={plan.request} />
       <CandidatePreparation request={plan.request} pool={candidates} />
+      <SchedulePreview request={plan.request} preview={schedule} />
+      <section aria-label="旧 Mock 行程示例" className="mt-9 border-t-2 border-dashed border-[#18201d]/20 pt-7">
+      <h2 className="mb-2 text-xl font-semibold text-[#18392f]">旧 Mock 行程示例</h2>
+      <p className="mb-5 text-sm leading-6 text-[#68726c]">以下固定示例与上方步行草案相互独立；预算、天气、时间和原交通仍是 Mock。已有活动绑定和单段路线查询只影响这个示例区，不会修改草案。</p>
+      <TripOverview plan={plan} />
       <p aria-live="polite" aria-atomic="true" className="mt-3 text-sm leading-6 text-[#315f51]">{bindingMessage}</p>
       <div aria-label="选择行程日期" className="my-7 flex flex-wrap gap-3">
         {plan.days.map((item, index) => <button key={item.day} type="button" aria-pressed={selectedDay === index} onClick={() => switchDay(index)} className={`min-h-12 rounded-xl border px-5 py-3 text-sm font-semibold transition focus-visible:outline-2 focus-visible:outline-offset-2 ${selectedDay === index ? "border-[#18392f] bg-[#18392f] text-white" : "border-[#18201d]/15 bg-white text-[#56605c] hover:border-[#315f51]"}`}>Day {item.day} <span className="ml-2 text-xs font-normal">{item.date.slice(5)}</span></button>)}
@@ -192,6 +200,7 @@ export default function TripPlanResult({ plan, onEdit }: { plan: TripPlan; onEdi
           </div>
         </aside>
       </div>
+      </section>
     </div>
   );
 }
