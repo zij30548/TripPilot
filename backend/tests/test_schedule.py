@@ -307,7 +307,7 @@ class ScheduleApiTests(unittest.TestCase):
         response = self.post(data)
         self.assertEqual(response.status_code, 200)
         result = response.json()
-        self.assertEqual(result["request"], data)
+        self.assertEqual(result["request"], data | {"optional_places": []})
         self.assertEqual(result["status"], "complete")
         self.assertEqual(len(self.requests), 5)
         self.assertEqual(result["edges"][0]["duration_seconds"], 600)
@@ -484,7 +484,8 @@ class ScheduleBudgetTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(len(started), 3)
         self.assertEqual(len(cancelled), 3)
         self.assertEqual(len(result), 17)
-        self.assertTrue(all(edge.status == "timeout" for edge in result))
+        self.assertEqual(sum(edge.status == "timeout" for edge in result), 3)
+        self.assertEqual(sum(edge.status == "budget_exhausted" for edge in result), 14)
         self.assertEqual(len(asyncio.all_tasks()), 1)
 
     async def test_parent_cancellation_drains_child_requests(self) -> None:
@@ -568,7 +569,8 @@ class SchedulePacingTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(len(started), 1)
         self.assertEqual(len(cancelled), 1)
         self.assertEqual(len(result), 17)
-        self.assertTrue(all(edge.status == "timeout" for edge in result))
+        self.assertEqual(sum(edge.status == "timeout" for edge in result), 1)
+        self.assertEqual(sum(edge.status == "budget_exhausted" for edge in result), 16)
         self.assertEqual(len(asyncio.all_tasks()), 1)
 
     async def test_parent_cancel_while_pacer_waits_drains_everything(self) -> None:

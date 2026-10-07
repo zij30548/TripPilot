@@ -26,9 +26,39 @@ function deferred<T>() {
   const promise = new Promise<T>((done, fail) => { resolve = done; reject = fail; });
   return { promise, resolve, reject };
 }
-beforeEach(() => api.mockReset());
+beforeEach(() => { api.mockReset(); });
 
 describe("whole-trip candidate pool lifecycle", () => {
+  it("publishes loading synchronously before fetch and the accepted replacement before the query completes", async () => {
+    const notify = vi.fn(); api.mockImplementationOnce(async () => {
+      expect(notify).toHaveBeenCalledTimes(1); expect(notify.mock.calls[0][0]).toMatchObject({ loading: true, response: null }); return response();
+    });
+    const { result } = renderHook(() => useCandidatePool(request(), notify)); expect(notify).not.toHaveBeenCalled();
+    await act(async () => { await result.current.query(); });
+    expect(notify).toHaveBeenCalledTimes(2); expect(notify.mock.calls[1][0]).toMatchObject({ loading: false, response: response() });
+  });
+  it("publishes all local exclusion/restoration actions with the latest Set, without a request", async () => {
+    api.mockResolvedValue(response()); const notify = vi.fn(); const { result } = renderHook(() => useCandidatePool(request(), notify));
+    await act(async () => { await result.current.query(); }); notify.mockClear();
+    act(() => { result.current.exclude("one"); result.current.exclude("two"); result.current.restore("one"); });
+    expect(notify.mock.calls.map(([snapshot]) => [...snapshot.excludedIds])).toEqual([["one"], ["one", "two"], ["two"]]);
+    expect(api).toHaveBeenCalledTimes(1); act(() => result.current.exclude("must")); expect(notify).toHaveBeenCalledTimes(3);
+  });
+  it("refresh failure publishes the prior valid snapshot, exclusions and explicit old-result provenance", async () => {
+    api.mockResolvedValueOnce(response()).mockResolvedValueOnce(response([], "failed")); const notify = vi.fn();
+    const { result } = renderHook(() => useCandidatePool(request(), notify)); await act(async () => { await result.current.query(); });
+    act(() => result.current.exclude("one")); await act(async () => { await result.current.query(); });
+    const last = notify.mock.calls.at(-1)![0]; expect(last).toMatchObject({ loading: false, showingPrevious: true, response: response(), lastAttempt: response([], "failed") });
+    expect([...last.excludedIds]).toEqual(["one"]);
+  });
+  it.each(["success", "error"])("invalidation synchronously clears the consumer snapshot and ignores late %s notifications", async (outcome) => {
+    const old = deferred<CandidateResponse>(); api.mockReturnValueOnce(old.promise); const notify = vi.fn();
+    const { result } = renderHook(() => useCandidatePool(request(), notify)); let work!: Promise<boolean>;
+    act(() => { work = result.current.query(); }); const signal = api.mock.calls[0][1]; act(() => result.current.invalidate());
+    expect(signal?.aborted).toBe(true); expect(notify.mock.calls.at(-1)![0]).toMatchObject({ loading: false, response: null, lastAttempt: null });
+    const count = notify.mock.calls.length;
+    await act(async () => { if (outcome === "success") old.resolve(response()); else old.reject(new Error("old error")); await work; }); expect(notify).toHaveBeenCalledTimes(count);
+  });
   it("does not auto query; retains submitted must-visits from the start", () => {
     const input = request(); const { result, rerender } = renderHook(() => useCandidatePool(input));
     expect(result.current.state.status).toBe("idle"); expect(result.current.candidates.map((item) => item.place.id)).toEqual(["must"]);

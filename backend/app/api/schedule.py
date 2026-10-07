@@ -6,8 +6,8 @@ from fastapi import APIRouter, Depends
 from app.api.routes import SafeRouteValidation, get_walking_client
 from app.integrations.amap_walking import AmapWalkingClient
 from app.schemas.schedule import ScheduleRequest, ScheduleResponse
-from app.services.schedule import build_schedule
-from app.services.schedule_routes import collect_schedule_edges
+from app.services.schedule import add_optional_schedule, build_required_schedule
+from app.services.schedule_routes import ScheduleRouteCollector, optional_edges, required_edges
 
 
 class SafeScheduleValidation(SafeRouteValidation):
@@ -22,5 +22,9 @@ async def schedule_preview(
     request: ScheduleRequest,
     amap: Annotated[AmapWalkingClient, Depends(get_walking_client)],
 ) -> ScheduleResponse:
-    edges = await collect_schedule_edges(request, amap)
-    return build_schedule(request, edges, datetime.now(timezone.utc))
+    collector = ScheduleRouteCollector(amap)
+    edges = await collector.collect(required_edges(request)) if request.must_visit_places else []
+    baseline = build_required_schedule(request, edges, datetime.now(timezone.utc))
+    if not baseline.unscheduled and request.optional_places:
+        edges = await collector.collect(optional_edges(request, baseline.days))
+    return add_optional_schedule(request, baseline, edges)

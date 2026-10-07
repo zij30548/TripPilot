@@ -2,12 +2,17 @@ import { act, renderHook } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { useSchedulePreview } from "./use-schedule-preview";
 import { querySchedulePreview, ScheduleError } from "./schedule-api";
+import { useCandidatePool, type CandidatePoolSnapshot } from "./use-candidate-pool";
+import { queryCandidates } from "./candidates-api";
+import type { CandidateResponse } from "@/types/candidates";
 import { scheduleDates, type ScheduleRequest, type ScheduleResponse } from "@/types/schedule";
 import type { TripRequest } from "@/types/trip";
 import type { Place } from "@/types/place";
 
 vi.mock("./schedule-api", () => ({ querySchedulePreview: vi.fn(), ScheduleError: class extends Error { constructor(public kind: string, message: string) { super(message); } } }));
+vi.mock("./candidates-api", () => ({ queryCandidates: vi.fn(), CandidateError: class extends Error { constructor(public kind: string, message: string) { super(message); } } }));
 const api = vi.mocked(querySchedulePreview);
+const candidatesApi = vi.mocked(queryCandidates);
 const place = (id: string): Place => ({ id, name: id, address: "测试地址", longitude: 121.4, latitude: 31.2, category: "原类别", source: "amap" });
 function request(): TripRequest { return {
   start_date: "2026-10-10", end_date: "2026-10-11", budget: 3000, travelers: 2, accommodation_location: "hotel", accommodation_place: place("hotel"),
@@ -17,12 +22,104 @@ function response(input: ScheduleRequest): ScheduleResponse { return {
   status: "unscheduled", request: structuredClone(input), generated_at: "2026-10-06T04:00:00Z", rules: ["固定输入顺序"], unknowns: ["未核实营业"], edges: [],
   days: scheduleDates(input.start_date, input.end_date)!.map((date) => ({ date, items: [], return_time: null })),
   unscheduled: input.must_visit_places.map((p, index) => ({ place_id: p.id, reason: index ? "current_order_not_continued" : "time_window", message: "本次未排入" })),
+  optional_results: (input.optional_places ?? []).map((p) => ({ place_id: p.id, scheduled_date: null, not_attempted_reason: input.must_visit_places.length ? "must_incomplete" : null,
+    attempts: input.must_visit_places.length ? [] : scheduleDates(input.start_date, input.end_date)!.map((date) => ({ date, outcome: "time_window", message: "该日剩余时间不足。" })) })),
 }; }
+function candidateSnapshot(ids = ["o1", "o2", "o3", "o4"], excluded: string[] = []): CandidatePoolSnapshot {
+  const data: CandidateResponse = { status: "success", queried_at: "2026-10-06T04:00:00Z", keywords: ["公园"],
+    queries: [{ interest: "摄影", keyword: "公园", status: "success", result_count: ids.length, message: null }],
+    candidates: ids.map((id) => ({ place: place(id), role: "optional", retrieval_sources: [{ interest: "摄影", keyword: "公园" }] })) };
+  return { response: data, lastAttempt: data, excludedIds: new Set(excluded), loading: false, showingPrevious: false, message: null };
+}
 function deferred<T>() { let resolve!: (value: T) => void; let reject!: (error: Error) => void;
   const promise = new Promise<T>((done, fail) => { resolve = done; reject = fail; }); return { promise, resolve, reject }; }
-beforeEach(() => { api.mockReset(); });
+beforeEach(() => { api.mockReset(); candidatesApi.mockReset(); });
 
 describe("explicit independent walking schedule lifecycle", () => {
+  it("selects only first three eligible optional snapshots and excludes required/accommodation IDs", async () => {
+    api.mockImplementation(async (body) => response(body)); const { result } = renderHook(() => useSchedulePreview(request()));
+    act(() => result.current.updateCandidates(candidateSnapshot(["hotel", "one", "o1", "o2", "o3", "o4", "o1"], ["o2"])));
+    expect(result.current.optionalPlaces.map((p) => p.id)).toEqual(["o1", "o3", "o4"]); expect(result.current.eligibleCount).toBe(3); expect(result.current.notSelectedCount).toBe(0);
+    expect(result.current.stays.o1).toEqual({ value: "60", source: "default" });
+    await act(async () => { await result.current.query(); });
+    expect(api.mock.calls[0][0].optional_places?.map((p) => p.id)).toEqual(["o1", "o3", "o4"]);
+    expect(api.mock.calls[0][0].duration_settings.map((entry) => entry.place_id)).toEqual(["one", "two", "o1", "o3", "o4"]);
+    expect(Object.keys(api.mock.calls[0][0].optional_places![0])).not.toContain("retrieval_sources");
+  });
+  it("reports unselected count without automatic candidate or preview requests", () => {
+    const { result } = renderHook(() => useSchedulePreview(request())); act(() => result.current.updateCandidates(candidateSnapshot()));
+    expect(result.current.eligibleCount).toBe(4); expect(result.current.notSelectedCount).toBe(1); expect(result.current.candidateQueriedAt).toBe("2026-10-06T04:00:00Z");
+    expect(api).not.toHaveBeenCalled(); expect(candidatesApi).not.toHaveBeenCalled();
+  });
+  it("allows optional-only generation but clears it when no active optional remains", async () => {
+    api.mockImplementation(async (body) => response(body)); const { result } = renderHook(() => useSchedulePreview({ ...request(), must_visit: [], must_visit_places: [] }));
+    expect(result.current.canQuery).toBe(false); act(() => result.current.updateCandidates(candidateSnapshot(["o1"]))); expect(result.current.canQuery).toBe(true);
+    await act(async () => { await result.current.query(); }); expect(api.mock.calls[0][0].must_visit_places).toEqual([]);
+    act(() => result.current.updateCandidates(candidateSnapshot(["o1"], ["o1"]))); expect(result.current.canQuery).toBe(false); expect(result.current.state.response).toBeNull();
+  });
+  it("retains user stay choices by ID across exclusion, replacement and reappearance, but submits only current union", async () => {
+    api.mockImplementation(async (body) => response(body)); const { result } = renderHook(() => useSchedulePreview(request()));
+    act(() => result.current.updateCandidates(candidateSnapshot(["o1"]))); act(() => result.current.setStayMinutes("o1", "90"));
+    act(() => result.current.updateCandidates(candidateSnapshot(["o2"]))); act(() => result.current.updateCandidates(candidateSnapshot(["o1"])));
+    expect(result.current.stays.o1).toEqual({ value: "90", source: "user" });
+    await act(async () => { await result.current.query(); });
+    expect(api.mock.calls[0][0].duration_settings).toContainEqual({ place_id: "o1", minutes: 90, source: "user" });
+    expect(api.mock.calls[0][0].duration_settings.some((entry) => entry.place_id === "o2")).toBe(false);
+  });
+  it("candidate first failure still permits required-only preview; old valid/partial source remains explicit after refresh failure", () => {
+    const { result } = renderHook(() => useSchedulePreview(request()));
+    act(() => result.current.updateCandidates({ ...candidateSnapshot([]), response: null, lastAttempt: null, message: "未获取可选地点。" }));
+    expect(result.current.canQuery).toBe(true); expect(result.current.optionalPlaces).toEqual([]);
+    const old = candidateSnapshot(["o1"]); old.response!.status = "partial";
+    act(() => result.current.updateCandidates({ ...old, showingPrevious: true, message: "更新失败，仍用上次。" }));
+    expect(result.current.candidateStatus).toBe("partial"); expect(result.current.showingPreviousCandidates).toBe(true); expect(result.current.candidateMessage).toContain("上次");
+    expect(result.current.optionalPlaces[0].id).toBe("o1");
+  });
+  it("synchronous candidate refresh blocks even an older query callback before React rerenders", async () => {
+    const { result } = renderHook(() => useSchedulePreview(request())); const oldQuery = result.current.query;
+    await act(async () => { result.current.updateCandidates({ ...candidateSnapshot(), loading: true }); expect(await oldQuery()).toBe(false); });
+    expect(result.current.candidateLoading).toBe(true); expect(result.current.canQuery).toBe(false); expect(api).not.toHaveBeenCalled();
+  });
+  it("uses the newly filtered snapshot when exclude and an old query callback run in the same event", async () => {
+    candidatesApi.mockResolvedValue(candidateSnapshot().response!); api.mockImplementation(async (body) => response(body));
+    const input = request(); const { result } = renderHook(() => { const preview = useSchedulePreview(input); const pool = useCandidatePool(input, preview.updateCandidates); return { preview, pool }; });
+    await act(async () => { await result.current.pool.query(); }); const oldQuery = result.current.preview.query;
+    await act(async () => { result.current.pool.exclude("o1"); await oldQuery(); });
+    expect(api.mock.calls[0][0].optional_places?.map((p) => p.id)).toEqual(["o2", "o3", "o4"]);
+    expect(candidatesApi).toHaveBeenCalledTimes(1);
+  });
+  it("candidate refresh start synchronously aborts existing preview and successful replacement does not auto regenerate", async () => {
+    const old = deferred<ScheduleResponse>(); const refresh = deferred<CandidateResponse>();
+    candidatesApi.mockResolvedValueOnce(candidateSnapshot().response!).mockReturnValueOnce(refresh.promise); api.mockReturnValueOnce(old.promise);
+    const input = request(); const { result } = renderHook(() => { const preview = useSchedulePreview(input); const pool = useCandidatePool(input, preview.updateCandidates); return { preview, pool }; });
+    await act(async () => { await result.current.pool.query(); }); let oldWork!: Promise<boolean>; let updating!: Promise<boolean>;
+    act(() => { oldWork = result.current.preview.query(); }); const signal = api.mock.calls[0][1];
+    act(() => { updating = result.current.pool.query(); }); expect(signal?.aborted).toBe(true); expect(result.current.preview.candidateLoading).toBe(true);
+    await act(async () => { old.resolve(response(api.mock.calls[0][0])); expect(await oldWork).toBe(false); refresh.resolve(candidateSnapshot(["new"]).response!); await updating; });
+    expect(result.current.preview.state.response).toBeNull(); expect(result.current.preview.optionalPlaces[0].id).toBe("new"); expect(api).toHaveBeenCalledTimes(1);
+  });
+  it.each(["success", "error"])("exclude→restore A→B→A rejects old %s/finally without unblocking a newer pending preview", async (outcome) => {
+    candidatesApi.mockResolvedValue(candidateSnapshot().response!); const old = deferred<ScheduleResponse>(); const next = deferred<ScheduleResponse>(); api.mockReturnValueOnce(old.promise).mockReturnValueOnce(next.promise);
+    const input = request(); const { result } = renderHook(() => { const preview = useSchedulePreview(input); const pool = useCandidatePool(input, preview.updateCandidates); return { preview, pool }; });
+    await act(async () => { await result.current.pool.query(); }); let oldWork!: Promise<boolean>; let newWork!: Promise<boolean>;
+    act(() => { oldWork = result.current.preview.query(); }); act(() => result.current.pool.exclude("o1")); act(() => result.current.pool.restore("o1"));
+    act(() => { newWork = result.current.preview.query(); });
+    await act(async () => { if (outcome === "success") old.resolve(response(api.mock.calls[0][0])); else old.reject(new Error("old failure")); await oldWork; });
+    expect(result.current.preview.state.status).toBe("loading"); act(() => { void result.current.preview.query(); }); expect(api).toHaveBeenCalledTimes(2);
+    await act(async () => { next.resolve(response(api.mock.calls[1][0])); await newWork; }); expect(result.current.preview.state.status).toBe("success");
+  });
+  it("exclusion outside selected first three still invalidates a displayed preview", async () => {
+    candidatesApi.mockResolvedValue(candidateSnapshot().response!); api.mockImplementation(async (body) => response(body));
+    const input = request(); const { result } = renderHook(() => { const preview = useSchedulePreview(input); const pool = useCandidatePool(input, preview.updateCandidates); return { preview, pool }; });
+    await act(async () => { await result.current.pool.query(); await result.current.preview.query(); });
+    act(() => result.current.pool.exclude("o4")); expect(result.current.preview.optionalPlaces.map((p) => p.id)).toEqual(["o1", "o2", "o3"]);
+    expect(result.current.preview.state.response).toBeNull(); expect(api).toHaveBeenCalledTimes(1); expect(candidatesApi).toHaveBeenCalledTimes(1);
+  });
+  it("captures optional snapshots independently of subsequent external object mutation", async () => {
+    api.mockImplementation(async (body) => response(body)); const { result } = renderHook(() => useSchedulePreview(request())); const supplied = candidateSnapshot(["o1"]);
+    act(() => result.current.updateCandidates(supplied)); supplied.response!.candidates[0].place.name = "later change";
+    await act(async () => { await result.current.query(); }); expect(api.mock.calls[0][0].optional_places![0].name).toBe("o1");
+  });
   it("defaults to assumed 60 minutes and 12–13 lunch without modifying any confirmed Place or sending requests", () => {
     const input = request(); const original = structuredClone(input); const { result, rerender } = renderHook(() => useSchedulePreview(input));
     expect(result.current.stays).toEqual({ one: { value: "60", source: "default" }, two: { value: "60", source: "default" } });
@@ -34,7 +131,7 @@ describe("explicit independent walking schedule lifecycle", () => {
     await act(async () => { expect(await result.current.query()).toBe(true); });
     const body = api.mock.calls[0][0];
     expect(body).toEqual({ start_date: input.start_date, end_date: input.end_date, daily_start_time: "09:00", daily_end_time: "18:00", accommodation_place: input.accommodation_place,
-      must_visit_places: input.must_visit_places, duration_settings: [{ place_id: "one", minutes: 60, source: "default" }, { place_id: "two", minutes: 60, source: "default" }],
+      must_visit_places: input.must_visit_places, optional_places: [], duration_settings: [{ place_id: "one", minutes: 60, source: "default" }, { place_id: "two", minutes: 60, source: "default" }],
       lunch: { enabled: true, start_time: "12:00", end_time: "13:00" } });
     expect(result.current.state).toMatchObject({ status: "success", response: { status: "unscheduled" } });
   });

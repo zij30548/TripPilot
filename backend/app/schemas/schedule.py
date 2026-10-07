@@ -51,8 +51,9 @@ class ScheduleRequest(BaseModel):
     daily_start_time: str
     daily_end_time: str
     accommodation_place: ConfirmedPlace
-    must_visit_places: list[ConfirmedPlace] = Field(min_length=1, max_length=6, strict=True)
-    duration_settings: list[StayDuration] = Field(min_length=1, max_length=6, strict=True)
+    must_visit_places: list[ConfirmedPlace] = Field(max_length=6, strict=True)
+    optional_places: list[ConfirmedPlace] = Field(default_factory=list, max_length=3, strict=True)
+    duration_settings: list[StayDuration] = Field(min_length=1, max_length=9, strict=True)
     lunch: LunchWindow = Field(default_factory=LunchWindow)
 
     _valid_times = field_validator("daily_start_time", "daily_end_time", mode="before")(valid_clock)
@@ -75,11 +76,15 @@ class ScheduleRequest(BaseModel):
             start <= clock_minutes(self.lunch.start_time) < clock_minutes(self.lunch.end_time) <= end
         ):
             raise ValueError("午餐时间必须完整位于每日时间窗内。")
-        ids = [place.id for place in self.must_visit_places]
+        required_ids = [place.id for place in self.must_visit_places]
+        optional_ids = [place.id for place in self.optional_places]
+        ids = required_ids + optional_ids
         settings_ids = [setting.place_id for setting in self.duration_settings]
-        if len(set(ids)) != len(ids) or len(set(settings_ids)) != len(settings_ids) or set(ids) != set(settings_ids):
-            raise ValueError("停留时长必须与唯一必去地点一一对应。")
-        for place in [self.accommodation_place, *self.must_visit_places]:
+        if not ids or len(set(ids)) != len(ids) or self.accommodation_place.id in optional_ids:
+            raise ValueError("须选择至少一个地点，可选地点不能重复或与住宿、必去地点重合。")
+        if len(set(settings_ids)) != len(settings_ids) or set(ids) != set(settings_ids):
+            raise ValueError("停留时长必须与所有所选地点一一对应。")
+        for place in [self.accommodation_place, *self.must_visit_places, *self.optional_places]:
             # Reuse walking's safe endpoint identity/coordinate validation.
             RouteEndpoint(place_id=place.id, longitude=place.longitude, latitude=place.latitude)
         return self
@@ -89,7 +94,7 @@ class ScheduleEdge(BaseModel):
     id: str
     origin: RouteEndpoint
     destination: RouteEndpoint
-    status: Literal["ok", "same_place", "no_route", "timeout", "data_error", "failed"]
+    status: Literal["ok", "same_place", "no_route", "timeout", "data_error", "failed", "budget_exhausted"]
     duration_seconds: float | None = None
     duration_minutes: int | None = None
     distance_meters: float | None = None
@@ -126,6 +131,22 @@ class UnscheduledPlace(BaseModel):
     message: str
 
 
+class OptionalAttempt(BaseModel):
+    date: date
+    outcome: Literal[
+        "scheduled", "time_window", "no_route", "timeout", "data_error",
+        "failed", "budget_exhausted", "day_slot_used",
+    ]
+    message: str
+
+
+class OptionalResult(BaseModel):
+    place_id: str
+    scheduled_date: date | None = None
+    not_attempted_reason: Literal["must_incomplete"] | None = None
+    attempts: list[OptionalAttempt] = Field(default_factory=list)
+
+
 class ScheduleResponse(BaseModel):
     status: Literal["complete", "partial", "unscheduled"]
     generated_at: AwareDatetime
@@ -133,5 +154,6 @@ class ScheduleResponse(BaseModel):
     days: list[ScheduleDay]
     unscheduled: list[UnscheduledPlace]
     edges: list[ScheduleEdge]
+    optional_results: list[OptionalResult] = Field(default_factory=list)
     rules: list[str]
     unknowns: list[str]

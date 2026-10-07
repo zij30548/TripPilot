@@ -7,13 +7,14 @@ export class ScheduleError extends Error {
 }
 export async function querySchedulePreview(request: ScheduleRequest, signal?: AbortSignal): Promise<ScheduleResponse> {
   if (!isScheduleRequest(request)) throw new ScheduleError("error", "请检查确认地点、日期、每日时间、停留分钟和午餐设置后再生成草案。");
+  const submitted = structuredClone(request);
   if (signal?.aborted) throw new DOMException("草案生成已取消。", "AbortError");
   const controller = new AbortController(); const cancel = () => controller.abort(); let timedOut = false;
   signal?.addEventListener("abort", cancel, { once: true });
   const timer = setTimeout(() => { timedOut = true; controller.abort(); }, 25_000);
   try {
     const response = await fetch("http://127.0.0.1:8000/trips/schedule-preview", {
-      method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(request), signal: controller.signal,
+      method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(submitted), signal: controller.signal,
     });
     if (!response.ok) {
       const messages: Record<number, string> = {
@@ -25,7 +26,7 @@ export async function querySchedulePreview(request: ScheduleRequest, signal?: Ab
     }
     const data: unknown = await response.json();
     if (controller.signal.aborted) throw new DOMException("草案生成已取消。", "AbortError");
-    if (!isScheduleResponse(data, request)) throw new ScheduleError("error", "步行草案数据不完整或时间不一致，未展示草案，请重试。");
+    if (!isScheduleResponse(data, submitted)) throw new ScheduleError("error", "步行草案数据不完整或时间不一致，未展示草案，请重试。");
     return data;
   } catch (error) {
     if (signal?.aborted) throw new DOMException("草案生成已取消。", "AbortError");

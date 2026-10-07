@@ -166,7 +166,7 @@ describe("candidate preparation UI and result-local lifecycle", () => {
     expect(within(candidate(required)).getByText("必去")).toBeTruthy();
     expect(within(candidate(required)).queryByRole("button", { name: /排除|恢复/ })).toBeNull();
     expect(within(pool()).getByRole("button", { name: "获取候选地点" })).toBeTruthy();
-    expect(pool().textContent).toMatch(/不会排程|未.*安排|不是.*行程/);
+    expect(pool().textContent).toContain("获取候选本身不会生成草案");
     expect(pool().textContent).toContain("测试不想去的类型");
     expect(pool().textContent).toMatch(/未.*过滤|不.*自动.*过滤/);
     await act(async () => undefined);

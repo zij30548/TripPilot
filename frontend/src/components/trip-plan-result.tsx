@@ -30,8 +30,8 @@ export default function TripPlanResult({ plan, onEdit }: { plan: TripPlan; onEdi
   const [routeMode, setRouteMode] = useState<"walking" | "transit">("walking");
   const walking = useWalkingRoute();
   const transit = useTransitRoute();
-  const candidates = useCandidatePool(plan.request);
   const schedule = useSchedulePreview(plan.request);
+  const candidates = useCandidatePool(plan.request, schedule.updateCandidates);
   const result = useRef<HTMLDivElement>(null);
   const explorer = useRef<HTMLDivElement>(null);
   const activityCards = useRef(new Map<string, HTMLElement>());
@@ -145,8 +145,8 @@ export default function TripPlanResult({ plan, onEdit }: { plan: TripPlan; onEdi
   }
 
   function editRequest() {
-    schedule.invalidate();
     candidates.invalidate();
+    schedule.invalidate();
     walking.invalidate();
     transit.invalidate();
     onEdit();

@@ -19,7 +19,7 @@ function edge(id: string, origin: Place, destination: Place, seconds = 120): Sch
 }; }
 function response(input = request()): ScheduleResponse {
   return { status: "complete", generated_at: "2026-10-06T03:00:00.123456Z", request: structuredClone(input),
-    rules: ["固定必去输入顺序"], unknowns: ["尚未校验营业时间"], unscheduled: [],
+    rules: ["固定必去输入顺序"], unknowns: ["尚未校验营业时间"], unscheduled: [], optional_results: [],
     edges: [edge("out", input.accommodation_place, input.must_visit_places[0], 61.2), edge("back", input.must_visit_places[0], input.accommodation_place)],
     days: scheduleDates(input.start_date, input.end_date)!.map((date, index) => ({ date, return_time: index ? null : "10:04", items: index ? [] : [
       item("walk", "09:00", "09:02", 2, { from_place_id: input.accommodation_place.id, to_place_id: input.must_visit_places[0].id, edge_id: "out" }),
@@ -29,9 +29,117 @@ function response(input = request()): ScheduleResponse {
   };
 }
 function mockResponse(data: unknown) { vi.stubGlobal("fetch", vi.fn().mockResolvedValue({ ok: true, json: async () => data })); }
+function withOptional(): { input: ScheduleRequest; data: ScheduleResponse } {
+  const input = request(); const optional = place("optional", 121.42); input.optional_places = [optional];
+  input.duration_settings.push({ place_id: optional.id, minutes: 60, source: "default" });
+  const data = response(input); data.edges[1].used = false;
+  data.edges.push(edge("tail-option", input.must_visit_places[0], optional), edge("option-home", optional, input.accommodation_place));
+  data.days[0].items.splice(2, 1,
+    item("walk", "10:02", "10:04", 2, { from_place_id: "required", to_place_id: "optional", edge_id: "tail-option" }),
+    item("visit", "10:04", "11:04", 60, { place_id: "optional", duration_source: "default" }),
+    item("walk", "11:04", "11:06", 2, { from_place_id: "optional", to_place_id: "hotel", edge_id: "option-home" }));
+  data.days[0].return_time = "11:06";
+  data.optional_results = [{ place_id: "optional", scheduled_date: input.start_date, not_attempted_reason: null,
+    attempts: [{ date: input.start_date, outcome: "scheduled", message: "该日末尾已排入。" }] }];
+  return { input, data };
+}
 afterEach(() => { vi.unstubAllGlobals(); vi.useRealTimers(); });
 
 describe("schedule preview request and response contract", () => {
+  it("accepts legacy omitted optional request with normalized empty echo/results", async () => {
+    const input = request(); const data = response(input); data.request.optional_places = []; mockResponse(data);
+    expect(await querySchedulePreview(input)).toEqual(data);
+  });
+  it("accepts optional appended only after the required tail without rewriting required stops", async () => {
+    const { input, data } = withOptional(); mockResponse(data); expect(await querySchedulePreview(input)).toEqual(data);
+    expect(data.days[0].items.filter((entry) => entry.kind === "visit").map((entry) => entry.place_id)).toEqual(["required", "optional"]);
+  });
+  it("allows optional-only input but never an entirely empty selection", () => {
+    const { input, data } = withOptional(); input.must_visit_places = []; input.duration_settings = input.duration_settings.slice(1);
+    data.request = structuredClone(input); data.edges = [edge("out", input.accommodation_place, input.optional_places![0]), edge("back", input.optional_places![0], input.accommodation_place)];
+    data.days[0] = { date: input.start_date, return_time: "10:04", items: [
+      item("walk", "09:00", "09:02", 2, { from_place_id: "hotel", to_place_id: "optional", edge_id: "out" }),
+      item("visit", "09:02", "10:02", 60, { place_id: "optional", duration_source: "default" }),
+      item("walk", "10:02", "10:04", 2, { from_place_id: "optional", to_place_id: "hotel", edge_id: "back" }),
+    ] };
+    expect(isScheduleRequest(input)).toBe(true); expect(isScheduleResponse(data, input)).toBe(true);
+    input.optional_places = []; input.duration_settings = []; expect(isScheduleRequest(input)).toBe(false);
+  });
+  it("preserves optional input order while recording per-day slot use and later success", () => {
+    const { input, data } = withOptional(); const second = place("secondOptional", 121.43);
+    input.optional_places!.push(second); input.duration_settings.push({ place_id: second.id, minutes: 60, source: "default" }); data.request = structuredClone(input);
+    data.edges.push(edge("out2", input.accommodation_place, second), edge("back2", second, input.accommodation_place));
+    data.days[1] = { date: input.end_date, return_time: "10:04", items: [item("walk", "09:00", "09:02", 2, { from_place_id: "hotel", to_place_id: second.id, edge_id: "out2" }),
+      item("visit", "09:02", "10:02", 60, { place_id: second.id, duration_source: "default" }), item("walk", "10:02", "10:04", 2, { from_place_id: second.id, to_place_id: "hotel", edge_id: "back2" })] };
+    data.optional_results.push({ place_id: second.id, scheduled_date: input.end_date, not_attempted_reason: null, attempts: [
+      { date: input.start_date, outcome: "day_slot_used", message: "该日已有一个可选地点。" }, { date: input.end_date, outcome: "scheduled", message: "已排入。" },
+    ] }); expect(isScheduleResponse(data, input)).toBe(true);
+    data.optional_results[1].attempts[0].outcome = "failed";
+    expect(isScheduleResponse(data, input)).toBe(false); // The earlier optional already used this day's slot.
+    data.optional_results[1].attempts[0].outcome = "day_slot_used";
+    input.optional_places!.reverse(); data.request.optional_places!.reverse(); data.optional_results.reverse();
+    expect(isScheduleResponse(data, input)).toBe(false); // An earlier candidate cannot blame a later winner without trying.
+    data.optional_results[0].attempts[0].outcome = "time_window";
+    expect(isScheduleResponse(data, input)).toBe(true);
+  });
+  it("unfinished required prefix prevents all optional attempts and reports must_incomplete", () => {
+    const { input } = withOptional(); const data = response(input); data.status = "unscheduled"; data.edges = [];
+    data.days = data.days.map((day) => ({ ...day, items: [], return_time: null }));
+    data.unscheduled = [{ place_id: "required", reason: "time_window", message: "每日时间不足。" }];
+    data.optional_results = [{ place_id: "optional", scheduled_date: null, not_attempted_reason: "must_incomplete", attempts: [] }];
+    expect(isScheduleResponse(data, input)).toBe(true);
+  });
+  it("budget-exhausted optional edges remain unused and report each affected date", () => {
+    const { input } = withOptional(); const data = response(input); data.status = "partial";
+    data.edges.push({ ...edge("not-started", input.must_visit_places[0], input.optional_places![0]), status: "budget_exhausted", used: false,
+      duration_seconds: null, duration_minutes: null, distance_meters: null, message: "本批查询预算已用尽，未启动。" });
+    data.optional_results = [{ place_id: "optional", scheduled_date: null, not_attempted_reason: null,
+      attempts: data.days.map((day) => ({ date: day.date, outcome: "budget_exhausted", message: "本次未启动。" })) }];
+    expect(isScheduleResponse(data, input)).toBe(true);
+  });
+  it.each([
+    ["four optional places", (input: ScheduleRequest) => { input.optional_places = Array.from({ length: 4 }, (_, index) => place(`o${index}`)); }],
+    ["duplicate optional ID", (input: ScheduleRequest) => { input.optional_places!.push(input.optional_places![0]); }],
+    ["optional is lodging", (input: ScheduleRequest) => { input.optional_places![0] = input.accommodation_place; }],
+    ["optional is required", (input: ScheduleRequest) => { input.optional_places![0] = input.must_visit_places[0]; }],
+    ["missing optional duration", (input: ScheduleRequest) => { input.duration_settings.pop(); }],
+    ["null optional list", (input: ScheduleRequest) => { Object.assign(input, { optional_places: null }); }],
+  ])("rejects %s", async (_, change) => {
+    const { input } = withOptional(); change(input); expect(isScheduleRequest(input)).toBe(false);
+    await expect(querySchedulePreview(input)).rejects.toThrow("请检查"); expect(fetch).not.toHaveBeenCalled();
+  });
+  it.each([
+    ["optional snapshot changed", (data: ScheduleResponse) => { data.request.optional_places![0].address = "other"; }],
+    ["optional result missing", (data: ScheduleResponse) => { data.optional_results = []; }],
+    ["optional result ID replaced", (data: ScheduleResponse) => { data.optional_results[0].place_id = "fake"; }],
+    ["optional scheduled date mismatches visit", (data: ScheduleResponse) => { data.optional_results[0].scheduled_date = "2026-10-11"; }],
+    ["attempt omitted", (data: ScheduleResponse) => { data.optional_results[0].attempts = []; }],
+    ["attempt claims another date", (data: ScheduleResponse) => { data.optional_results[0].attempts[0].date = "2026-10-09"; }],
+    ["false failure for scheduled visit", (data: ScheduleResponse) => { data.optional_results[0].attempts[0].outcome = "time_window"; }],
+    ["false must-incomplete claim", (data: ScheduleResponse) => { data.optional_results[0].not_attempted_reason = "must_incomplete"; }],
+    ["same optional visited twice", (data: ScheduleResponse) => { data.days[1] = { ...data.days[0], date: "2026-10-11" }; }],
+    ["illegal optional self-edge", (data: ScheduleResponse) => { const p = data.request.optional_places![0]; data.edges.push({ ...edge("bad", p, p), status: "same_place", source: "same_place", duration_minutes: 0, duration_seconds: 0, distance_meters: 0, used: false }); }],
+    ["used budget failure", (data: ScheduleResponse) => { data.edges[2].status = "budget_exhausted"; }],
+    ["wrong partial status for complete union", (data: ScheduleResponse) => { data.status = "partial"; }],
+  ])("rejects inconsistent optional metadata: %s", async (_, change) => {
+    const { input, data } = withOptional(); change(data); mockResponse(data);
+    await expect(querySchedulePreview(input)).rejects.toThrow("数据不完整或时间不一致");
+  });
+  it("requires full per-date failures, rejects false slot-use and false success without a visit", () => {
+    const { input } = withOptional(); const data = response(input); data.status = "partial";
+    data.optional_results = [{ place_id: "optional", scheduled_date: null, not_attempted_reason: null,
+      attempts: data.days.map((day) => ({ date: day.date, outcome: "time_window", message: "该日剩余时间不足。" })) }];
+    expect(isScheduleResponse(data, input)).toBe(true);
+    data.optional_results[0].attempts[0].outcome = "day_slot_used"; expect(isScheduleResponse(data, input)).toBe(false);
+    data.optional_results[0].attempts[0].outcome = "scheduled"; expect(isScheduleResponse(data, input)).toBe(false);
+    data.optional_results[0].attempts[0].outcome = "time_window"; data.optional_results[0].attempts.pop(); expect(isScheduleResponse(data, input)).toBe(false);
+  });
+  it("captures a complete immutable submitted snapshot while response is pending", async () => {
+    const { input, data } = withOptional(); let resolve!: (value: unknown) => void;
+    vi.stubGlobal("fetch", vi.fn(() => new Promise((done) => { resolve = done; })));
+    const work = querySchedulePreview(input); input.optional_places![0].name = "changed later"; input.duration_settings[1].minutes = 200;
+    resolve({ ok: true, json: async () => data }); expect(await work).toEqual(data);
+  });
   it("posts only the independent inputs and accepts real seconds/ceiling minutes and rounded coordinates", async () => {
     const input = request(); const data = response(input); mockResponse(data);
     expect(await querySchedulePreview(input)).toEqual(data); expect(fetch).toHaveBeenCalledTimes(1);
@@ -68,8 +176,15 @@ describe("schedule preview request and response contract", () => {
     expect(isScheduleResponse(data, input)).toBe(true);
   });
   it("accepts a completed schedule despite unrelated unused failure", () => {
-    const input = request(); const data = response(input);
-    data.edges.push({ ...edge("unused", input.must_visit_places[0], input.must_visit_places[0]), used: false, status: "failed", duration_seconds: null, duration_minutes: null, distance_meters: null, message: "查询未完成。" });
+    const input = request(); input.must_visit_places.push(place("second", 121.42)); input.duration_settings.push({ place_id: "second", minutes: 60, source: "default" });
+    const data = response(input);
+    data.edges.push(edge("out2", input.accommodation_place, input.must_visit_places[1]), edge("back2", input.must_visit_places[1], input.accommodation_place),
+      { ...edge("unused", input.must_visit_places[0], input.must_visit_places[1]), used: false, status: "failed", duration_seconds: null, duration_minutes: null, distance_meters: null, message: "查询未完成。" });
+    data.days[1] = { date: input.end_date, return_time: "10:04", items: [
+      item("walk", "09:00", "09:02", 2, { from_place_id: "hotel", to_place_id: "second", edge_id: "out2" }),
+      item("visit", "09:02", "10:02", 60, { place_id: "second", duration_source: "default" }),
+      item("walk", "10:02", "10:04", 2, { from_place_id: "second", to_place_id: "hotel", edge_id: "back2" }),
+    ] };
     expect(isScheduleResponse(data, input)).toBe(true);
   });
   it("accepts all unscheduled with all requested dates empty", () => {
