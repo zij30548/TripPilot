@@ -8,6 +8,7 @@ import { useWalkingRoute, walkingSegmentKey } from "@/lib/use-walking-route";
 import { useTransitRoute } from "@/lib/use-transit-route";
 import { useCandidatePool } from "@/lib/use-candidate-pool";
 import { useSchedulePreview } from "@/lib/use-schedule-preview";
+import { useWeatherForecast } from "@/lib/use-weather-forecast";
 import TripOverview from "./trip/trip-overview";
 import ConfirmedPlaces from "./trip/confirmed-places";
 import CandidatePreparation from "./trip/candidate-preparation";
@@ -15,6 +16,7 @@ import SchedulePreview from "./trip/schedule-preview";
 import DayTimeline from "./trip/day-timeline";
 import BudgetSummary from "./trip/budget-summary";
 import WeatherSummary from "./trip/weather-summary";
+import WeatherForecast from "./trip/weather-forecast";
 import PlaceExplorer from "./places/place-explorer";
 
 export default function TripPlanResult({ plan, onEdit }: { plan: TripPlan; onEdit: () => void }) {
@@ -32,6 +34,8 @@ export default function TripPlanResult({ plan, onEdit }: { plan: TripPlan; onEdi
   const transit = useTransitRoute();
   const schedule = useSchedulePreview(plan.request);
   const candidates = useCandidatePool(plan.request, schedule.updateCandidates);
+  const weatherRequest = { start_date: plan.request.start_date, end_date: plan.request.end_date };
+  const weather = useWeatherForecast(weatherRequest);
   const result = useRef<HTMLDivElement>(null);
   const explorer = useRef<HTMLDivElement>(null);
   const activityCards = useRef(new Map<string, HTMLElement>());
@@ -145,6 +149,7 @@ export default function TripPlanResult({ plan, onEdit }: { plan: TripPlan; onEdi
   }
 
   function editRequest() {
+    weather.invalidate();
     candidates.invalidate();
     schedule.invalidate();
     walking.invalidate();
@@ -162,6 +167,7 @@ export default function TripPlanResult({ plan, onEdit }: { plan: TripPlan; onEdi
         </div>
       </div>
       <ConfirmedPlaces request={plan.request} />
+      <WeatherForecast request={weatherRequest} weather={weather} />
       <CandidatePreparation request={plan.request} pool={candidates} />
       <SchedulePreview request={plan.request} preview={schedule} />
       <section aria-label="旧 Mock 行程示例" className="mt-9 border-t-2 border-dashed border-[#18201d]/20 pt-7">

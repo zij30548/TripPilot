@@ -30,9 +30,11 @@
 - Milestone 5B-1: independent fixed-order must-visit walking previews, actual 1–3-day dates, editable stays/lunch, bounded real walking queries, verified daily returns and explicit unscheduled reasons
 - Milestone 5B-2: current non-excluded optional candidates participate in the same walking preview, with required-first scheduling and at most one fixed-tail addition per day, three optional inputs and one shared route-query budget
 - Milestone 5B-3: one explicitly selected walking or Shanghai transit-reference mode per schedule preview, mode-aware route acquisition/validation, actual bus/subway steps and synchronous cross-mode stale-request isolation
+- Milestone 5C-1: explicitly queried Shanghai daily forecasts, independent date-matched snapshots, day/night rain/snow text rules, source-publication freshness and isolated result-page lifecycle
 
 ## Current
 
+- Milestone 5C-1 is accepted and included in this **local-only 17-file closeout**, with commit message `feat: add Shanghai weather forecasts and daily travel hints`. Its verified parent is `01224f166a5ff11057b4d522b6be0f4c579b877d` (local 5B-3). This adds one local commit, leaving `main` three commits ahead / zero behind the existing `origin/main` tracking record; no fetch, reset, amend or push. Only current closeout documentation changed in this round; no business code or full-suite rerun. The five original caches and stable evidence remain unchanged. Implementation tests, browser observations and limitations below remain historical results, not new closeout runs
 - Milestone 4B was committed/pushed as `0eeba167766216ffbaecfa4610c83539ae36577d`; 4C-1 was subsequently committed/pushed as `84f0eb17f618a13b01e5e16f4b906c32ac1c5e9b` (`feat: add real walking routes between bound activities`). Both acceptance records remain below
 - Milestone 4C-2 was reviewed, committed and pushed as `cb1a2605af312b9c8dcb319358615691ca56b0be` (`feat: add real transit routes between bound activities`). Its implementation, supplemental activity→Marker acceptance and historical limitations remain below. This is the verified starting HEAD for 5A-1; the five pre-existing Python cache changes remain excluded from this work
 - Milestone 5A-1 was reviewed, committed and pushed as `58cecc300201bf83785a69f520a9b525a1e19eb4` (`feat: confirm accommodation and must-visit places`). Its implementation/acceptance evidence remains below. This is the verified starting HEAD for 5A-2
@@ -56,7 +58,7 @@
 - Map creation is independent of candidate updates; search cancellation/request IDs prevent stale results, and unmount cleans listeners, markers, map and late async results
 - Only GET /_AMapService/v3/config/district is proxied to https://restapi.amap.com/v3/config/district, limited to Shanghai/province/subdistrict=0/extensions=base/page=1. No catch-all proxy, custom-style endpoint, POI bypass, routing, weather or IP endpoint is allowed
 - serviceHost is set before SDK loading. Every supplied JS Key must match backend configuration; jscode is appended only by the backend. Identical, individually validated key/s copies from the real SDK are folded; other duplicate/unknown parameters are rejected. Known SDK diagnostic fields are validated and stripped. Client security-code overrides, unsafe paths/callbacks, redirects and sensitive upstream responses are still rejected; TLS verification and the existing explicit CORS origins are retained
-- 4C-1 added an independent walking endpoint; 4C-2 added an independent Shanghai transit endpoint and result-local mode selection. Those milestones added no scheduling. No driving, real weather, LLM/Agent, database, global state manager or new browser dependency has been added; backend SDK proxy restrictions and credentials remain unchanged
+- 4C-1 added an independent walking endpoint; 4C-2 added an independent Shanghai transit endpoint and result-local mode selection. Those milestones added no scheduling or real weather. 5C-1 now adds independent real weather only. No driving, LLM/Agent, database, global state manager or new browser dependency has been added; backend SDK proxy restrictions and credentials remain unchanged
 - POST /routes/walking accepts origin/destination POI IDs and finite longitude/latitude, uses the fixed AMap walking upstream and returns source, UTC query time, status and normalized meters/seconds/coordinate segments. Only the first upstream proposal is validated and used; an invalid first proposal fails safely. No straight-line or Mock fallback exists
 - Walking queries follow original activity adjacency, not a filtered list of bound activities. Missing endpoints and same-place pairs do not trigger a route request. Replacement/removal of an endpoint, day switch, edit/regeneration and unmount invalidate route state and pending requests; day bindings themselves remain preserved
 - POST /routes/transit reuses validated endpoint coordinates, fixes both cities to Shanghai and calls only AMap v3 transit/integrated. It selects the first complete supported valid proposal, and one valid supported alternative per ride; it does not claim the fastest/optimal route. Mode switches invalidate both modes without automatically querying. Trip dates/Mock activity times are not sent as real departure times
@@ -65,8 +67,107 @@
 
 ## Next
 
-- Stop after the authorized 5B-3 local commit; do not push or enter another milestone without further authorization. Physical-phone/touch, dedicated live subway/transfer-operation samples, broader real upstream fault acceptance, six-required-plus-three-optional live full-load acceptance and the Turbopack limitation remain separate; historical evidence is retained
+- Stop after the authorized 5C-1 local commit; do not push, automatically replan or enter another milestone. Physical-phone/touch, dedicated live subway/transfer-operation samples, broader real upstream fault acceptance, six-required-plus-three-optional live full-load acceptance and the Turbopack limitation remain separate; historical evidence is retained
 - Review existing dependency security advisories as a separate, approved maintenance task before deployment
+
+## Milestone 5C-1 Actual Implementation and Acceptance (2026-10-10)
+
+### Local-only closeout (2026-10-10)
+
+- User authorized a local commit after implementation and acceptance. Stage only the 17-file manifest below, excluding all five original Python caches, environment files and the external evidence directory. Commit message: `feat: add Shanghai weather forecasts and daily travel hints`
+- Current source/test files have no modification timestamps after the recorded acceptance; their closeout SHA-256 snapshot is checked again against the staged contents. Only this documentation's current closeout status is edited. Staged manifest/diff, whitespace and credential checks are performed; the prior 286 backend / 729 frontend tests, lint, typecheck, Webpack build and real Chrome evidence are **not rerun or relabeled** as closeout testing
+- All eight stable screenshots still match the receipt's hashes. `/Users/zijing/projects/trippilot-evidence/5c-1/` remains outside Git; no evidence is deleted or moved. The implementation-round baseline/handoff, source-time and cancellation limits, controlled-vs-real distinction, physical-phone and historical data-error/full-load/Turbopack limitations remain intact below. Forecast hints still do not participate in scheduling
+- No push, amend or reset. Preserve the two preceding unpushed commits; this local closeout adds the third. Stop here
+
+### Baseline and scope
+
+- Actual workspace `/Users/zijing/projects/trippilot`, branch `main`, baseline `01224f166a5ff11057b4d522b6be0f4c579b877d`. Both unpushed local commits remain intact. No temporary project copy, dependency, configuration/credential/CORS/proxy change, commit or push
+- An independent **上海逐日天气预报** panel appears immediately after confirmed requirements and before candidate preparation. Its dates come only from `plan.request.start_date/end_date`, not the old two-day Mock example or its day selector
+- Weather is queried only by **查询天气 / 刷新天气**. Hints do not participate in scheduling, candidate filtering/exclusion, required order, budget, activity binding or map routes. The old Mock weather card remains clearly labeled in the old Mock section; replanning remains disabled
+
+### Data flow, validation and explainable rules
+
+1. The browser submits only `{start_date, end_date}` to `POST /weather/forecast`, with a strict inclusive 1–3-day date range and no client-selected city, upstream or credentials
+2. The backend reuses server settings, `httpx`, safe API validation/errors and existing log protection. `AmapWeatherClient` makes one logical Shanghai batch query to the fixed HTTPS `v3/weather/weatherInfo` upstream, using `city=310000`, `extensions=all`, `output=JSON`, the existing Web Key and **no redirects**. No local HTTP self-call or daily fan-out
+3. Conversion validates the batch and every returned cast before building a date lookup. Each requested date appears exactly once in request order, marked available/unavailable. Empty `forecasts` or `casts` is valid no coverage; broken structures, wrong city, invalid/duplicate dates and invalid non-empty scalar values fail safely, even when the bad cast is outside the requested dates. Missing dates are not called out-of-range based on min/max and are never filled from adjacent dates, old snapshots or Mock values
+4. The independent response includes date echo, `source=amap`, 上海市/310000, Asia/Shanghai, successful `queried_at`, nullable original `reported_at`, publication status, freshness-at-query, complete/partial/none coverage, and separate day/night descriptions, temperatures, wind direction/power and rain/snow classification evidence. Temperatures remain **day/night**, not maximum/minimum. Null/empty strings/empty arrays normalize to unknown; 0 and negative temperatures remain valid. Non-finite/bool/invalid values fail; the defensive temperature bound is −100…100°C, not a vendor coverage promise. Text is bounded to 100 Unicode characters and rejects control characters/BOM
+5. Official exact weather-description sets classify rain, snow, mixed rain/snow, known non-rain/snow or unknown (`amap_text_precipitation_v1`). No substring guessing: unfamiliar descriptions remain visible and unevaluated. Each period retains its original description as evidence. Night rain does not imply daytime impact; absence of a triggered rule is not a promise of suitable travel. No rain probability, hourly/POI-level weather, inferred indoor/outdoor POI classification or fabricated forecast
+6. `reporttime` is interpreted in Asia/Shanghai and normalized with `+08:00`; query time is UTC. Missing, unparseable, pre-2000 or more-than-five-minutes-future source publication is unknown, never replaced by query time. Five minutes is a defensive clock tolerance. **More than 24 hours** since source publication is the product's stale rule, not AMap's guaranteed validity. Past dates show that old forecasts are not historical observations. Stale, unknown-publication and past-date values provide no current-validity travel advice
+7. A local display clock updates at Shanghai midnight, the 24-hour boundary, at most a minute between display ticks, visibility restoration and focus. It never fetches. A new snapshot synchronously gets a current display clock, avoiding a stale previous tick briefly authorizing guidance
+
+Official references checked on this implementation round: [AMap weather API](https://lbs.amap.com/api/webservice/guide/api-advanced/weatherinfo), [weather-description code table](https://lbs.amap.com/api/webservice/guide/tools/weather-code/), and [AMap Shanghai district example using 310000](https://lbs.amap.com/api/amap-ui/reference-amap-ui/geo/district-cluster). The real diagnostic response also matched 上海市/310000. The documented short forecast horizon is not substituted for actual date matching
+
+### Request budget and frontend isolation
+
+- One logical weather query allows **at most two upstream HTTP attempts**, retrying once only for connection failure/connection timeout. Business errors, rate limits, HTTP/redirect failures, invalid payloads and read timeouts are not retried. Both attempts share one **10-second search deadline**, including parsing checks; cancellation finalization/client cleanup may add return time. Frontend timeout is 15 seconds; no frontend retry, polling, cache service or new global framework
+- Safe statuses follow existing conventions: 422 invalid input, 503 missing configuration, 504 timeout, 502 upstream/business/data error. The browser shows fixed safe messages, not upstream exception bodies or credential-bearing URLs
+- `useWeatherForecast` owns pending/version/controller and the last successful **whole-batch** snapshot. Refreshing and refresh failure may show that same old snapshot with its original timestamps and an explicit previous-result notice. A successful new batch fully replaces it even with zero coverage; previous-result status is separate from source staleness
+- Input changes clear displayed state in a conditional same-component render adjustment and update input/abort/version in the synchronous layout commit, before later events. `editRequest` calls `weather.invalidate()` before returning to the form. Unmount cleanup aborts; stable query reads current input. Success, error and finally are version-guarded, including A→B→A and an older query closure. No passive-effect-only reset, persistence or shared candidate/schedule/map state
+- Cross-language review additionally aligned hidden BOM rejection and microsecond freshness comparisons; controlled regression now covers receipt of a newly stale response before the preceding display timer ticks
+
+### Delivery manifest — 17 files
+
+1. `backend/app/schemas/weather.py` — independent strict weather request/response and exact classification rules
+2. `backend/app/integrations/amap_weather.py` — fixed Shanghai batch, normalization, publication handling, bounded attempts/deadline
+3. `backend/app/api/weather.py` — safe independent weather endpoint and existing settings/client dependencies
+4. `backend/main.py` — weather router registration only
+5. `backend/tests/test_weather.py` — offline API/conversion/security/deadline/cancellation coverage
+6. `backend/tests/export_weather_contract.py` — deterministic Python normalized outputs, no config or HTTP access
+7. `frontend/src/types/weather.ts` — independent types, strict runtime echo/coverage/rule validation and Shanghai freshness helpers
+8. `frontend/src/types/weather-contract.test.ts` — actual Python outputs → actual TypeScript guard and mutation rejection
+9. `frontend/src/lib/weather-api.ts` — explicit fetch, 15-second timeout and safe errors
+10. `frontend/src/lib/weather-api.test.ts` — request/response contract, date/freshness/field rules, timeout/cancel/security tests
+11. `frontend/src/lib/use-weather-forecast.ts` — independent snapshot lifecycle and stale-request isolation
+12. `frontend/src/lib/use-weather-forecast.test.tsx` — explicit query/refresh, ABA, old success/error/finally, edit/unmount tests
+13. `frontend/src/components/trip/weather-forecast.tsx` — panel, day/night fields, bounded guidance and network-free display clock
+14. `frontend/src/components/trip/weather-forecast.test.tsx` — coverage, unknown values, source time, midnight/24h/new-snapshot and display tests
+15. `frontend/src/components/trip/weather-forecast.integration.test.tsx` — real parent-state isolation with offline services/SDK, date source and edit lifecycle
+16. `frontend/src/components/trip-plan-result.tsx` — independent hook/panel integration and synchronous edit invalidation
+17. `docs/PROGRESS.md` — current implementation/acceptance evidence, retaining historical records
+
+### Automated verification — final frozen version, 2026-10-10
+
+| Command / check | Actual result |
+| --- | --- |
+| `cd backend && .venv/bin/python -B -m unittest discover -s tests -q` | **286 passed** (262 existing + 24 weather). No live AMap requests. Existing Starlette/httpx TestClient deprecation warning remains; no dependency change |
+| `cd frontend && npm test` | **729 passed, 26 files**, including prior candidate, scheduling, binding and walking/transit/map regressions |
+| Python → actual TypeScript contract test (included above) | **348 controlled Python outputs accepted; 2,082 semantic mutations rejected**. Exact description classes, partial/empty coverage, 1/2/3-day and cross-year dates, 0/negative/missing values, valid/stale/invalid report times and microsecond boundary. Uses backend `.venv/bin/python` when present, otherwise installed `python3` with project backend dependencies |
+| `cd frontend && npm run lint` | Passed |
+| `cd frontend && npm run typecheck` | Passed |
+| `cd frontend && npm run build -- --webpack` | Passed; final build used in browser. Turbopack limitation remains, not retested/fixed |
+| `git diff --check` plus new-file whitespace check | Passed |
+| Final scope/security audit | Exactly the 17 listed delivery files; no staged files. Configured credential values were checked against delivery text and the sanitized receipt without printing them; no match. SHA-256 of all five original caches and the complete prior acceptance-history suffix remained unchanged |
+
+Coverage includes malformed/duplicate/unordered dates, complete/partial/zero coverage, unrelated corrupt casts, unknown weather, source-time ambiguity, Shanghai midnight, strict day/night guidance, refresh failure preservation and success-without-coverage replacement, safe errors, two-attempt/shared-deadline/cancellation behavior, old success/error/finally and module independence. Controlled fixtures are never represented as live weather or upstream fault acceptance
+
+### Real Chrome acceptance — 2026-10-10, approximately 01:20–01:25 Asia/Shanghai
+
+- Used real Chrome **155.0.8059.39**, existing ports 3000/8000, restarting only the inspected previously agent-started services to load the final implementation. Frontend used the final Webpack production build; backend ran with `-B` and no access log. No Mock interception, response modification or fake map/weather data
+- Confirmed actual POIs: 住宿参考点 **静安寺** and 必去 **武康大楼**, photography interest, October10–12, 08:00–18:00. The fixed old Mock has two dates; the independent weather panel correctly displayed all three request dates
+- Browser observed **three explicit POST /weather/forecast requests, all HTTP200**: first query, same-date refresh, then distant-date query. Entering results, old day switching, candidate fetch/exclude/restore, draft generation/mode toggling and Marker operations did not add weather requests. An earlier separate permission/field diagnostic made **one directly observed upstream attempt** (HTTP200); its casts contained October10–13. Browser requests do **not** prove the server's individual upstream-attempt count; the ≤2/query bound is code/controlled-test evidence
+- Live publication was **2026-10-10 01:01:13+08:00**, preserved across refresh. October10 day/night: 多云/晴,26/18°C; October11: 多云/多云,25/18°C; October12: 阴/多云,26/19°C. Wind power `1-3` remained source text. These observations apply to this captured batch, not a permanent forecast
+
+All **eight PNGs were opened and visually checked after saving**, including recapturing an ambiguous intermediate map image as a complete viewport. Stable directory: [/Users/zijing/projects/trippilot-evidence/5c-1/](/Users/zijing/projects/trippilot-evidence/5c-1/). [09-safe-acceptance-record.json](/Users/zijing/projects/trippilot-evidence/5c-1/09-safe-acceptance-record.json) contains normalized weather snapshots, only safe local paths/statuses/timestamps, counts, UI checks, screenshot dimensions/SHA-256 and limitations; no keys, headers, SDK URLs, raw upstream payloads or HAR logs
+
+| Test | Actual observation | Evidence |
+| --- | --- | --- |
+| Explicit trigger / all three requested dates | Passed. Panel started unqueried with October10/11/12; zero weather requests on entry | [01 unqueried](/Users/zijing/projects/trippilot-evidence/5c-1/01-idle-three-dates.png) |
+| Real forecast with source/publication and day/night semantics | Passed. HTTP200, complete coverage, original published time and separate day/night temperature/wind. No rain probability or current-suitability promise | [02 three-date forecast](/Users/zijing/projects/trippilot-evidence/5c-1/02-real-weather-three-dates.png) |
+| Weather refresh preserves existing result modules | Passed. Candidate text, generated draft and entire old Mock/map text were equal before/after refresh; only one extra weather request and no candidate/schedule/route query. Existing route polyline remained visible | [03 map before](/Users/zijing/projects/trippilot-evidence/5c-1/03-bound-map-before-weather-refresh.png), [04 map after](/Users/zijing/projects/trippilot-evidence/5c-1/04-bound-map-after-weather-refresh.png), [05 unchanged draft](/Users/zijing/projects/trippilot-evidence/5c-1/05-preserved-draft.png) |
+| Existing main-flow/Marker regression | Passed. Real searches and explicit bindings for two adjacent activities; walking query2695m/2156s and visible blue geometry. Activity→静安寺 Marker highlighted/centered; clicked武康大楼 Marker highlighted it and selected/scrolled its activity, first Marker returned normal. No extra weather query | [06 selected Marker](/Users/zijing/projects/trippilot-evidence/5c-1/06-activity-marker-after-refresh.png), [04 selected second activity](/Users/zijing/projects/trippilot-evidence/5c-1/04-bound-map-after-weather-refresh.png) |
+| Candidate/draft regression | Passed. Real candidate pool and a complete three-date walking draft. Day1 required08:36–09:36, optional延中广场10:35–11:35, waiting then lunch12:00–13:00, return13:44; subsequent dates returned09:57/09:56. Weather did not alter this input or output | [05 timeline](/Users/zijing/projects/trippilot-evidence/5c-1/05-preserved-draft.png), sanitized receipt |
+| 400px layout | Passed in desktop Chrome viewport; document width400, panel360, no horizontal overflow; all three cards and query button visible in scrollable panel | [07 narrow forecast](/Users/zijing/projects/trippilot-evidence/5c-1/07-weather-400px.png) |
+| Distant future including year boundary | Passed. December30/31,2026 and January1,2027: HTTP200, `coverage=none`, all day/night values null. Explicitly missing, not request failure or invented out-of-range assertion; no recent values substituted | [08 no coverage](/Users/zijing/projects/trippilot-evidence/5c-1/08-future-no-coverage.png) |
+| Edit/regenerate/refresh lifecycle | Passed. Edit retained confirmed POIs, regenerated dates started weather idle; browser reload returned empty form and did not issue another weather query (count stayed3) | Sanitized receipt |
+
+Console: no observed page errors or console errors; three AMap canvas `willReadFrequently` performance warnings (URLs not exported). Observed scoped local business responses were HTTP200. This is not a claim that every SDK/tile network resource or server-side upstream attempt was individually audited
+
+### Limits and handoff
+
+- Live weather was cloudy/sunny/overcast, not a live rain/snow, stale-publication or outage sample. Rain/snow separation, unknown/old/past dates, midnight, failed refresh, deadline/cleanup and races are controlled-test results only. Actual no-coverage and successful refresh were observed. Weather permission was available; no blocking key/connection issue remained
+- Desktop 400px is not physical-phone/touch acceptance. Dedicated live subway/transfer operations, six-required-plus-three-optional live full-load, broader real upstream failures and Turbopack remain unverified here. The historical Oriental Pearl `data_error` limitation and prior scheduling batch-local throttling/20-second-search-vs-cleanup limits are retained below, not resolved by weather work
+- Forecast presence is not accuracy, historical actual weather or operational suitability. The conservative design separates data retrieval/normalization, publication freshness and transparent text-rule hints; none authorizes automatic replanning. In an interview, explain whole-batch atomic replacement, calendar-date matching rather than array position, source-time freshness rather than query-time laundering, and abort **plus** version checks for stale success/error/finally
+- Stop at 5C-1. No commit/push; two local commits and all five original Python cache contents remain intact. Stable evidence is outside the repository and is not deleted or moved into temporary storage
 
 ## Milestone 5B-3 Actual Implementation and Acceptance (2026-10-09)
 
