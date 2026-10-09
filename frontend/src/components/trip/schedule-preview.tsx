@@ -11,27 +11,48 @@ type ScheduleItem = ScheduleResponse["days"][number]["items"][number];
 type ScheduleEdge = ScheduleResponse["edges"][number];
 
 const inputStyle = "mt-2 block min-h-11 w-full min-w-0 rounded-xl border border-[#c5d4cc] bg-white px-3 py-2 text-sm outline-none focus:border-[#315f51] focus:ring-2 focus:ring-[#315f51]/15";
-const itemLabels = { walk: "步行", visit: "停留", wait: "等待", lunch: "午餐预留" };
-const edgeLabels = { ok: "已获取", same_place: "同一地点", no_route: "未找到步行路线", timeout: "查询超时", data_error: "路线数据异常", failed: "查询失败", budget_exhausted: "本次查询截止前未开始" };
-const attemptLabels = { scheduled: "已安排", time_window: "本日时间窗口未容纳", no_route: "未找到步行路线", timeout: "路线查询超时", data_error: "路线数据异常", failed: "路线查询失败", budget_exhausted: "本次查询截止，未完成试排", day_slot_used: "本日可选名额已使用" };
+const itemLabels = { walk: "步行", transit: "公交／地铁参考交通", visit: "停留", wait: "等待", lunch: "午餐预留" };
+const edgeLabels = { ok: "已获取", same_place: "同一地点", no_route: "未找到路线", unsupported: "没有可展示的受支持公交方案", timeout: "查询超时", data_error: "路线数据异常", failed: "查询失败", budget_exhausted: "本次查询截止前未开始" };
+const attemptLabels = { scheduled: "已安排", time_window: "本日时间窗口未容纳", no_route: "未找到路线", unsupported: "没有可展示的受支持公交方案", timeout: "路线查询超时", data_error: "路线数据异常", failed: "路线查询失败", budget_exhausted: "本次查询截止，未完成试排", day_slot_used: "本日可选名额已使用" };
+const transitNotice = "采用本次查询的参考方案估时，尚未验证旅行日期及草案出发时刻的运营班次、等车和换乘可行性。";
 
 function timestamp(value: string) {
   return new Date(value).toLocaleString("zh-CN", { hour12: false });
 }
 
 function EdgeDetails({ edge }: { edge: ScheduleEdge }) {
+  const transit = edge.transport_mode === "transit";
+  const route = edge.transit_route;
   return <div className="mt-2 space-y-1 text-xs leading-5 text-[#56605c]">
-    {edge.status === "ok" && <>
+    {edge.status === "ok" && !transit && <>
       <p>高德步行预计 {edge.duration_seconds} 秒 → 排程计入 {edge.duration_minutes} 分钟（向上取整）；距离 {edge.distance_meters} 米。</p>
       <p>来源：高德步行路线 · 查询时间：<time dateTime={edge.queried_at}>{timestamp(edge.queried_at)}</time></p>
     </>}
+    {edge.status === "ok" && transit && route && <>
+      <p>公交方案总预计 {edge.duration_seconds} 秒 → 排程计入 {edge.duration_minutes} 分钟（向上取整）。已包含方案内接驳步行、乘车与换乘估时，不再累加分段时长。</p>
+      <p>接驳步行距离：{route.walking_distance_meters} 米（不是公交总里程）。人民币参考票价：{route.fare_cny === null ? "未知" : `¥${route.fare_cny.toFixed(2)}`}；不乘旅行人数，不计入预算。</p>
+      <p>来源：高德公交参考方案 · 查询时间：<time dateTime={edge.queried_at}>{timestamp(edge.queried_at)}</time></p>
+      <p>{transitNotice}</p>
+      <details className="mt-2 min-w-0 rounded-lg border border-[#315f51]/20 p-3">
+        <summary className="cursor-pointer font-medium text-[#315f51]">查看线路与站点（{route.legs.length} 步）</summary>
+        <p className="mt-2">按返回顺序采用首条完整、有效且受支持的方案；同段备选线路只采用首条有效且受支持线路，不代表最快或最优。</p>
+        <p className="mt-1">以下是方案步骤，不是精确发车、到站或换乘时刻。整段交通按总估时作为一个时间块安排。</p>
+        <ol className="mt-2 list-decimal space-y-2 pl-4">{route.legs.map((leg, index) => <li key={index} className="break-words">
+          <p className="font-medium">{leg.mode === "walking" ? "接驳步行" : `${leg.mode === "subway" ? "地铁" : "公交"} · ${leg.line_name}`}</p>
+          {leg.mode !== "walking" && <p>上车：{leg.departure_stop} → 下车：{leg.arrival_stop}</p>}
+          {leg.instruction && <p>{leg.instruction}</p>}
+          <p>该步距离：{leg.distance_meters === null ? "未知" : `${leg.distance_meters} 米`}；该步预计耗时：{leg.duration_seconds === null ? "未知" : `${leg.duration_seconds} 秒`}（仅作说明，不重复计时）。</p>
+        </li>)}</ol>
+        {!route.geometry_complete && <p className="mt-2">部分地图几何未提供；不影响已通过校验的文字参考方案，本区不绘制草案路线地图。</p>}
+      </details>
+    </>}
     {edge.status === "same_place" && <>
-      <p>同一地点，无需步行查询；计入 0 分钟。地点停留时间仍按你的规划设置计算。</p>
+      <p>同一地点，无需交通查询；计入 0 分钟。地点停留时间仍按你的规划设置计算，不生成线路或票价。</p>
       <p>来源：同一地点判定（无高德请求） · 判定时间：<time dateTime={edge.queried_at}>{timestamp(edge.queried_at)}</time></p>
     </>}
     {edge.status !== "ok" && edge.status !== "same_place" && <>
       <p>{edgeLabels[edge.status]}：{edge.message ?? "该路段未获得可用路线。"}</p>
-      <p>{edge.status === "budget_exhausted" ? "未发起高德查询、未取得估时 · 记录时间：" : "来源：高德步行路线 · 查询时间："}<time dateTime={edge.queried_at}>{timestamp(edge.queried_at)}</time></p>
+      <p>{edge.status === "budget_exhausted" ? "未发起高德查询、未取得估时 · 记录时间：" : `来源：高德${transit ? "公交参考方案" : "步行路线"} · 查询时间：`}<time dateTime={edge.queried_at}>{timestamp(edge.queried_at)}</time></p>
     </>}
   </div>;
 }
@@ -56,7 +77,7 @@ function StaySettings({ places, optional = false, preview }: { places: Place[]; 
 
 export default function SchedulePreview({ request, preview }: { request: TripRequest; preview: ScheduleController }) {
   const [selectedDate, setSelectedDate] = useState<string | null>(null);
-  const { lunch, state, validationMessage, canQuery, optionalPlaces, candidateLoading } = preview;
+  const { lunch, state, validationMessage, canQuery, optionalPlaces, candidateLoading, transportMode } = preview;
   const required = request.must_visit_places ?? [];
   const response = state.response;
   const activeDay = response?.days.find((day) => day.date === selectedDate) ?? response?.days[0];
@@ -70,16 +91,25 @@ export default function SchedulePreview({ request, preview }: { request: TripReq
   const optionalCount = optionalPlaces.filter((place) => visitedIds.has(place.id)).length;
 
   function itemTitle(item: ScheduleItem) {
-    if (item.kind === "walk") return `${name(item.from_place_id)} → ${name(item.to_place_id)}`;
+    if (item.kind === "walk" || item.kind === "transit") return `${name(item.from_place_id)} → ${name(item.to_place_id)}`;
     if (item.kind === "visit") return name(item.place_id);
     return item.kind === "lunch" ? "午餐时间预留（未选择餐厅）" : "等待下一个可用时间段";
   }
 
-  return <section aria-label="步行草案" className="mt-6 min-w-0 rounded-3xl border-2 border-[#315f51]/30 bg-white p-5 sm:p-8">
-    <h2 className="text-xl font-semibold text-[#18392f]">步行草案</h2>
+  return <section aria-label="行程草案" className="mt-6 min-w-0 rounded-3xl border-2 border-[#315f51]/30 bg-white p-5 sm:p-8">
+    <h2 className="text-xl font-semibold text-[#18392f]">行程草案 · {transportMode === "walking" ? "步行" : "公交／地铁参考"}</h2>
     <p className="mt-2 text-sm leading-6 text-[#56605c]">先按原顺序安排全部必去地点，再尝试在每日尾部加入最多 1 个可选地点，并校验当日返回住宿。支持上海 1～3 天、最多 6 个必去地点和本次前 3 个有效可选地点；至少需要 1 个必去或可选地点。每日 1 个可选名额是本轮产品规则，不代表最优安排。</p>
     <p className="mt-2 text-sm leading-6 text-[#315f51]">旅行日期：{request.start_date} 至 {request.end_date}；每日窗口：{scheduleClock(request.daily_start_time)}—{scheduleClock(request.daily_end_time)}。修改日期或每日窗口请返回修改旅行需求。</p>
-    <p className="mt-2 text-xs leading-5 text-[#68726c]">修改规则、停留时间，或获取、排除、恢复候选都会立即清除旧草案，但不会自动生成。返回修改需求、重新生成或刷新页面后，草案与本区设置清空；不改写旧 Mock 活动、绑定或地图路线。</p>
+    <p className="mt-2 text-xs leading-5 text-[#68726c]">修改交通方式、规则、停留时间，或获取、排除、恢复候选都会立即清除旧草案，但不会自动生成。返回修改需求、重新生成或刷新页面后，草案与本区设置清空，交通方式恢复步行；不改写旧 Mock 活动、绑定或地图路线。</p>
+    <fieldset className="mt-5 min-w-0 rounded-xl border border-[#315f51]/20 p-4">
+      <legend className="px-1 text-sm font-semibold text-[#18392f]">草案交通方式</legend>
+      <div className="flex flex-wrap gap-2">
+        {([['walking', '步行'], ['transit', '公交／地铁']] as const).map(([mode, label]) => <button type="button" key={mode} aria-pressed={transportMode === mode}
+          onClick={() => preview.setTransportMode(mode)} className={`min-h-11 rounded-xl border px-4 py-2 text-sm ${transportMode === mode ? "border-[#315f51] bg-[#edf3ef] text-[#18392f]" : "border-[#18201d]/15 text-[#56605c]"}`}>{label}</button>)}
+      </div>
+      <p className="mt-2 text-xs leading-5 text-[#68726c]">整份草案仅使用所选方式；切换只清除旧草案，点击生成才查询。不自动比较或改用其他方式，不影响下方旧地图的交通方式。</p>
+      {transportMode === "transit" && <p className="mt-2 text-xs leading-5 text-[#835718]">{transitNotice}</p>}
+    </fieldset>
 
     <section aria-label="本次可选试排范围" className="mt-5 min-w-0 rounded-xl border border-[#315f51]/20 bg-[#f4f8f5] p-4 text-sm leading-6">
       <h3 className="font-semibold text-[#18392f]">本次输入：必去 {required.length} 个 · 试排可选 {optionalPlaces.length} 个</h3>
@@ -116,23 +146,23 @@ export default function SchedulePreview({ request, preview }: { request: TripReq
     <p aria-label="本次生成范围" className="mt-4 break-words text-xs leading-6 text-[#56605c]">本次生成：必去 {required.length} 个；试排可选 {optionalPlaces.length} 个{optionalPlaces.length > 0 ? `（${optionalPlaces.map((place) => place.name).join("、")}）` : ""}；另 {preview.notSelectedCount} 个未纳入本轮范围。</p>
     <button type="button" disabled={!canQuery || loading || candidateLoading} onClick={() => { void preview.query(); }}
       className="mt-4 min-h-11 max-w-full rounded-xl bg-[#18392f] px-5 py-3 text-sm font-semibold text-white focus-visible:outline-2 focus-visible:outline-offset-2 disabled:cursor-not-allowed disabled:opacity-50">
-      {loading ? "正在生成步行草案…" : "生成步行草案"}
+      {loading ? "正在生成行程草案…" : "生成行程草案"}
     </button>
     <div aria-live="polite" className="mt-3 text-sm leading-6 text-[#315f51]">
-      {state.status === "idle" && <p>{state.message ?? "尚未生成步行草案。不会自动查询交通。"}</p>}
-      {loading && <p role="status">正在校验步行路段并生成草案，请稍候。旧草案不再作为当前结果展示。</p>}
+      {state.status === "idle" && <p>{state.message ?? "尚未生成行程草案。不会自动查询交通。"}</p>}
+      {loading && <p role="status">正在查询{transportMode === "walking" ? "步行路线" : "公交／地铁参考方案"}并生成草案，请稍候。旧草案不再作为当前结果展示。</p>}
       {state.status === "failed" && <p role="alert">{state.message ?? "草案生成失败，请主动重试。"}</p>}
     </div>
 
     {response && <div className="mt-6 border-t border-[#315f51]/20 pt-5">
       <p className="text-sm font-semibold text-[#315f51]">{required.length > 0 ? requiredCount === required.length ? "已安排本次必去地点" : requiredCount > 0 ? "部分必去地点尚未安排" : "本次草案未安排必去地点" : optionalCount > 0 ? "本次草案已安排可选地点" : "本次草案尚未安排可选地点"}</p>
       <p className="mt-1 text-sm text-[#315f51]">必去已安排 {requiredCount}/{required.length} 个 · 可选已安排 {optionalCount}/{optionalPlaces.length} 个。可选未排入不影响已验证的必去安排。</p>
-      <p className="mt-1 text-xs leading-5 text-[#68726c]">生成时间：<time dateTime={response.generated_at}>{timestamp(response.generated_at)}</time>。这是本次规则与步行估算下的草案，不保证未来日期营业、预约或实际可执行。</p>
+      <p className="mt-1 text-xs leading-5 text-[#68726c]">生成时间：<time dateTime={response.generated_at}>{timestamp(response.generated_at)}</time>。这是本次规则与{transportMode === "walking" ? "步行" : "公交／地铁参考方案"}估算下的草案，不保证未来日期营业、预约或实际可执行。同一请求、同一方式下，可选补充不改变必去时间；切换方式重新生成后，必去时刻可能变化。</p>
       <div role="group" aria-label="选择草案日期" className="mt-4 flex flex-wrap gap-2">
         {response.days.map((day, index) => <button key={day.date} type="button" aria-pressed={activeDay?.date === day.date} onClick={() => setSelectedDate(day.date)}
           className={`min-h-11 max-w-full rounded-xl border px-3 py-2 text-sm ${activeDay?.date === day.date ? "border-[#315f51] bg-[#edf3ef] text-[#18392f]" : "border-[#18201d]/15 text-[#56605c]"}`}>草案第 {index + 1} 天 · {day.date}</button>)}
       </div>
-      {activeDay && <section aria-label={`${activeDay.date} 步行草案`} className="mt-4 rounded-xl bg-[#f7f8f4] p-4">
+      {activeDay && <section aria-label={`${activeDay.date} 行程草案`} className="mt-4 rounded-xl bg-[#f7f8f4] p-4">
         <h3 className="font-semibold text-[#18392f]">{activeDay.date}</h3>
         {activeDay.items.length === 0 ? <p className="mt-3 text-sm text-[#68726c]">尚未安排景点；没有为这天空造交通或午餐。</p>
           : <ol aria-label="草案时间线" className="mt-4 space-y-3">{activeDay.items.map((item, index) => {
@@ -167,7 +197,7 @@ export default function SchedulePreview({ request, preview }: { request: TripReq
         </li>)}</ul>
       </section>}
       <details className="mt-5 rounded-xl border border-[#18201d]/10 p-4 text-sm leading-6">
-        <summary className="cursor-pointer font-semibold text-[#315f51]">步行路段与采用状态（{response.edges.length} 条）</summary>
+        <summary className="cursor-pointer font-semibold text-[#315f51]">{transportMode === "walking" ? "步行" : "公交参考"}路段与采用状态（{response.edges.length} 条）</summary>
         <ul className="mt-3 space-y-3">{response.edges.map((edge) => <li key={edge.id} className="rounded-lg bg-[#f4f8f5] p-3">
           <p className="break-words text-sm font-medium">{name(edge.origin.place_id)} → {name(edge.destination.place_id)} · {edge.used ? "已用于本次草案" : "未采用的查询记录"}</p>
           <EdgeDetails edge={edge} />

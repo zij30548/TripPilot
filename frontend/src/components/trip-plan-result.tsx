@@ -166,7 +166,7 @@ export default function TripPlanResult({ plan, onEdit }: { plan: TripPlan; onEdi
       <SchedulePreview request={plan.request} preview={schedule} />
       <section aria-label="旧 Mock 行程示例" className="mt-9 border-t-2 border-dashed border-[#18201d]/20 pt-7">
       <h2 className="mb-2 text-xl font-semibold text-[#18392f]">旧 Mock 行程示例</h2>
-      <p className="mb-5 text-sm leading-6 text-[#68726c]">以下固定示例与上方步行草案相互独立；预算、天气、时间和原交通仍是 Mock。已有活动绑定和单段路线查询只影响这个示例区，不会修改草案。</p>
+      <p className="mb-5 text-sm leading-6 text-[#68726c]">以下固定示例与上方行程草案相互独立；预算、天气、时间和原交通仍是 Mock。已有活动绑定和单段路线查询只影响这个示例区，不会修改草案；这里的交通方式也与草案单独设置。</p>
       <TripOverview plan={plan} />
       <p aria-live="polite" aria-atomic="true" className="mt-3 text-sm leading-6 text-[#315f51]">{bindingMessage}</p>
       <div aria-label="选择行程日期" className="my-7 flex flex-wrap gap-3">

@@ -3,8 +3,9 @@ from typing import Annotated
 
 from fastapi import APIRouter, Depends
 
-from app.api.routes import SafeRouteValidation, get_walking_client
+from app.api.routes import SafeRouteValidation, get_walking_client, get_transit_client
 from app.integrations.amap_walking import AmapWalkingClient
+from app.integrations.amap_transit import AmapTransitClient
 from app.schemas.schedule import ScheduleRequest, ScheduleResponse
 from app.services.schedule import add_optional_schedule, build_required_schedule
 from app.services.schedule_routes import ScheduleRouteCollector, optional_edges, required_edges
@@ -21,8 +22,9 @@ router = APIRouter(prefix="/trips", tags=["trips"], route_class=SafeScheduleVali
 async def schedule_preview(
     request: ScheduleRequest,
     amap: Annotated[AmapWalkingClient, Depends(get_walking_client)],
+    transit: Annotated[AmapTransitClient, Depends(get_transit_client)],
 ) -> ScheduleResponse:
-    collector = ScheduleRouteCollector(amap)
+    collector = ScheduleRouteCollector(transit if request.transport_mode == "transit" else amap, request.transport_mode)
     edges = await collector.collect(required_edges(request)) if request.must_visit_places else []
     baseline = build_required_schedule(request, edges, datetime.now(timezone.utc))
     if not baseline.unscheduled and request.optional_places:

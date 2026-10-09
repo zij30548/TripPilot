@@ -2,9 +2,11 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import { querySchedulePreview } from "./schedule-api";
 import { isScheduleRequest, isScheduleResponse, scheduleClock, scheduleDates, type ScheduleEdge, type ScheduleItem, type ScheduleRequest, type ScheduleResponse } from "@/types/schedule";
 import type { Place } from "@/types/place";
+import type { TransitRoute } from "@/types/transit";
 
 const place = (id: string, longitude = 121.41): Place => ({ id, name: id, address: "测试地址", latitude: 31.2, longitude, category: "原类别", source: "amap" });
-function request(): ScheduleRequest { return {
+function request(): ScheduleResponse["request"] { return {
+  transport_mode: "walking",
   start_date: "2026-10-10", end_date: "2026-10-11", daily_start_time: "09:00", daily_end_time: "18:00",
   accommodation_place: place("hotel", 121.40000014), must_visit_places: [place("required")],
   duration_settings: [{ place_id: "required", minutes: 60, source: "default" }], lunch: { enabled: true, start_time: "12:00", end_time: "13:00" },
@@ -14,11 +16,12 @@ const item = (kind: ScheduleItem["kind"], start: string, end: string, duration: 
   kind, start_time: start, end_time: end, duration_minutes: duration, place_id: null, from_place_id: null, to_place_id: null, edge_id: null, duration_source: null, ...extra,
 });
 function edge(id: string, origin: Place, destination: Place, seconds = 120): ScheduleEdge { return {
+  transport_mode: "walking", transit_route: null, selection_rule: null,
   id, origin: endpoint(origin), destination: endpoint(destination), status: "ok", duration_seconds: seconds, duration_minutes: Math.ceil(seconds / 60),
   distance_meters: 123, source: "amap", queried_at: "2026-10-06T03:00:00Z", message: null, used: true,
 }; }
-function response(input = request()): ScheduleResponse {
-  return { status: "complete", generated_at: "2026-10-06T03:00:00.123456Z", request: structuredClone(input),
+function response(input: ScheduleRequest = request()): ScheduleResponse {
+  return { status: "complete", generated_at: "2026-10-06T03:00:00.123456Z", request: { ...structuredClone(input), transport_mode: input.transport_mode ?? "walking" },
     rules: ["固定必去输入顺序"], unknowns: ["尚未校验营业时间"], unscheduled: [], optional_results: [],
     edges: [edge("out", input.accommodation_place, input.must_visit_places[0], 61.2), edge("back", input.must_visit_places[0], input.accommodation_place)],
     days: scheduleDates(input.start_date, input.end_date)!.map((date, index) => ({ date, return_time: index ? null : "10:04", items: index ? [] : [
@@ -29,7 +32,7 @@ function response(input = request()): ScheduleResponse {
   };
 }
 function mockResponse(data: unknown) { vi.stubGlobal("fetch", vi.fn().mockResolvedValue({ ok: true, json: async () => data })); }
-function withOptional(): { input: ScheduleRequest; data: ScheduleResponse } {
+function withOptional(): { input: ScheduleResponse["request"]; data: ScheduleResponse } {
   const input = request(); const optional = place("optional", 121.42); input.optional_places = [optional];
   input.duration_settings.push({ place_id: optional.id, minutes: 60, source: "default" });
   const data = response(input); data.edges[1].used = false;
@@ -43,9 +46,34 @@ function withOptional(): { input: ScheduleRequest; data: ScheduleResponse } {
     attempts: [{ date: input.start_date, outcome: "scheduled", message: "该日末尾已排入。" }] }];
   return { input, data };
 }
+function transitRoute(seconds: number): TransitRoute {
+  return {
+    duration_seconds: seconds, walking_distance_meters: 251, fare_cny: null, geometry_complete: false,
+    legs: [
+      { mode: "walking", distance_meters: 251, duration_seconds: null, instruction: "步行至测试站", line_name: null, departure_stop: null, arrival_stop: null, geometry: [], geometry_complete: false },
+      { mode: "subway", distance_meters: null, duration_seconds: null, instruction: null, line_name: "测试地铁线路", departure_stop: "测试上车站", arrival_stop: "测试下车站", geometry: [], geometry_complete: false },
+    ],
+  };
+}
+function asTransit(input: ScheduleRequest, data: ScheduleResponse): void {
+  input.transport_mode = "transit"; data.request.transport_mode = "transit";
+  for (const entry of data.edges) {
+    entry.transport_mode = "transit"; entry.distance_meters = null;
+    if (entry.status === "ok") { entry.transit_route = transitRoute(entry.duration_seconds!); entry.selection_rule = "first_supported_complete"; }
+  }
+  for (const day of data.days) for (const entry of day.items) if (entry.kind === "walk") entry.kind = "transit";
+}
 afterEach(() => { vi.unstubAllGlobals(); vi.useRealTimers(); });
 
 describe("schedule preview request and response contract", () => {
+  it("accepts legacy omitted mode only on the request and requires the explicit walking echo", async () => {
+    const input: ScheduleRequest = request(); delete input.transport_mode;
+    const data = response(input); mockResponse(data);
+    expect(await querySchedulePreview(input)).toEqual(data);
+    expect(JSON.parse(String(vi.mocked(fetch).mock.calls[0][1]?.body)).transport_mode).toBeUndefined();
+    delete (data.request as ScheduleRequest).transport_mode;
+    expect(isScheduleResponse(data, input)).toBe(false);
+  });
   it("accepts legacy omitted optional request with normalized empty echo/results", async () => {
     const input = request(); const data = response(input); data.request.optional_places = []; mockResponse(data);
     expect(await querySchedulePreview(input)).toEqual(data);
@@ -93,11 +121,16 @@ describe("schedule preview request and response contract", () => {
     const { input } = withOptional(); const data = response(input); data.status = "partial";
     data.edges.push({ ...edge("not-started", input.must_visit_places[0], input.optional_places![0]), status: "budget_exhausted", used: false,
       duration_seconds: null, duration_minutes: null, distance_meters: null, message: "本批查询预算已用尽，未启动。" });
+    data.edges.push({ ...data.edges.at(-1)!, id: "day-two-not-started", origin: endpoint(input.accommodation_place) });
     data.optional_results = [{ place_id: "optional", scheduled_date: null, not_attempted_reason: null,
       attempts: data.days.map((day) => ({ date: day.date, outcome: "budget_exhausted", message: "本次未启动。" })) }];
     expect(isScheduleResponse(data, input)).toBe(true);
+    data.edges.pop(); expect(isScheduleResponse(data, input)).toBe(false);
   });
   it.each([
+    ["unsupported mode", (input: ScheduleRequest) => { Object.assign(input, { transport_mode: "driving" }); }],
+    ["null mode", (input: ScheduleRequest) => { Object.assign(input, { transport_mode: null }); }],
+    ["undefined explicit mode", (input: ScheduleRequest) => { Object.assign(input, { transport_mode: undefined }); }],
     ["four optional places", (input: ScheduleRequest) => { input.optional_places = Array.from({ length: 4 }, (_, index) => place(`o${index}`)); }],
     ["duplicate optional ID", (input: ScheduleRequest) => { input.optional_places!.push(input.optional_places![0]); }],
     ["optional is lodging", (input: ScheduleRequest) => { input.optional_places![0] = input.accommodation_place; }],
@@ -278,5 +311,114 @@ describe("schedule preview request and response contract", () => {
     const abort = new AbortController(); const work = querySchedulePreview(request(), abort.signal).catch((error: unknown) => error);
     abort.abort(); resolve({ ok: true, json: async () => response() }); expect(await work).toMatchObject({ name: "AbortError" }); expect(vi.getTimerCount()).toBe(0);
     await expect(querySchedulePreview(request(), abort.signal)).rejects.toMatchObject({ name: "AbortError" }); expect(fetch).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe("schedule transit contract", () => {
+  it("posts one selected mode and uses the total exactly once with unknown leg times, fare and incomplete geometry", async () => {
+    const input = request(); const data = response(input); asTransit(input, data); mockResponse(data);
+    expect(isScheduleRequest(input)).toBe(true); expect(await querySchedulePreview(input)).toEqual(data);
+    expect(fetch).toHaveBeenCalledTimes(1);
+    expect(JSON.parse(String(vi.mocked(fetch).mock.calls[0][1]?.body)).transport_mode).toBe("transit");
+    expect(data.edges[0]).toMatchObject({ duration_seconds: 61.2, duration_minutes: 2, distance_meters: null,
+      transit_route: { duration_seconds: 61.2, walking_distance_meters: 251, fare_cny: null, geometry_complete: false } });
+    expect(data.days[0].return_time).toBe("10:04");
+  });
+  it("does not sum individual legs or apply walking-specific distance limits to transit", () => {
+    const input = request(); const data = response(input); asTransit(input, data);
+    const route = data.edges[0].transit_route!; route.legs[0].duration_seconds = 0; route.legs[1].duration_seconds = 3600;
+    route.walking_distance_meters = 100_001; route.legs[1].distance_meters = 200_000;
+    expect(isScheduleResponse(data, input)).toBe(true);
+    expect(data.edges[0].duration_minutes).toBe(2);
+  });
+  it("preserves a same-place required visit with zero transit movement and no invented ride or fare", () => {
+    const input = request(); input.must_visit_places = [input.accommodation_place]; input.duration_settings[0].place_id = "hotel";
+    const data = response(input); data.edges = [{ ...edge("zero", input.accommodation_place, input.accommodation_place), status: "same_place", source: "same_place", duration_seconds: 0, duration_minutes: 0, distance_meters: 0 }];
+    data.days[0].items = [item("walk", "09:00", "09:00", 0, { from_place_id: "hotel", to_place_id: "hotel", edge_id: "zero" }),
+      item("visit", "09:00", "10:00", 60, { place_id: "hotel", duration_source: "default" }),
+      item("walk", "10:00", "10:00", 0, { from_place_id: "hotel", to_place_id: "hotel", edge_id: "zero" })];
+    data.days[0].return_time = "10:00"; asTransit(input, data);
+    expect(isScheduleResponse(data, input)).toBe(true); expect(data.edges[0].transit_route).toBeNull();
+    data.edges[0].transit_route = transitRoute(1); expect(isScheduleResponse(data, input)).toBe(false);
+  });
+  it("accepts transit optional tails without moving required visits, and preserves lunch exclusion", () => {
+    const { input, data } = withOptional(); const required = structuredClone(data.days[0].items[1]); asTransit(input, data);
+    expect(isScheduleResponse(data, input)).toBe(true); expect(data.days[0].items[1]).toEqual(required);
+    data.request.lunch.start_time = input.lunch.start_time = "10:02";
+    data.request.lunch.end_time = input.lunch.end_time = "10:03";
+    expect(isScheduleResponse(data, input)).toBe(false);
+  });
+  it.each([
+    ["no_route", "no_route"], ["unsupported", "route_unsupported"], ["timeout", "route_timeout"],
+    ["data_error", "route_data_error"], ["failed", "route_failed"], ["budget_exhausted", "route_budget_exhausted"],
+  ] as const)("keeps %s distinct with no summary or invented transport estimate", (status, reason) => {
+    const input = request(); const data = response(input); asTransit(input, data);
+    data.status = "unscheduled"; data.days = data.days.map((day) => ({ ...day, items: [], return_time: null }));
+    data.unscheduled = [{ place_id: "required", reason, message: "本次参考路线不可用。" }];
+    data.edges = [{ ...data.edges[0], status, used: false, duration_seconds: null, duration_minutes: null, distance_meters: null, transit_route: null, selection_rule: null, message: "本次查询状态。" }];
+    expect(isScheduleResponse(data, input)).toBe(true);
+    data.edges[0].transit_route = transitRoute(61.2); expect(isScheduleResponse(data, input)).toBe(false);
+  });
+  it("accepts unsupported optional attempts without recasting them as no-route or required failure", () => {
+    const { input } = withOptional(); const data = response(input); asTransit(input, data);
+    data.status = "partial";
+    data.edges.push({ ...edge("unsupported", input.must_visit_places[0], input.optional_places![0]), transport_mode: "transit", status: "unsupported", used: false,
+      duration_seconds: null, duration_minutes: null, distance_meters: null, message: "没有本阶段可展示的公共交通方案。" });
+    data.edges.push({ ...data.edges.at(-1)!, id: "day-two-unsupported", origin: endpoint(input.accommodation_place) });
+    data.optional_results = [{ place_id: "optional", scheduled_date: null, not_attempted_reason: null,
+      attempts: data.days.map((day) => ({ date: day.date, outcome: "unsupported", message: "该日所需方案不受支持。" })) }];
+    expect(isScheduleResponse(data, input)).toBe(true); expect(data.unscheduled).toEqual([]);
+    data.edges.pop(); expect(isScheduleResponse(data, input)).toBe(false);
+  });
+  it.each([
+    ["echoed other mode", (data: ScheduleResponse) => { data.request.transport_mode = "walking"; }],
+    ["missing echoed mode", (data: ScheduleResponse) => { delete (data.request as ScheduleRequest).transport_mode; }],
+    ["edge other mode", (data: ScheduleResponse) => { data.edges[0].transport_mode = "walking"; }],
+    ["missing edge mode", (data: ScheduleResponse) => { Reflect.deleteProperty(data.edges[0], "transport_mode"); }],
+    ["walk item in transit", (data: ScheduleResponse) => { data.days[0].items[0].kind = "walk"; }],
+    ["walk return item in transit", (data: ScheduleResponse) => { data.days[0].items.at(-1)!.kind = "walk"; }],
+    ["missing transit summary", (data: ScheduleResponse) => { data.edges[0].transit_route = null; }],
+    ["missing selection rule", (data: ScheduleResponse) => { data.edges[0].selection_rule = null; }],
+    ["invented selection rule", (data: ScheduleResponse) => { Object.assign(data.edges[0], { selection_rule: "fastest" }); }],
+    ["walking distance as total distance", (data: ScheduleResponse) => { data.edges[0].distance_meters = 251; }],
+    ["unknown distance as zero", (data: ScheduleResponse) => { data.edges[0].distance_meters = 0; }],
+    ["double-counted duration", (data: ScheduleResponse) => { data.edges[0].duration_seconds! += 60; data.edges[0].duration_minutes! += 1; }],
+    ["summary and edge duration differ", (data: ScheduleResponse) => { data.edges[0].transit_route!.duration_seconds = 60; }],
+    ["infinite plan duration", (data: ScheduleResponse) => { data.edges[0].transit_route!.duration_seconds = Infinity; }],
+    ["negative access distance", (data: ScheduleResponse) => { data.edges[0].transit_route!.walking_distance_meters = -1; }],
+    ["missing access distance", (data: ScheduleResponse) => { Reflect.deleteProperty(data.edges[0].transit_route!, "walking_distance_meters"); }],
+    ["string access distance", (data: ScheduleResponse) => { Object.assign(data.edges[0].transit_route!, { walking_distance_meters: "251" }); }],
+    ["negative fare", (data: ScheduleResponse) => { data.edges[0].transit_route!.fare_cny = -1; }],
+    ["NaN fare", (data: ScheduleResponse) => { data.edges[0].transit_route!.fare_cny = NaN; }],
+    ["string fare", (data: ScheduleResponse) => { Object.assign(data.edges[0].transit_route!, { fare_cny: "2" }); }],
+    ["missing fare", (data: ScheduleResponse) => { Reflect.deleteProperty(data.edges[0].transit_route!, "fare_cny"); }],
+    ["negative leg time", (data: ScheduleResponse) => { data.edges[0].transit_route!.legs[1].duration_seconds = -1; }],
+    ["missing ride line", (data: ScheduleResponse) => { data.edges[0].transit_route!.legs[1].line_name = null; }],
+    ["blank boarding stop", (data: ScheduleResponse) => { data.edges[0].transit_route!.legs[1].departure_stop = " "; }],
+    ["missing arrival stop", (data: ScheduleResponse) => { data.edges[0].transit_route!.legs[1].arrival_stop = null; }],
+    ["unsupported rail leg", (data: ScheduleResponse) => { Object.assign(data.edges[0].transit_route!.legs[1], { mode: "railway" }); }],
+    ["walking-only pretending transit", (data: ScheduleResponse) => { data.edges[0].transit_route!.legs.pop(); }],
+    ["access distance without access steps", (data: ScheduleResponse) => { data.edges[0].transit_route!.legs.shift(); }],
+    ["invented complete geometry", (data: ScheduleResponse) => { data.edges[0].transit_route!.geometry_complete = true; }],
+    ["invalid geometry coordinates", (data: ScheduleResponse) => { data.edges[0].transit_route!.legs[1].geometry = [[[31, 121], [32, 122]]]; }],
+    ["extra sensitive upstream field", (data: ScheduleResponse) => { Object.assign(data.edges[0].transit_route!, { upstream_url: "https://example.invalid" }); }],
+    ["invented exact departure time", (data: ScheduleResponse) => { Object.assign(data.edges[0].transit_route!.legs[1], { departure_time: "09:01" }); }],
+  ])("rejects %s", async (_, mutate) => {
+    const input = request(); const data = response(input); asTransit(input, data); mutate(data); mockResponse(data);
+    expect(isScheduleResponse(data, input)).toBe(false);
+    await expect(querySchedulePreview(input)).rejects.toThrow("数据不完整或时间不一致");
+  });
+  it("walking responses cannot carry transit success, movement kind or unsupported status", () => {
+    const input = request(); const data = response(input);
+    data.edges[0].transit_route = transitRoute(61.2); expect(isScheduleResponse(data, input)).toBe(false);
+    data.edges[0].transit_route = null; data.days[0].items[0].kind = "transit"; expect(isScheduleResponse(data, input)).toBe(false);
+    data.days[0].items[0].kind = "walk"; data.edges[0].status = "unsupported"; expect(isScheduleResponse(data, input)).toBe(false);
+  });
+  it("never retries or switches to walking after a transit HTTP failure", async () => {
+    const input = request(); input.transport_mode = "transit";
+    vi.stubGlobal("fetch", vi.fn().mockResolvedValue({ ok: false, status: 504 }));
+    await expect(querySchedulePreview(input)).rejects.toMatchObject({ kind: "timeout" });
+    expect(fetch).toHaveBeenCalledTimes(1);
+    expect(JSON.parse(String(vi.mocked(fetch).mock.calls[0][1]?.body)).transport_mode).toBe("transit");
   });
 });

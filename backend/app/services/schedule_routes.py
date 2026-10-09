@@ -6,9 +6,11 @@ from datetime import datetime, timezone
 
 from app.integrations.amap import AmapError, AmapTimeoutError
 from app.integrations.amap_walking import AmapWalkingClient, INVALID_DATA
+from app.integrations.amap_transit import AmapTransitClient, INVALID_DATA as INVALID_TRANSIT_DATA
 from app.schemas.place import ConfirmedPlace
 from app.schemas.route import RouteEndpoint, WalkingRouteRequest
-from app.schemas.schedule import ScheduleDay, ScheduleEdge, ScheduleRequest
+from app.schemas.schedule import ScheduleDay, ScheduleEdge, ScheduleRequest, TransportMode
+from app.schemas.transit import TransitRouteRequest
 
 
 ROUTE_BATCH_TIMEOUT_SECONDS = 20.0
@@ -16,7 +18,7 @@ MAX_CONCURRENT_ROUTES = 3
 # Live 5B-1 batches hit AMap CUQPS (10021); retain batch-local launch pacing.
 MIN_ROUTE_START_INTERVAL_SECONDS = 0.4
 MAX_LOGICAL_EDGES = 29  # at most 17 required + 12 fixed-tail optional edges
-EdgeKey = tuple[str, str, str, str]
+EdgeKey = tuple[str, str, str, str, str]
 EndpointPair = tuple[RouteEndpoint, RouteEndpoint]
 
 
@@ -30,8 +32,8 @@ def normalized_endpoint(place: ConfirmedPlace) -> RouteEndpoint:
     )
 
 
-def edge_key(origin: RouteEndpoint, destination: RouteEndpoint) -> EdgeKey:
-    return (origin.place_id, f"{origin.longitude:.6f},{origin.latitude:.6f}",
+def edge_key(origin: RouteEndpoint, destination: RouteEndpoint, transport_mode: TransportMode = "walking") -> EdgeKey:
+    return (transport_mode, origin.place_id, f"{origin.longitude:.6f},{origin.latitude:.6f}",
             destination.place_id, f"{destination.longitude:.6f},{destination.latitude:.6f}")
 
 
@@ -67,8 +69,9 @@ def optional_edges(request: ScheduleRequest, baseline_days: list[ScheduleDay]) -
 class ScheduleRouteCollector:
     """One request shares its deadline, pacing, semaphore and directed memo across phases."""
 
-    def __init__(self, amap: AmapWalkingClient) -> None:
+    def __init__(self, amap: AmapWalkingClient | AmapTransitClient, transport_mode: TransportMode = "walking") -> None:
         self.amap = amap
+        self.transport_mode = transport_mode
         self.deadline = asyncio.get_running_loop().time() + ROUTE_BATCH_TIMEOUT_SECONDS
         self.semaphore = asyncio.Semaphore(MAX_CONCURRENT_ROUTES)
         self.start_lock = asyncio.Lock()
@@ -85,7 +88,7 @@ class ScheduleRouteCollector:
     def failed(self, index: int, status: str, message: str) -> ScheduleEdge:
         origin, destination = self.pairs[index]
         return ScheduleEdge(id=f"e{index}", origin=origin, destination=destination, status=status,
-                            queried_at=datetime.now(timezone.utc), message=message)
+                            transport_mode=self.transport_mode, queried_at=datetime.now(timezone.utc), message=message)
 
     def budget_exhausted(self, index: int) -> ScheduleEdge:
         return self.failed(index, "budget_exhausted", "本次查询截止前未启动此路段，尚未完成核实。")
@@ -110,40 +113,50 @@ class ScheduleRouteCollector:
                 if not await self.wait_to_start():
                     return self.budget_exhausted(index)
                 self.started.add(index)
-                result = await self.amap.walking(WalkingRouteRequest(origin=origin, destination=destination))
+                # One selected adapter, never a fallback or a self-HTTP request.
+                result = (await self.amap.transit(TransitRouteRequest(origin=origin, destination=destination))
+                          if self.transport_mode == "transit" else
+                          await self.amap.walking(WalkingRouteRequest(origin=origin, destination=destination)))
                 if result.status == "no_route":
-                    return self.failed(index, "no_route", "未找到所需步行路线。")
+                    return self.failed(index, "no_route", "未找到所需交通路线。")
+                if self.transport_mode == "transit" and result.status == "unsupported":
+                    return self.failed(index, "unsupported", "没有可完整展示的受支持公交／地铁参考方案。")
                 if result.status != "ok" or result.route is None:
-                    return self.failed(index, "data_error", "步行路线数据无法用于排程。")
+                    return self.failed(index, "data_error", "交通路线数据无法用于排程。")
                 route = result.route
                 return ScheduleEdge(id=f"e{index}", origin=origin, destination=destination, status="ok",
+                                    transport_mode=self.transport_mode,
                                     duration_seconds=route.duration_seconds,
                                     duration_minutes=math.ceil(route.duration_seconds / 60),
-                                    distance_meters=route.distance_meters, queried_at=result.queried_at)
+                                    distance_meters=route.distance_meters if self.transport_mode == "walking" else None,
+                                    transit_route=route if self.transport_mode == "transit" else None,
+                                    selection_rule=result.selection_rule if self.transport_mode == "transit" else None,
+                                    queried_at=result.queried_at)
             except AmapTimeoutError:
-                return self.failed(index, "timeout", "所需步行路线查询超时。")
+                return self.failed(index, "timeout", "所需交通路线查询超时。")
             except AmapError as error:
-                if str(error) == INVALID_DATA:
-                    return self.failed(index, "data_error", "步行路线数据无法用于排程。")
-                return self.failed(index, "failed", "暂时无法取得所需步行路线。")
+                if str(error) in (INVALID_DATA, INVALID_TRANSIT_DATA):
+                    return self.failed(index, "data_error", "交通路线数据无法用于排程。")
+                return self.failed(index, "failed", "暂时无法取得所需交通路线。")
             except Exception:
-                return self.failed(index, "failed", "暂时无法取得所需步行路线。")
+                return self.failed(index, "failed", "暂时无法取得所需交通路线。")
 
     async def collect(self, pairs: list[EndpointPair]) -> list[ScheduleEdge]:
-        new_pairs = [pair for pair in unique_pairs(pairs) if edge_key(*pair) not in self.indices]
+        new_pairs = [pair for pair in unique_pairs(pairs) if edge_key(*pair, self.transport_mode) not in self.indices]
         if len(self.pairs) + len(new_pairs) > MAX_LOGICAL_EDGES:
             raise ValueError("Directed route budget exceeded")
         tasks: dict[int, asyncio.Task[ScheduleEdge]] = {}
         for origin, destination in new_pairs:
             index = len(self.pairs)
-            self.indices[edge_key(origin, destination)] = index
+            self.indices[edge_key(origin, destination, self.transport_mode)] = index
             self.pairs.append((origin, destination))
             if origin.place_id == destination.place_id or (
                 origin.longitude == destination.longitude and origin.latitude == destination.latitude
             ):
                 self.resolved[index] = ScheduleEdge(
                     id=f"e{index}", origin=origin, destination=destination, status="same_place",
-                    duration_seconds=0, duration_minutes=0, distance_meters=0, source="same_place",
+                    transport_mode=self.transport_mode, duration_seconds=0, duration_minutes=0,
+                    distance_meters=0 if self.transport_mode == "walking" else None, source="same_place",
                     queried_at=datetime.now(timezone.utc),
                 )
             elif asyncio.get_running_loop().time() >= self.deadline:
@@ -171,7 +184,7 @@ class ScheduleRouteCollector:
             await asyncio.gather(*tasks.values(), return_exceptions=True)
 
 
-async def collect_schedule_edges(request: ScheduleRequest, amap: AmapWalkingClient) -> list[ScheduleEdge]:
+async def collect_schedule_edges(request: ScheduleRequest, amap: AmapWalkingClient | AmapTransitClient) -> list[ScheduleEdge]:
     # Backward-compatible must-only helper; orchestration shares one collector
     # instance explicitly when it adds the optional phase.
-    return await ScheduleRouteCollector(amap).collect(required_edges(request))
+    return await ScheduleRouteCollector(amap, request.transport_mode).collect(required_edges(request))

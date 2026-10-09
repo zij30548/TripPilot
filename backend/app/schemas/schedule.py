@@ -1,3 +1,4 @@
+import math
 import re
 from datetime import date
 from typing import Literal, Self
@@ -6,6 +7,10 @@ from pydantic import AwareDatetime, BaseModel, ConfigDict, Field, field_validato
 
 from app.schemas.place import ConfirmedPlace
 from app.schemas.route import RouteEndpoint
+from app.schemas.transit import TransitRoute
+
+
+TransportMode = Literal["walking", "transit"]
 
 
 def clock_minutes(value: str) -> int:
@@ -55,6 +60,7 @@ class ScheduleRequest(BaseModel):
     optional_places: list[ConfirmedPlace] = Field(default_factory=list, max_length=3, strict=True)
     duration_settings: list[StayDuration] = Field(min_length=1, max_length=9, strict=True)
     lunch: LunchWindow = Field(default_factory=LunchWindow)
+    transport_mode: TransportMode = "walking"
 
     _valid_times = field_validator("daily_start_time", "daily_end_time", mode="before")(valid_clock)
 
@@ -94,7 +100,8 @@ class ScheduleEdge(BaseModel):
     id: str
     origin: RouteEndpoint
     destination: RouteEndpoint
-    status: Literal["ok", "same_place", "no_route", "timeout", "data_error", "failed", "budget_exhausted"]
+    transport_mode: TransportMode = "walking"
+    status: Literal["ok", "same_place", "no_route", "unsupported", "timeout", "data_error", "failed", "budget_exhausted"]
     duration_seconds: float | None = None
     duration_minutes: int | None = None
     distance_meters: float | None = None
@@ -102,10 +109,43 @@ class ScheduleEdge(BaseModel):
     queried_at: AwareDatetime
     message: str | None = None
     used: bool = False
+    transit_route: TransitRoute | None = None
+    selection_rule: Literal["first_supported_complete"] | None = None
+
+    @model_validator(mode="after")
+    def consistent_transport(self) -> Self:
+        if self.transport_mode == "transit" and self.distance_meters is not None:
+            raise ValueError("Transit total distance is unknown; access walking is not total mileage")
+        if self.transport_mode == "walking" and self.status == "unsupported":
+            raise ValueError("Unsupported is a transit-only outcome")
+        if self.status in ("ok", "same_place"):
+            seconds = self.duration_seconds
+            if seconds is None or not math.isfinite(seconds) or seconds < 0:
+                raise ValueError("A movement requires finite non-negative seconds")
+            if self.duration_minutes != math.ceil(seconds / 60):
+                raise ValueError("Movement minutes must be the ceiling of total seconds")
+            if self.status == "same_place":
+                if seconds != 0 or self.source != "same_place":
+                    raise ValueError("Same-place movement is local zero movement")
+            elif seconds <= 0 or self.source != "amap":
+                raise ValueError("A queried movement requires a positive AMap estimate")
+            if self.transport_mode == "walking" and (
+                self.distance_meters is None or not math.isfinite(self.distance_meters) or self.distance_meters < 0
+            ):
+                raise ValueError("Walking movement requires its actual distance")
+        elif any(value is not None for value in (self.duration_seconds, self.duration_minutes, self.distance_meters)):
+            raise ValueError("Failed movement cannot contain fabricated estimates")
+        if self.transport_mode == "transit" and self.status == "ok":
+            if (self.transit_route is None or self.selection_rule != "first_supported_complete"
+                    or self.transit_route.duration_seconds != self.duration_seconds):
+                raise ValueError("Transit movement must retain its selected full proposal and total duration")
+        elif self.transit_route is not None or self.selection_rule is not None:
+            raise ValueError("Only successful transit movements contain a proposal")
+        return self
 
 
 class ScheduleItem(BaseModel):
-    kind: Literal["walk", "visit", "wait", "lunch"]
+    kind: Literal["walk", "transit", "visit", "wait", "lunch"]
     start_time: str
     end_time: str
     place_id: str | None = None
@@ -126,7 +166,7 @@ class UnscheduledPlace(BaseModel):
     place_id: str
     reason: Literal[
         "time_window", "route_timeout", "no_route", "route_data_error",
-        "route_failed", "current_order_not_continued",
+        "route_failed", "route_unsupported", "route_budget_exhausted", "current_order_not_continued",
     ]
     message: str
 
@@ -135,7 +175,7 @@ class OptionalAttempt(BaseModel):
     date: date
     outcome: Literal[
         "scheduled", "time_window", "no_route", "timeout", "data_error",
-        "failed", "budget_exhausted", "day_slot_used",
+        "failed", "unsupported", "budget_exhausted", "day_slot_used",
     ]
     message: str
 

@@ -187,9 +187,9 @@ class OptionalPureTests(unittest.TestCase):
                 self.assertEqual([a.outcome for a in result.optional_results[0].attempts], [status, "scheduled"])
                 self.assertEqual(result.days[0].return_time, "10:20")
 
-    def test_required_budget_exhaustion_retains_old_timeout_reason(self) -> None:
+    def test_required_budget_exhaustion_is_distinct_from_started_timeout(self) -> None:
         result = self.preview(request(1, 1), {("stay", "p1"): "budget_exhausted"})
-        self.assertEqual(result.unscheduled[0].reason, "route_timeout")
+        self.assertEqual(result.unscheduled[0].reason, "route_budget_exhausted")
         self.assertEqual(result.optional_results[0].not_attempted_reason, "must_incomplete")
 
     def test_pure_optional_merge_does_not_mutate_baseline_request_or_edges(self) -> None:

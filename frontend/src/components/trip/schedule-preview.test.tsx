@@ -9,6 +9,7 @@ import type { Place } from "@/types/place";
 import type { CandidateResponse } from "@/types/candidates";
 import type { OptionalScheduleResult, ScheduleEdge, ScheduleItem, ScheduleRequest, ScheduleResponse } from "@/types/schedule";
 import type { TripPlan, TripRequest } from "@/types/trip";
+import type { TransitRoute } from "@/types/transit";
 
 const controls = vi.hoisted(() => ({ querySchedulePreview: vi.fn(), queryCandidates: vi.fn(), searchPlaces: vi.fn(), planTrip: vi.fn(), loadAMap: vi.fn(), getShanghaiCenter: vi.fn() }));
 vi.mock("@/lib/schedule-api", async (original) => ({ ...await original<typeof import("@/lib/schedule-api")>(), querySchedulePreview: controls.querySchedulePreview }));
@@ -24,6 +25,10 @@ const second: Place = { ...lodging, id: "schedule-fixture-second", name: "测试
 const optional: Place = { ...lodging, id: "schedule-fixture-optional", name: "测试可选地点", address: "测试可选地址", longitude: 120.03, latitude: 30.03 };
 const moreOptional = [optional, ...Array.from({ length: 4 }, (_, index) => ({ ...optional, id: `schedule-fixture-optional-${index + 2}`, name: `测试可选地点${index + 2}`, address: `测试可选地址${index + 2}` }))];
 const stamp = "2026-10-06T03:00:00Z";
+const transitRoute = (): TransitRoute => ({ duration_seconds: 61.2, walking_distance_meters: 37, fare_cny: null, geometry_complete: false, legs: [
+  { mode: "walking", distance_meters: 37, duration_seconds: 17, instruction: "沿测试街道前往车站", line_name: null, departure_stop: null, arrival_stop: null, geometry: [], geometry_complete: false },
+  { mode: "bus", distance_meters: null, duration_seconds: null, instruction: null, line_name: "测试公交甲线", departure_stop: "测试起点站", arrival_stop: "测试终点站", geometry: [], geometry_complete: false },
+] });
 
 function tripRequest(days = 1): TripRequest {
   return {
@@ -47,6 +52,7 @@ function makePlan(request = tripRequest()): TripPlan {
 const minute = (clock: string) => Number(clock.slice(0, 2)) * 60 + Number(clock.slice(3, 5));
 const clock = (value: number) => `${String(Math.floor(value / 60)).padStart(2, "0")}:${String(value % 60).padStart(2, "0")}`;
 function makeSchedule(request: ScheduleRequest, count = request.must_visit_places.length, includeOptional = true): ScheduleResponse {
+  const transportMode = request.transport_mode ?? "walking";
   const edges: ScheduleEdge[] = [], items: ScheduleItem[] = [];
   let time = minute(request.daily_start_time), origin = request.accommodation_place;
   function append(kind: ScheduleItem["kind"], duration: number, values: Partial<ScheduleItem> = {}) {
@@ -60,8 +66,10 @@ function makeSchedule(request: ScheduleRequest, count = request.must_visit_place
     }
   }
   function walk(destination: Place) {
-    const edge: ScheduleEdge = { id: `edge-${edges.length}`, origin: { place_id: origin.id, longitude: origin.longitude, latitude: origin.latitude }, destination: { place_id: destination.id, longitude: destination.longitude, latitude: destination.latitude }, status: "ok", duration_seconds: 61.2, duration_minutes: 2, distance_meters: 80, source: "amap", queried_at: stamp, message: null, used: true };
-    available(2); edges.push(edge); append("walk", 2, { from_place_id: origin.id, to_place_id: destination.id, edge_id: edge.id }); origin = destination;
+    const same = origin.id === destination.id;
+    const edge: ScheduleEdge = { id: `edge-${edges.length}`, transport_mode: transportMode, transit_route: !same && transportMode === "transit" ? transitRoute() : null, selection_rule: !same && transportMode === "transit" ? "first_supported_complete" : null,
+      origin: { place_id: origin.id, longitude: origin.longitude, latitude: origin.latitude }, destination: { place_id: destination.id, longitude: destination.longitude, latitude: destination.latitude }, status: same ? "same_place" : "ok", duration_seconds: same ? 0 : 61.2, duration_minutes: same ? 0 : 2, distance_meters: transportMode === "transit" ? null : same ? 0 : 80, source: same ? "same_place" : "amap", queried_at: stamp, message: null, used: true };
+    available(edge.duration_minutes!); edges.push(edge); append(transportMode === "transit" ? "transit" : "walk", edge.duration_minutes!, { from_place_id: origin.id, to_place_id: destination.id, edge_id: edge.id }); origin = destination;
   }
   for (const place of request.must_visit_places.slice(0, count)) {
     walk(place);
@@ -83,7 +91,7 @@ function makeSchedule(request: ScheduleRequest, count = request.must_visit_place
   }
   const days = Math.round((Date.parse(request.end_date) - Date.parse(request.start_date)) / 86_400_000) + 1;
   return {
-    status: count + (selectedOptional ? 1 : 0) === request.must_visit_places.length + (request.optional_places?.length ?? 0) ? "complete" : count === 0 && !selectedOptional ? "unscheduled" : "partial", generated_at: stamp, request, edges,
+    status: count + (selectedOptional ? 1 : 0) === request.must_visit_places.length + (request.optional_places?.length ?? 0) ? "complete" : count === 0 && !selectedOptional ? "unscheduled" : "partial", generated_at: stamp, request: { ...request, transport_mode: transportMode }, edges,
     days: Array.from({ length: days }, (_, index) => ({ date: new Date(Date.parse(`${request.start_date}T00:00:00Z`) + index * 86_400_000).toISOString().slice(0, 10), items: index === 0 ? items : [], return_time: index === 0 && (count > 0 || selectedOptional) ? clock(time) : null })),
     unscheduled: request.must_visit_places.slice(count).map((place, index) => ({ place_id: place.id, reason: index === 0 ? "time_window" : "current_order_not_continued", message: index === 0 ? "当前地点在本次时间窗口内放不下。" : "本次固定顺序未继续尝试后续地点。" })),
     rules: ["保持确认顺序，不做最优排序。", "每条步行秒数分别向上取整为分钟。"],
@@ -133,14 +141,15 @@ beforeEach(() => {
   vi.stubGlobal("requestAnimationFrame", (callback: FrameRequestCallback) => { callback(0); return 1; });
 });
 
-function preview() { return screen.getByRole("region", { name: "步行草案" }); }
+function preview() { return screen.getByRole("region", { name: "行程草案" }); }
 function click(name: string | RegExp) { fireEvent.click(screen.getByRole("button", { name })); }
-function generate() { fireEvent.click(within(preview()).getByRole("button", { name: "生成步行草案" })); }
+function generate() { fireEvent.click(within(preview()).getByRole("button", { name: "生成行程草案" })); }
+function mode(value: "walking" | "transit") { fireEvent.click(within(within(preview()).getByRole("group", { name: "草案交通方式" })).getByRole("button", { name: value === "walking" ? "步行" : "公交／地铁" })); }
 function stay(place = first) { return within(preview()).getByRole("spinbutton", { name: `停留分钟：${place.name}` }) as HTMLInputElement; }
 function optionalStay(place = optional) { return within(preview()).getByRole("spinbutton", { name: `可选停留分钟：${place.name}` }) as HTMLInputElement; }
 async function fetchCandidates() {
   click(/^(?:重新)?获取候选地点$/);
-  await waitFor(() => expect((within(preview()).getByRole("button", { name: "生成步行草案" }) as HTMLButtonElement).disabled).toBe(false));
+  await waitFor(() => expect((within(preview()).getByRole("button", { name: "生成行程草案" }) as HTMLButtonElement).disabled).toBe(false));
 }
 async function generated() {
   generate(); await within(preview()).findByText("已安排本次必去地点");
@@ -166,6 +175,77 @@ async function plannerResult() {
 }
 
 describe("independent must-visit walking schedule preview", () => {
+  it("switches only the draft mode, clears previous output and waits for an explicit query while retaining planning inputs", async () => {
+    render(<TripPlanResult plan={makePlan()} onEdit={vi.fn()} />); await fetchCandidates();
+    fireEvent.change(optionalStay(), { target: { value: "90" } }); await generated();
+    mode("transit");
+    expect(within(preview()).queryByRole("list", { name: "草案时间线" })).toBeNull();
+    expect(optionalStay().value).toBe("90"); expect(stay().value).toBe("60");
+    expect((within(preview()).getByLabelText("午餐开始时间") as HTMLInputElement).value).toBe("12:00");
+    expect(controls.querySchedulePreview).toHaveBeenCalledTimes(1); expect(controls.queryCandidates).toHaveBeenCalledTimes(1); expect(routeFetch).not.toHaveBeenCalled();
+    await generated(); expect(controls.querySchedulePreview.mock.calls[1][0].transport_mode).toBe("transit");
+    expect(preview().textContent).toContain("公交／地铁参考");
+    mode("walking"); expect(within(preview()).queryByRole("list", { name: "草案时间线" })).toBeNull();
+    expect(controls.querySchedulePreview).toHaveBeenCalledTimes(2); await generated();
+    expect(controls.querySchedulePreview.mock.calls[2][0].transport_mode).toBe("walking");
+    expect(optionalStay().value).toBe("90"); expect(controls.queryCandidates).toHaveBeenCalledTimes(1);
+  });
+  it("shows whole transit totals once, ordered true line/stops and unknown leg/fare without fabricating precise clocks or total distance", async () => {
+    render(<TripPlanResult plan={makePlan()} onEdit={vi.fn()} />); mode("transit"); await generated();
+    const timeline = within(preview()).getByRole("list", { name: "草案时间线" }); const move = within(timeline).getAllByRole("listitem")[0];
+    expect(move.textContent).toContain("09:00—09:02 · 公交／地铁参考交通");
+    expect(move.textContent).toContain("公交方案总预计 61.2 秒 → 排程计入 2 分钟");
+    expect(move.textContent).toContain("不再累加分段时长"); expect(move.textContent).toContain("接驳步行距离：37 米（不是公交总里程）");
+    expect(move.textContent).toContain("人民币参考票价：未知"); expect(move.textContent).not.toContain("¥0.00");
+    const detail = move.querySelector("details")!; fireEvent.click(detail.querySelector("summary")!);
+    expect(detail.textContent).toContain("测试公交甲线"); expect(detail.textContent).toContain("上车：测试起点站 → 下车：测试终点站");
+    expect(detail.textContent).toContain("该步预计耗时：未知"); expect(detail.textContent).toContain("该步距离：未知");
+    expect(detail.textContent).toContain("不是精确发车、到站或换乘时刻"); expect(detail.textContent).toContain("不代表最快或最优");
+    expect(detail.textContent).toContain("部分地图几何未提供"); expect(move.textContent).toContain("采用本次查询的参考方案估时，尚未验证旅行日期及草案出发时刻的运营班次、等车和换乘可行性。");
+    expect(preview().textContent).toContain("预计返回住宿参考点：13:02"); expect(routeFetch).not.toHaveBeenCalled();
+  });
+  it("renders known transit fares as a reference, without multiplying travelers or putting them in Mock budget", async () => {
+    controls.querySchedulePreview.mockImplementationOnce(async (request: ScheduleRequest) => {
+      const result = makeSchedule(request); result.edges.forEach((edge) => { if (edge.transit_route) edge.transit_route.fare_cny = 4; }); return result;
+    });
+    const plan = makePlan(), original = JSON.stringify(plan); render(<TripPlanResult plan={plan} onEdit={vi.fn()} />); mode("transit"); await generated();
+    const timeline = within(preview()).getByRole("list", { name: "草案时间线" });
+    expect(timeline.textContent).toContain("人民币参考票价：¥4.00"); expect(timeline.textContent).not.toContain("¥8.00");
+    expect(timeline.textContent).toContain("不乘旅行人数，不计入预算"); expect(JSON.stringify(plan)).toBe(original);
+  });
+  it("same-place transit retains the visit and explicitly avoids invented lines, fare and upstream estimates", async () => {
+    const request = { ...tripRequest(), must_visit_places: [lodging], must_visit: [lodging.name] };
+    render(<TripPlanResult plan={makePlan(request)} onEdit={vi.fn()} />); mode("transit"); await generated();
+    const timeline = within(preview()).getByRole("list", { name: "草案时间线" });
+    expect(timeline.textContent).toContain("无需交通查询；计入 0 分钟"); expect(timeline.textContent).toContain("停留");
+    expect(timeline.textContent).not.toContain("测试公交甲线"); expect(timeline.textContent).not.toContain("人民币参考票价");
+    expect(timeline.textContent).toContain("无高德请求"); expect(routeFetch).not.toHaveBeenCalled();
+  });
+  it.each(["success", "error"] as const)("mode ABA isolates a late %s in the actual panel", async (outcome) => {
+    const old = deferred<ScheduleResponse>(); controls.querySchedulePreview.mockReturnValueOnce(old.promise);
+    render(<TripPlanResult plan={makePlan()} onEdit={vi.fn()} />); generate(); const body = controls.querySchedulePreview.mock.calls[0][0] as ScheduleRequest;
+    mode("transit"); mode("walking"); await generated();
+    await act(async () => { if (outcome === "success") old.resolve(makeSchedule(body, 0)); else old.reject(new ScheduleError("error", "过期模式错误")); });
+    expect(within(preview()).getByText("已安排本次必去地点")).toBeTruthy(); expect(preview().textContent).not.toContain("过期模式错误");
+    expect(controls.querySchedulePreview).toHaveBeenCalledTimes(2);
+  });
+  it("draft transport mode never changes the old map's selected mode, existing polyline, binding or Marker behavior", async () => {
+    render(<TripPlanResult plan={makePlan()} onEdit={vi.fn()} />);
+    await bind("活动甲", first); await bind("活动乙", second); click("查询步行路线");
+    await waitFor(() => expect(lines.some((line) => line.currentMap)).toBe(true)); const originalLine = lines.find((line) => line.currentMap)!;
+    const mapModes = screen.getByRole("group", { name: "选择真实交通方式" });
+    mode("transit"); await generated();
+    expect(within(mapModes).getByRole("button", { name: "步行" }).getAttribute("aria-pressed")).toBe("true");
+    expect(originalLine.currentMap).not.toBeNull(); expect(routeFetch).toHaveBeenCalledTimes(1);
+    const marker = markers.findLast((item) => item.attached && item.options.title === first.name)!; act(() => marker.click()); click("在地图查看活动乙");
+    const priorTimeline = within(preview()).getByRole("list", { name: "草案时间线" }).textContent;
+    fireEvent.click(within(mapModes).getByRole("button", { name: "公交／地铁" }));
+    expect(originalLine.currentMap).toBeNull(); expect(within(preview()).getByRole("list", { name: "草案时间线" }).textContent).toBe(priorTimeline);
+    expect(within(within(preview()).getByRole("group", { name: "草案交通方式" })).getByRole("button", { name: "公交／地铁" }).getAttribute("aria-pressed")).toBe("true");
+    mode("walking"); expect(within(mapModes).getByRole("button", { name: "公交／地铁" }).getAttribute("aria-pressed")).toBe("true");
+    expect(within(screen.getByRole("article", { name: "活动甲" })).getByText(first.name)).toBeTruthy();
+    expect(controls.querySchedulePreview).toHaveBeenCalledTimes(1); expect(routeFetch).toHaveBeenCalledTimes(1);
+  });
   it("initializes editable defaults from confirmed requirements and never auto-generates", async () => {
     render(<TripPlanResult plan={makePlan()} onEdit={vi.fn()} />);
     expect(stay().value).toBe("60"); expect(stay(second).value).toBe("60");
@@ -186,7 +266,7 @@ describe("independent must-visit walking schedule preview", () => {
     if (kind === "no-must") { request.must_visit_places = []; request.must_visit = []; }
     if (kind === "over-six") { request.must_visit_places = Array.from({ length: 7 }, (_, index) => ({ ...first, id: `fixture-${index}`, name: `测试必去${index}` })); request.must_visit = request.must_visit_places.map((place) => place.name); }
     render(<TripPlanResult plan={makePlan(request)} onEdit={vi.fn()} />);
-    expect((within(preview()).getByRole("button", { name: "生成步行草案" }) as HTMLButtonElement).disabled).toBe(true);
+    expect((within(preview()).getByRole("button", { name: "生成行程草案" }) as HTMLButtonElement).disabled).toBe(true);
     expect(within(preview()).getByRole("alert").textContent).toMatch(kind === "no-accommodation" ? /住宿/ : /必去|可选|1.*6|6.*个/);
     expect(within(preview()).getByRole("alert").textContent).not.toMatch(/旅行不可行|无法完成旅行/); expect(controls.querySchedulePreview).not.toHaveBeenCalled();
   });
@@ -238,7 +318,7 @@ describe("independent must-visit walking schedule preview", () => {
   it.each(["", "14", "481", "60.5"])("blocks an invalid duration %s and never treats stale settings as current", async (value) => {
     render(<TripPlanResult plan={makePlan()} onEdit={vi.fn()} />); await generated();
     fireEvent.change(stay(), { target: { value } });
-    expect((within(preview()).getByRole("button", { name: "生成步行草案" }) as HTMLButtonElement).disabled).toBe(true);
+    expect((within(preview()).getByRole("button", { name: "生成行程草案" }) as HTMLButtonElement).disabled).toBe(true);
     expect(within(preview()).getByRole("alert").textContent).toMatch(/15|480|分钟|整数/);
     expect(within(preview()).queryByRole("list", { name: "草案时间线" })).toBeNull(); expect(controls.querySchedulePreview).toHaveBeenCalledTimes(1);
   });
@@ -247,7 +327,7 @@ describe("independent must-visit walking schedule preview", () => {
     render(<TripPlanResult plan={makePlan()} onEdit={vi.fn()} />); await generated();
     fireEvent.change(within(preview()).getByLabelText("午餐开始时间"), { target: { value: "08:00" } });
     expect(within(preview()).queryByRole("list", { name: "草案时间线" })).toBeNull();
-    expect((within(preview()).getByRole("button", { name: "生成步行草案" }) as HTMLButtonElement).disabled).toBe(true);
+    expect((within(preview()).getByRole("button", { name: "生成行程草案" }) as HTMLButtonElement).disabled).toBe(true);
     expect(within(preview()).getByRole("alert").textContent).toMatch(/午餐|窗口/);
     fireEvent.click(within(preview()).getByRole("checkbox", { name: "安排午餐时间" })); await generated();
     expect(controls.querySchedulePreview.mock.calls[1][0].lunch.enabled).toBe(false);
@@ -299,11 +379,12 @@ describe("independent must-visit walking schedule preview", () => {
 
   it("edit/regeneration preserves 5A confirmations but clears the draft and restores default planning settings", async () => {
     await plannerResult(); fireEvent.change(stay(), { target: { value: "90" } });
-    fireEvent.click(within(preview()).getByRole("checkbox", { name: "安排午餐时间" })); await generated(); click("修改旅行需求");
+    fireEvent.click(within(preview()).getByRole("checkbox", { name: "安排午餐时间" })); mode("transit"); await generated(); click("修改旅行需求");
     expect(within(screen.getByRole("region", { name: "已确认住宿参考点" })).getByText(lodging.name)).toBeTruthy();
     expect(within(screen.getByRole("region", { name: "已确认必去地点" })).getByText(first.name)).toBeTruthy();
     submitTrip(); await screen.findByRole("button", { name: "修改旅行需求" });
     expect(stay().value).toBe("60"); expect((within(preview()).getByRole("checkbox", { name: "安排午餐时间" }) as HTMLInputElement).checked).toBe(true);
+    expect(within(within(preview()).getByRole("group", { name: "草案交通方式" })).getByRole("button", { name: "步行" }).getAttribute("aria-pressed")).toBe("true");
     expect(within(preview()).queryByRole("list", { name: "草案时间线" })).toBeNull(); expect(controls.querySchedulePreview).toHaveBeenCalledTimes(1);
   });
 
@@ -355,7 +436,7 @@ describe("independent must-visit walking schedule preview", () => {
     expect(visit.textContent).toContain("可选地点"); expect(visit.textContent).toContain("90 分钟"); expect(visit.textContent).toContain("你修改的规划设置");
     expect(preview().textContent).toContain("必去已安排 2/2 个 · 可选已安排 1/1 个");
     fireEvent.change(optionalStay(), { target: { value: "14" } });
-    expect((within(preview()).getByRole("button", { name: "生成步行草案" }) as HTMLButtonElement).disabled).toBe(true);
+    expect((within(preview()).getByRole("button", { name: "生成行程草案" }) as HTMLButtonElement).disabled).toBe(true);
     expect(within(preview()).queryByRole("list", { name: "草案时间线" })).toBeNull();
     expect(within(preview()).getByRole("alert").textContent).toMatch(/15.*480/);
   });
@@ -365,13 +446,13 @@ describe("independent must-visit walking schedule preview", () => {
     const pending = deferred<CandidateResponse>(); controls.queryCandidates.mockReturnValueOnce(pending.promise);
     click("重新获取候选地点");
     expect(within(preview()).queryByRole("list", { name: "草案时间线" })).toBeNull();
-    expect((within(preview()).getByRole("button", { name: "生成步行草案" }) as HTMLButtonElement).disabled).toBe(true);
+    expect((within(preview()).getByRole("button", { name: "生成行程草案" }) as HTMLButtonElement).disabled).toBe(true);
     expect(preview().textContent).toMatch(/候选正在更新/); expect(preview().textContent).not.toContain("最近检索失败");
     generate(); expect(controls.querySchedulePreview).toHaveBeenCalledTimes(1);
     await act(async () => { pending.resolve(candidateResponse([moreOptional[1]])); });
     expect(optionalStay(moreOptional[1]).value).toBe("60");
     expect(within(preview()).queryByRole("list", { name: "草案时间线" })).toBeNull();
-    expect((within(preview()).getByRole("button", { name: "生成步行草案" }) as HTMLButtonElement).disabled).toBe(false);
+    expect((within(preview()).getByRole("button", { name: "生成行程草案" }) as HTMLButtonElement).disabled).toBe(false);
     expect(controls.querySchedulePreview).toHaveBeenCalledTimes(1);
   });
 
@@ -399,7 +480,7 @@ describe("independent must-visit walking schedule preview", () => {
     await generated(); expect(controls.querySchedulePreview.mock.calls[1][0].optional_places).toEqual([optional]);
   });
 
-  it.each(["time_window", "no_route", "timeout", "data_error", "failed", "budget_exhausted", "day_slot_used"] as const)("renders optional %s per date without deleting the successful required prefix", async (outcome) => {
+  it.each(["time_window", "no_route", "unsupported", "timeout", "data_error", "failed", "budget_exhausted", "day_slot_used"] as const)("renders optional %s per date without deleting the successful required prefix", async (outcome) => {
     controls.querySchedulePreview.mockImplementationOnce(async (request: ScheduleRequest) => {
       const result = makeSchedule(request, request.must_visit_places.length, false);
       result.optional_results[0].attempts[0].outcome = outcome;
@@ -435,7 +516,7 @@ describe("independent must-visit walking schedule preview", () => {
       const response = makeSchedule(request, request.must_visit_places.length, false);
       response.optional_results[0].attempts[0].outcome = "budget_exhausted";
       response.optional_results[0].attempts[0].message = "本轮搜索截止前未开始查询。";
-      response.edges.push({ id: "optional-unqueried-edge", origin: { place_id: second.id, longitude: second.longitude, latitude: second.latitude }, destination: { place_id: optional.id, longitude: optional.longitude, latitude: optional.latitude }, status: "budget_exhausted", source: "amap", queried_at: stamp, duration_seconds: null, duration_minutes: null, distance_meters: null, used: false, message: "本次搜索截止前未开始该路段查询。" });
+      response.edges.push({ id: "optional-unqueried-edge", transport_mode: request.transport_mode ?? "walking", transit_route: null, selection_rule: null, origin: { place_id: second.id, longitude: second.longitude, latitude: second.latitude }, destination: { place_id: optional.id, longitude: optional.longitude, latitude: optional.latitude }, status: "budget_exhausted", source: "amap", queried_at: stamp, duration_seconds: null, duration_minutes: null, distance_meters: null, used: false, message: "本次搜索截止前未开始该路段查询。" });
       return response;
     });
     await generated();
@@ -451,7 +532,7 @@ describe("independent must-visit walking schedule preview", () => {
     const request = { ...tripRequest(), must_visit_places: [], must_visit: [] };
     controls.queryCandidates.mockResolvedValueOnce({ ...candidateResponse(), candidates: candidateResponse().candidates.filter((candidate) => candidate.role === "optional") });
     render(<TripPlanResult plan={makePlan(request)} onEdit={vi.fn()} />);
-    expect((within(preview()).getByRole("button", { name: "生成步行草案" }) as HTMLButtonElement).disabled).toBe(true);
+    expect((within(preview()).getByRole("button", { name: "生成行程草案" }) as HTMLButtonElement).disabled).toBe(true);
     await fetchCandidates(); generate(); await within(preview()).findByText("本次草案已安排可选地点");
     expect(within(preview()).queryByText("已安排本次必去地点")).toBeNull();
     expect(preview().textContent).toContain("必去已安排 0/0 个 · 可选已安排 1/1 个");

@@ -19,7 +19,7 @@ function request(): TripRequest { return {
   must_visit: ["one", "two"], must_visit_places: [place("one"), place("two")], daily_start_time: "09:00:00", daily_end_time: "18:00:00", interests: ["摄影"], pace: "balanced", avoid_places: ["拥挤地点"],
 }; }
 function response(input: ScheduleRequest): ScheduleResponse { return {
-  status: "unscheduled", request: structuredClone(input), generated_at: "2026-10-06T04:00:00Z", rules: ["固定输入顺序"], unknowns: ["未核实营业"], edges: [],
+  status: "unscheduled", request: { ...structuredClone(input), transport_mode: input.transport_mode ?? "walking" }, generated_at: "2026-10-06T04:00:00Z", rules: ["固定输入顺序"], unknowns: ["未核实营业"], edges: [],
   days: scheduleDates(input.start_date, input.end_date)!.map((date) => ({ date, items: [], return_time: null })),
   unscheduled: input.must_visit_places.map((p, index) => ({ place_id: p.id, reason: index ? "current_order_not_continued" : "time_window", message: "本次未排入" })),
   optional_results: (input.optional_places ?? []).map((p) => ({ place_id: p.id, scheduled_date: null, not_attempted_reason: input.must_visit_places.length ? "must_incomplete" : null,
@@ -35,7 +35,55 @@ function deferred<T>() { let resolve!: (value: T) => void; let reject!: (error: 
   const promise = new Promise<T>((done, fail) => { resolve = done; reject = fail; }); return { promise, resolve, reject }; }
 beforeEach(() => { api.mockReset(); candidatesApi.mockReset(); });
 
-describe("explicit independent walking schedule lifecycle", () => {
+describe("explicit independent transport schedule lifecycle", () => {
+  it("defaults to walking and switching mode preserves stay, lunch, candidate and exclusion inputs without querying", async () => {
+    api.mockImplementation(async (body) => response(body)); const { result } = renderHook(() => useSchedulePreview(request()));
+    expect(result.current.transportMode).toBe("walking");
+    act(() => { result.current.updateCandidates(candidateSnapshot(["o1", "o2"], ["o2"])); result.current.setStayMinutes("o1", "90"); result.current.setLunchEnabled(false); });
+    await act(async () => { await result.current.query(); });
+    act(() => result.current.setTransportMode("transit"));
+    expect(result.current.transportMode).toBe("transit"); expect(result.current.state.response).toBeNull(); expect(api).toHaveBeenCalledTimes(1);
+    expect(result.current.stays.o1).toEqual({ value: "90", source: "user" }); expect(result.current.lunch.enabled).toBe(false);
+    expect(result.current.optionalPlaces.map((p) => p.id)).toEqual(["o1"]);
+    await act(async () => { await result.current.query(); });
+    expect(api.mock.calls.map(([body]) => body.transport_mode)).toEqual(["walking", "transit"]);
+    expect(api.mock.calls[1][0].duration_settings.find((s) => s.place_id === "o1")?.minutes).toBe(90);
+    expect(api.mock.calls[1][0].lunch.enabled).toBe(false); expect(candidatesApi).not.toHaveBeenCalled();
+  });
+  it("a mode change followed by an older query closure in the same event reads the latest synchronous mode", async () => {
+    api.mockImplementation(async (body) => response(body)); const { result } = renderHook(() => useSchedulePreview(request())); const oldQuery = result.current.query;
+    await act(async () => { result.current.setTransportMode("transit"); await oldQuery(); });
+    expect(api.mock.calls[0][0].transport_mode).toBe("transit");
+    act(() => result.current.setTransportMode("walking")); expect(api).toHaveBeenCalledTimes(1);
+    await act(async () => { await oldQuery(); }); expect(api.mock.calls[1][0].transport_mode).toBe("walking");
+  });
+  it.each(["success", "error"])("walking→transit→walking ignores old %s and finally keeps the new query pending guard", async (outcome) => {
+    const old = deferred<ScheduleResponse>(); const next = deferred<ScheduleResponse>(); api.mockReturnValueOnce(old.promise).mockReturnValueOnce(next.promise);
+    const { result } = renderHook(() => useSchedulePreview(request())); let oldWork!: Promise<boolean>; let freshWork!: Promise<boolean>;
+    act(() => { oldWork = result.current.query(); }); const signal = api.mock.calls[0][1];
+    act(() => { result.current.setTransportMode("transit"); result.current.setTransportMode("walking"); });
+    expect(signal?.aborted).toBe(true); expect(api).toHaveBeenCalledTimes(1); expect(result.current.state.response).toBeNull();
+    act(() => { freshWork = result.current.query(); });
+    await act(async () => { if (outcome === "success") old.resolve(response(api.mock.calls[0][0])); else old.reject(new Error("stale mode failure")); expect(await oldWork).toBe(false); });
+    expect(result.current.state.status).toBe("loading"); act(() => { void result.current.query(); }); expect(api).toHaveBeenCalledTimes(2);
+    await act(async () => { next.resolve(response(api.mock.calls[1][0])); await freshWork; });
+    expect(result.current.state.response?.request.transport_mode).toBe("walking"); expect(result.current.state.message).toBeNull();
+  });
+  it.each(["success", "error"])("transit pending %s is isolated after candidate refresh and input change without automatic fallback", async (outcome) => {
+    const old = deferred<ScheduleResponse>(); api.mockReturnValueOnce(old.promise); const { result } = renderHook(() => useSchedulePreview(request())); let work!: Promise<boolean>;
+    act(() => { result.current.setTransportMode("transit"); work = result.current.query(); });
+    act(() => result.current.updateCandidates({ ...candidateSnapshot(), loading: true }));
+    expect(api.mock.calls[0][1]?.aborted).toBe(true); expect(result.current.transportMode).toBe("transit");
+    await act(async () => { if (outcome === "success") old.resolve(response(api.mock.calls[0][0])); else old.reject(new Error("stale transit")); await work; });
+    expect(result.current.state.response).toBeNull(); expect(result.current.state.message).not.toContain("stale transit");
+    expect(result.current.canQuery).toBe(false); expect(api).toHaveBeenCalledTimes(1); expect(api.mock.calls[0][0].transport_mode).toBe("transit");
+  });
+  it("selecting the current mode is a no-op, and a new result mount resets transit to walking", async () => {
+    api.mockImplementation(async (body) => response(body)); const { result, unmount } = renderHook(() => useSchedulePreview(request()));
+    act(() => result.current.setTransportMode("transit")); await act(async () => { await result.current.query(); }); const prior = result.current.state.response;
+    act(() => result.current.setTransportMode("transit")); expect(result.current.state.response).toBe(prior); expect(api).toHaveBeenCalledTimes(1);
+    unmount(); const next = renderHook(() => useSchedulePreview(request())); expect(next.result.current.transportMode).toBe("walking"); expect(next.result.current.state.response).toBeNull();
+  });
   it("selects only first three eligible optional snapshots and excludes required/accommodation IDs", async () => {
     api.mockImplementation(async (body) => response(body)); const { result } = renderHook(() => useSchedulePreview(request()));
     act(() => result.current.updateCandidates(candidateSnapshot(["hotel", "one", "o1", "o2", "o3", "o4", "o1"], ["o2"])));
@@ -130,7 +178,7 @@ describe("explicit independent walking schedule lifecycle", () => {
     api.mockImplementation(async (input) => response(input)); const input = request(); const { result } = renderHook(() => useSchedulePreview(input));
     await act(async () => { expect(await result.current.query()).toBe(true); });
     const body = api.mock.calls[0][0];
-    expect(body).toEqual({ start_date: input.start_date, end_date: input.end_date, daily_start_time: "09:00", daily_end_time: "18:00", accommodation_place: input.accommodation_place,
+    expect(body).toEqual({ transport_mode: "walking", start_date: input.start_date, end_date: input.end_date, daily_start_time: "09:00", daily_end_time: "18:00", accommodation_place: input.accommodation_place,
       must_visit_places: input.must_visit_places, optional_places: [], duration_settings: [{ place_id: "one", minutes: 60, source: "default" }, { place_id: "two", minutes: 60, source: "default" }],
       lunch: { enabled: true, start_time: "12:00", end_time: "13:00" } });
     expect(result.current.state).toMatchObject({ status: "success", response: { status: "unscheduled" } });
@@ -227,10 +275,10 @@ describe("explicit independent walking schedule lifecycle", () => {
   });
   it.each(["success", "error"])("edit invalidation and unmount reject late %s; new mount resets assumptions", async (outcome) => {
     const old = deferred<ScheduleResponse>(); api.mockReturnValueOnce(old.promise); const { result, unmount } = renderHook(() => useSchedulePreview(request()));
-    act(() => { result.current.setStayMinutes("one", "90"); result.current.setLunchEnabled(false); }); let work!: Promise<boolean>;
+    act(() => { result.current.setStayMinutes("one", "90"); result.current.setLunchEnabled(false); result.current.setTransportMode("transit"); }); let work!: Promise<boolean>;
     act(() => { work = result.current.query(); }); const signal = api.mock.calls[0][1]; act(() => result.current.invalidate()); expect(signal?.aborted).toBe(true); unmount();
     if (outcome === "success") old.resolve(response(api.mock.calls[0][0])); else old.reject(new Error("old error")); expect(await work).toBe(false);
     const fresh = renderHook(() => useSchedulePreview(request())); expect(fresh.result.current.state.status).toBe("idle");
-    expect(fresh.result.current.stays.one).toEqual({ value: "60", source: "default" }); expect(fresh.result.current.lunch.enabled).toBe(true);
+    expect(fresh.result.current.stays.one).toEqual({ value: "60", source: "default" }); expect(fresh.result.current.lunch.enabled).toBe(true); expect(fresh.result.current.transportMode).toBe("walking");
   });
 });

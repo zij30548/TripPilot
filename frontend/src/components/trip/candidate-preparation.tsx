@@ -39,7 +39,7 @@ export default function CandidatePreparation({ request, pool }: { request: TripR
         {loading ? state.response ? "正在更新候选地点…" : "正在获取候选地点…" : attempted ? "重新获取候选地点" : "获取候选地点"}
       </button>
     </div>
-    <p className="mt-3 text-xs leading-5 text-[#68726c]">关键词命中仅说明检索来源，不代表最佳推荐、精准匹配或满足预算。未排除的有效可选地点将按清单顺序取前 3 个，供下方步行草案主动试排；获取候选本身不会生成草案、绑定活动或修改旧 Mock 行程。</p>
+    <p className="mt-3 text-xs leading-5 text-[#68726c]">关键词命中仅说明检索来源，不代表最佳推荐、精准匹配或满足预算。未排除的有效可选地点将按清单顺序取前 3 个，供下方行程草案主动试排；获取候选本身不会生成草案、绑定活动或修改旧 Mock 行程。</p>
     <p className="mt-1 text-xs leading-5 text-[#68726c]">切换日期仍保留本清单；返回修改需求、重新生成或刷新后清空候选准备和排除决定，已提交的必去要求不受排除操作影响。</p>
     {request.avoid_places.length > 0 && <div className="mt-4 rounded-xl border border-amber-200 bg-amber-50 p-3 text-sm leading-6 text-[#6c521e]">
       <p className="break-words">你填写的不想去的地点：{request.avoid_places.join("、")}</p>
@@ -74,7 +74,7 @@ export default function CandidatePreparation({ request, pool }: { request: TripR
     </div>
     <div className="mt-6">
       <h3 className="text-sm font-semibold text-[#18392f]">可选地点 · {optional.length} 个{excludedCount > 0 ? `（已排除 ${excludedCount} 个）` : ""}</h3>
-      <p className="mt-1 text-xs leading-5 text-[#68726c]">排除、恢复或重新获取会使旧步行草案失效，需要再点击生成；排除或恢复不会重新搜索或查询路线，也不会更改活动绑定或旧地图。类别为地点服务原始分类。</p>
+      <p className="mt-1 text-xs leading-5 text-[#68726c]">排除、恢复或重新获取会使旧行程草案失效，需要再点击生成；排除或恢复不会重新搜索或查询路线，也不会更改活动绑定或旧地图。类别为地点服务原始分类。</p>
       {optional.length > 0 && <ul aria-label="可选候选地点" className="mt-3 grid max-h-[34rem] gap-3 overflow-y-auto pr-1 sm:grid-cols-2 lg:grid-cols-3">{optional.map((candidate) => {
         const excluded = excludedIds.has(candidate.place.id);
         return <li key={candidate.place.id} className={`flex min-w-0 flex-col rounded-xl border p-4 ${excluded ? "border-[#18201d]/10 bg-[#eeefeb]" : "border-[#18201d]/15 bg-white"}`}>

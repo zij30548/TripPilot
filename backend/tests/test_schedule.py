@@ -307,7 +307,7 @@ class ScheduleApiTests(unittest.TestCase):
         response = self.post(data)
         self.assertEqual(response.status_code, 200)
         result = response.json()
-        self.assertEqual(result["request"], data | {"optional_places": []})
+        self.assertEqual(result["request"], data | {"optional_places": [], "transport_mode": "walking"})
         self.assertEqual(result["status"], "complete")
         self.assertEqual(len(self.requests), 5)
         self.assertEqual(result["edges"][0]["duration_seconds"], 600)

@@ -8,7 +8,7 @@ import { isScheduleRequest, scheduleClock, scheduleDates, scheduleMinutes, type 
 import type { TripRequest } from "@/types/trip";
 
 export type StayDraft = { value: string; source: "default" | "user" };
-export type ScheduleSettings = { stays: Record<string, StayDraft>; lunch: { enabled: boolean; start: string; end: string } };
+export type ScheduleSettings = { transportMode: "walking" | "transit"; stays: Record<string, StayDraft>; lunch: { enabled: boolean; start: string; end: string } };
 export type SchedulePreviewState = { status: "idle" | "loading" | "success" | "failed"; response: ScheduleResponse | null; message: string | null };
 const idle = (): SchedulePreviewState => ({ status: "idle", response: null, message: null });
 
@@ -23,6 +23,7 @@ function eligibleOptional(request: TripRequest, candidates: CandidatePoolSnapsho
 }
 function buildRequest(request: TripRequest, settings: ScheduleSettings, optionalPlaces: Place[]): ScheduleRequest | null {
   const value: unknown = {
+    transport_mode: settings.transportMode,
     start_date: request.start_date, end_date: request.end_date,
     daily_start_time: scheduleClock(request.daily_start_time), daily_end_time: scheduleClock(request.daily_end_time),
     accommodation_place: request.accommodation_place,
@@ -59,6 +60,7 @@ function validation(request: TripRequest, settings: ScheduleSettings, optionalPl
 
 export function useSchedulePreview(request: TripRequest) {
   const [settings, setSettings] = useState<ScheduleSettings>(() => ({
+    transportMode: "walking",
     stays: Object.fromEntries((request.must_visit_places ?? []).map((place) => [place.id, { value: "60", source: "default" }])),
     lunch: { enabled: true, start: "12:00", end: "13:00" },
   }));
@@ -94,6 +96,12 @@ export function useSchedulePreview(request: TripRequest) {
   const setLunchEnabled = (enabled: boolean) => update((current) => ({ ...current, lunch: { ...current.lunch, enabled } }));
   const setLunchStart = (start: string) => update((current) => ({ ...current, lunch: { ...current.lunch, start } }));
   const setLunchEnd = (end: string) => update((current) => ({ ...current, lunch: { ...current.lunch, end } }));
+  const setTransportMode = (transportMode: ScheduleSettings["transportMode"]) => {
+    if (transportMode === settingsRef.current.transportMode) return;
+    // Like other inputs, the mode lives in the synchronous settings ref. Even an
+    // older query closure in this same event must read the new mode, not its render.
+    update((current) => ({ ...current, transportMode }));
+  };
   const query = async (): Promise<boolean> => {
     if (pending.current) return false;
     const optionalPlaces = eligibleOptional(request, candidateRef.current).slice(0, 3);
@@ -108,13 +116,13 @@ export function useSchedulePreview(request: TripRequest) {
       setState({ status: "success", response, message: null }); return true;
     } catch (error) {
       if (version.current !== generation || active.signal.aborted) return false;
-      setState({ status: "failed", response: null, message: error instanceof ScheduleError ? error.message : "生成步行草案失败，请主动重试。" }); return false;
+      setState({ status: "failed", response: null, message: error instanceof ScheduleError ? error.message : "生成行程草案失败，请主动重试。" }); return false;
     } finally { if (version.current === generation) { controller.current = null; pending.current = false; } }
   };
   const eligible = eligibleOptional(request, candidateInput);
   const optionalPlaces = eligible.slice(0, 3);
   const validationMessage = validation(request, settings, optionalPlaces, candidateInput.loading);
-  return { stays: settings.stays, lunch: settings.lunch, setStayMinutes, setLunchEnabled, setLunchStart, setLunchEnd,
+  return { transportMode: settings.transportMode, setTransportMode, stays: settings.stays, lunch: settings.lunch, setStayMinutes, setLunchEnabled, setLunchStart, setLunchEnd,
     state, canQuery: validationMessage === null, validationMessage, query, invalidate, updateCandidates,
     optionalPlaces, eligibleCount: eligible.length, notSelectedCount: Math.max(eligible.length - 3, 0),
     candidateLoading: candidateInput.loading, candidateQueriedAt: candidateInput.response?.queried_at ?? null,
