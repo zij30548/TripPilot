@@ -7,7 +7,7 @@ type Controller = ReturnType<typeof useWeatherScheduleCheck>;
 const time = (value: string | number) => new Date(value).toLocaleString("zh-CN", { timeZone: "Asia/Shanghai", hour12: false });
 const button = "min-h-11 rounded-xl border border-[#315f51]/30 px-4 py-2 text-sm font-medium text-[#315f51] disabled:cursor-not-allowed disabled:opacity-50";
 
-export default function WeatherScheduleCheck({ check, onEdit }: { check: Controller; onEdit: () => void }) {
+export default function WeatherScheduleCheck({ check, onEdit, onPreview, previewLoading }: { check: Controller; onEdit: () => void; onPreview: (id: string) => Promise<boolean>; previewLoading: boolean }) {
   return <section aria-label="天气与行程检查" className="mt-6 min-w-0 rounded-3xl border border-[#34657b]/20 bg-[#f1f7fa] p-5 sm:p-8">
     <h2 className="text-xl font-semibold text-[#18392f]">天气与行程检查</h2>
     <p className="mt-2 text-sm leading-6 text-[#56605c]">先标注本次游览方式，再主动检查同日预报。标注是你的规划设置，不是高德确认的地点属性；修改标注不会改变草案。</p>
@@ -22,7 +22,6 @@ export default function WeatherScheduleCheck({ check, onEdit }: { check: Control
     </div>}
     <button type="button" className={`${button} mt-4 bg-white`} disabled={!check.canCheck} onClick={() => check.check()}>检查天气对行程的影响</button>
     {!check.canCheck && check.visits.length > 0 && <p className="mt-2 text-sm text-[#68726c]">请先取得天气，并等待天气、候选及草案查询结束后检查。</p>}
-    <p role="status" className="mt-3 text-sm leading-6 text-[#315f51]">{check.notice}</p>
     {check.report && !check.valid && <p role="status" className="mt-3 text-sm text-[#8a5b19]">条件已变化，上次检查已失效。请准备好天气和草案后重新检查。</p>}
     {check.report && <div aria-label="天气检查报告" className={`mt-4 space-y-4 ${check.valid ? "" : "opacity-60"}`}>
       <p className="text-sm font-medium">{check.valid ? "本次检查" : "上次检查 · 已失效"} · {time(check.report.checkedAt)}</p>
@@ -42,7 +41,7 @@ export default function WeatherScheduleCheck({ check, onEdit }: { check: Control
           <div className="mt-3 grid gap-2 sm:grid-cols-2">{visit.periods.map((period) => <p key={period.period} className="rounded-lg bg-[#f4f7f5] p-2 text-sm leading-6">{period.period}：{!check.valid || period.status === "unassessed" ? "未评估" : period.status === "precipitation" ? "有雨雪预报" : "未触发雨雪规则"}</p>)}</div>
           <details className="mt-3 text-sm leading-6"><summary className="cursor-pointer">{check.valid ? "查看昼夜依据" : "查看上次昼夜依据（已失效）"}</summary>{visit.periods.map((period) => <p key={period.period}>{period.period}原文：{period.description ?? "未知"}。{period.explanation}</p>)}</details>
           {visit.role === "must_visit" ? <p className="mt-3 text-sm">必去要求不会在此排除；如需调整，请<button type="button" onClick={onEdit} className="min-h-11 px-1 underline">修改旅行需求</button>。</p> : <div className="mt-3">
-            {visit.canAdjust ? <><p className="mb-2 text-xs leading-5 text-[#68726c]">是否调整由你选择，不是天气自动要求。将从本次全行程候选排除该地点，清除当前草案；随后需主动重新生成，可在候选区恢复。新进入的候选不是自动选择的室内替代。</p><button type="button" className={button} disabled={!check.valid} onClick={() => check.exclude(visit.place.id)}>排除此可选地点</button></> : <p className="text-xs leading-5 text-[#68726c]">天气依据不足，此处不提供天气调整操作；普通手动选择仍可在候选区进行。</p>}
+            {visit.canAdjust ? <><p className="mb-2 text-xs leading-5 text-[#68726c]">是否调整由你选择，不是天气自动要求。点击仅查询排除后的调整预览，原方案和候选保持不变；查看对比并明确采用后，才从全行程候选排除。新地点不是自动选择的室内替代。</p><button type="button" className={button} disabled={!check.valid || previewLoading} onClick={() => { void onPreview(visit.place.id); }}>预览排除该地点后的草案</button></> : <p className="text-xs leading-5 text-[#68726c]">天气依据不足，此处不提供天气调整操作；普通手动选择仍可在候选区进行。</p>}
           </div>}
         </article>)}
       </section>)}

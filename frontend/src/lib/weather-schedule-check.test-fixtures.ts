@@ -1,4 +1,5 @@
 import type { Place } from "@/types/place";
+import type { CandidateResponse } from "@/types/candidates";
 import type { TripPlan, TripRequest } from "@/types/trip";
 import { isScheduleResponse, type ScheduleEdge, type ScheduleItem, type ScheduleRequest, type ScheduleResponse } from "@/types/schedule";
 import { classifyWeatherPrecipitation, getWeatherDates, type WeatherForecastRequest, type WeatherForecastResponse, type WeatherPeriod } from "@/types/weather";
@@ -48,8 +49,8 @@ export function schedule(request = scheduleRequest()): ScheduleResponse {
   if (!isScheduleResponse(result, request)) throw new Error("Invalid offline schedule fixture");
   return result;
 }
-export function candidateResponse() {
-  return { status: "success" as const, queried_at: stamp, keywords: ["公园"], queries: [{ interest: "摄影", keyword: "公园", status: "success" as const, result_count: 4, message: null }], candidates: [{ place: required, role: "must_visit" as const, retrieval_sources: [] }, ...optionals.map((place) => ({ place, role: "optional" as const, retrieval_sources: [{ interest: "摄影", keyword: "公园" }] }))] };
+export function candidateResponse(): CandidateResponse {
+  return { status: "success" as const, queried_at: stamp, keywords: ["公园"], queries: [{ interest: "摄影", keyword: "公园", status: "success" as const, result_count: 4, message: null }], candidates: [{ place: required, role: "must_visit" as const, retrieval_sources: [] }, ...optionals.map((place) => ({ place, role: "optional" as const, retrieval_sources: [{ interest: "摄影" as const, keyword: "公园" }] }))] };
 }
 export function deferred<T>() {
   let resolve!: (value: T) => void, reject!: (reason: Error) => void;

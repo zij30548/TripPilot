@@ -45,17 +45,17 @@ describe("result-local weather check invalidation and action boundary", () => {
     act(() => result.current.check.check());
     expect(result.current.check.valid).toBe(true);
     expect(result.current.check.report!.days[0].visits.map((v) => v.exposure)).toEqual(["outdoor", "unknown"]);
-    act(() => { expect(result.current.check.exclude(required.id)).toBe(false); expect(result.current.check.exclude(optionals[3].id)).toBe(false); });
+    act(() => { expect(result.current.check.canAdjustNow(required.id)).toBe(false); expect(result.current.check.canAdjustNow(optionals[3].id)).toBe(false); });
     expect(result.current.draft.state.response).toBe(before);
     expect(api.schedule).toHaveBeenCalledTimes(1); expect(api.weather).toHaveBeenCalledTimes(1); expect(api.candidates).toHaveBeenCalledTimes(1);
   });
-  it("explicit exclusion alone clears draft, promotes the fourth candidate, requires manual query; IDs retain labels, new visits stay unknown", async () => {
+  it("ordinary candidate exclusion still clears draft, promotes fourth candidate and requires manual query; IDs retain labels", async () => {
     const { result } = await ready();
     act(() => result.current.check.annotate(required.id, "indoor"));
     act(() => result.current.check.annotate(optionals[0].id, "outdoor"));
     act(() => result.current.check.check());
-    const old = result.current.check.exclude;
-    act(() => { expect(old(optionals[0].id)).toBe(true); expect(old(optionals[0].id)).toBe(false); });
+    const old = result.current.check.canAdjustNow;
+    act(() => { expect(old(optionals[0].id)).toBe(true); result.current.candidates.exclude(optionals[0].id); expect(old(optionals[0].id)).toBe(false); });
     expect(result.current.candidates.excludedIds.has(optionals[0].id)).toBe(true);
     expect(result.current.draft.state.response).toBeNull(); expect(result.current.check.valid).toBe(false);
     expect(result.current.draft.optionalPlaces.map((p) => p.id)).toEqual(optionals.slice(1).map((p) => p.id));
@@ -78,7 +78,7 @@ describe("result-local weather check invalidation and action boundary", () => {
       if (kind === "lunch") { result.current.draft.setLunchEnabled(false); result.current.draft.setLunchEnabled(true); }
       if (kind === "candidate") { result.current.candidates.exclude(optionals[1].id); result.current.candidates.restore(optionals[1].id); }
       if (kind === "clear") old.clear();
-      expect(old.exclude(optionals[0].id)).toBe(false); expect(old.check()).toBe(false);
+      expect(old.canAdjustNow(optionals[0].id)).toBe(false); expect(old.check()).toBe(false);
     });
     expect(result.current.check.valid).toBe(false); expect(result.current.candidates.excludedIds.has(optionals[0].id)).toBe(false);
     expect(api.schedule).toHaveBeenCalledTimes(1); expect(api.weather).toHaveBeenCalledTimes(1);
@@ -87,7 +87,7 @@ describe("result-local weather check invalidation and action boundary", () => {
     const { result } = await ready(); const draft = result.current.draft.state.response, old = result.current.check;
     const pending = deferred<WeatherForecastResponse>(); api.weather.mockReturnValueOnce(pending.promise);
     let task!: Promise<boolean>;
-    act(() => { task = result.current.weather.query(); expect(old.exclude(optionals[0].id)).toBe(false); });
+    act(() => { task = result.current.weather.query(); expect(old.canAdjustNow(optionals[0].id)).toBe(false); });
     expect(result.current.check.valid).toBe(false); expect(result.current.draft.state.response).toBe(draft);
     await act(async () => { pending.reject(new Error("controlled error")); await task; });
     expect(result.current.check.valid).toBe(false); expect(result.current.draft.state.response).toBe(draft);
@@ -95,7 +95,7 @@ describe("result-local weather check invalidation and action boundary", () => {
     expect(result.current.check.valid).toBe(true);
     expect(result.current.check.report).toMatchObject({ showingPrevious: true, queriedAt: forecast().queried_at, reportedAt: forecast().reported_at });
     expect(result.current.check.report!.refreshError).toContain("查询天气失败");
-    act(() => { expect(old.exclude(optionals[0].id)).toBe(false); });
+    act(() => { expect(old.canAdjustNow(optionals[0].id)).toBe(false); });
   });
   it.each([
     { module: "weather", outcome: "success" }, { module: "weather", outcome: "error" },
@@ -106,7 +106,7 @@ describe("result-local weather check invalidation and action boundary", () => {
     const pending = deferred<WeatherForecastResponse | ScheduleResponse | ReturnType<typeof candidateResponse>>();
     api[module === "draft" ? "schedule" : module].mockReturnValueOnce(pending.promise);
     let task!: Promise<boolean>;
-    act(() => { task = result.current[module].query(); expect(old.exclude(optionals[0].id)).toBe(false); });
+    act(() => { task = result.current[module].query(); expect(old.canAdjustNow(optionals[0].id)).toBe(false); });
     act(() => result.current[module].invalidate());
     const replacement = deferred<WeatherForecastResponse | ScheduleResponse | ReturnType<typeof candidateResponse>>();
     api[module === "draft" ? "schedule" : module].mockReturnValueOnce(replacement.promise);
@@ -126,13 +126,13 @@ describe("result-local weather check invalidation and action boundary", () => {
   it("a replacement report invalidates the previous report's captured action even without any input changes", async () => {
     const { result } = await ready(); const old = result.current.check;
     act(() => result.current.check.check());
-    act(() => { expect(old.exclude(optionals[0].id)).toBe(false); expect(result.current.check.exclude(optionals[0].id)).toBe(true); });
+    act(() => { expect(old.canAdjustNow(optionals[0].id)).toBe(false); expect(result.current.check.canAdjustNow(optionals[0].id)).toBe(true); });
   });
   it.each(["midnight", "stale"])("rechecks %s at click time, not only when the display timer happens to update", async (boundary) => {
     if (boundary === "stale") api.weather.mockImplementation(async () => ({ ...forecast(), reported_at: "2026-10-09T10:00:00+08:00" }));
     const { result } = await ready(); const old = result.current.check;
     vi.setSystemTime(boundary === "midnight" ? "2026-10-10T16:00:00Z" : "2026-10-10T02:00:00.001Z");
-    act(() => { expect(old.exclude(optionals[0].id)).toBe(false); });
+    act(() => { expect(old.canAdjustNow(optionals[0].id)).toBe(false); });
     expect(result.current.check.valid).toBe(false);
     vi.setSystemTime(now); act(() => window.dispatchEvent(new Event("focus")));
     expect(result.current.check.valid).toBe(false); // Clock ABA never revives.
@@ -153,7 +153,7 @@ describe("result-local weather check invalidation and action boundary", () => {
     const view = await ready();
     act(() => view.result.current.check.annotate(required.id, "indoor"));
     act(() => view.result.current.check.clear()); expect(view.result.current.check.annotations.size).toBe(0);
-    const old = view.result.current.check; view.unmount(); expect(old.check()).toBe(false); expect(old.exclude(optionals[0].id)).toBe(false);
+    const old = view.result.current.check; view.unmount(); expect(old.check()).toBe(false); expect(old.canAdjustNow(optionals[0].id)).toBe(false);
     const next = renderHook(() => {
       const request = { ...tripRequest(), must_visit: [], must_visit_places: [] };
       const draft = useSchedulePreview(request); const pool = useCandidatePool(request, draft.updateCandidates); return { draft, pool };

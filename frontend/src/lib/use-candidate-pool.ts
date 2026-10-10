@@ -21,6 +21,11 @@ export type CandidatePoolSnapshot = {
   showingPrevious: boolean;
   message: string | null;
 };
+export type CandidateExclusion = {
+  snapshot: CandidatePoolSnapshot;
+  isCurrent: () => boolean;
+  commit: () => boolean;
+};
 const emptyState = (): CandidatePoolState => ({ status: "idle", response: null, lastAttempt: null, message: null, showingPrevious: false });
 
 // Owned by the whole result, not the keyed daily explorer. Editing invalidates synchronously;
@@ -119,6 +124,21 @@ export function useCandidatePool(request: TripRequest, onInputsChange?: (snapsho
     setExcludedIds(next);
   };
   const activePlaces: Place[] = candidates.filter((candidate) => candidate.role === "must_visit" || !excludedIds.has(candidate.place.id)).map((candidate) => candidate.place);
+  // A prepared local transaction: creating it is read-only. A later ordinary
+  // pool publish invalidates it even if the final values are identical (ABA).
+  const prepareExclusion = (id: string): CandidateExclusion | null => {
+    const before = snapshot.current;
+    if (before.loading || before.excludedIds.has(id) || !before.response?.candidates.some((c) => c.role === "optional" && c.place.id === id)) return null;
+    const after = structuredClone({ ...before, excludedIds: new Set([...before.excludedIds, id]) });
+    let consumed = false;
+    const isCurrent = () => !consumed && snapshot.current === before && !pending.current;
+    return { snapshot: after, isCurrent, commit: () => {
+      if (!isCurrent()) return false;
+      consumed = true;
+      publish({ excludedIds: after.excludedIds }); setExcludedIds(new Set(after.excludedIds));
+      return true;
+    } };
+  };
   const getActivePlaces = () => activePlaces;
-  return { state, candidates, excludedIds, activePlaces, getActivePlaces, query, invalidate, exclude, restore, canQuery };
+  return { state, candidates, excludedIds, activePlaces, getActivePlaces, query, invalidate, exclude, restore, canQuery, prepareExclusion };
 }
