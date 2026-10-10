@@ -58,7 +58,7 @@ function validation(request: TripRequest, settings: ScheduleSettings, optionalPl
   return buildRequest(request, settings, optionalPlaces) ? null : "请检查地点与时间设置后再生成草案。";
 }
 
-export function useSchedulePreview(request: TripRequest) {
+export function useSchedulePreview(request: TripRequest, onInvalidate?: () => void) {
   const [settings, setSettings] = useState<ScheduleSettings>(() => ({
     transportMode: "walking",
     stays: Object.fromEntries((request.must_visit_places ?? []).map((place) => [place.id, { value: "60", source: "default" }])),
@@ -69,7 +69,7 @@ export function useSchedulePreview(request: TripRequest) {
   const candidateRef = useRef(candidateInput);
   const [state, setState] = useState<SchedulePreviewState>(idle);
   const version = useRef(0); const controller = useRef<AbortController | null>(null); const pending = useRef(false);
-  const cancel = useCallback(() => { version.current++; controller.current?.abort(); controller.current = null; pending.current = false; }, []);
+  const cancel = useCallback(() => { onInvalidate?.(); version.current++; controller.current?.abort(); controller.current = null; pending.current = false; }, [onInvalidate]);
   const invalidate = useCallback(() => { cancel(); setState(idle()); }, [cancel]);
   useEffect(() => cancel, [cancel]);
   const updateCandidates = (input: CandidatePoolSnapshot) => {

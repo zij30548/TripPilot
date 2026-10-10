@@ -12,7 +12,7 @@ export type WeatherForecastState = {
 };
 const emptyState = (): WeatherForecastState => ({ status: "idle", response: null, message: null, showingPrevious: false });
 
-export function useWeatherForecast(request: WeatherForecastRequest) {
+export function useWeatherForecast(request: WeatherForecastRequest, onInvalidate?: () => void) {
   const { start_date, end_date } = request;
   const valid = isWeatherForecastRequest(request);
   const requestKey = JSON.stringify([start_date, end_date, valid]);
@@ -25,11 +25,12 @@ export function useWeatherForecast(request: WeatherForecastRequest) {
   const lastValid = useRef<WeatherForecastResponse | null>(null);
 
   const cancelPending = useCallback(() => {
+    onInvalidate?.();
     version.current++;
     controller.current?.abort();
     controller.current = null;
     pending.current = false;
-  }, []);
+  }, [onInvalidate]);
   const invalidate = useCallback(() => {
     cancelPending();
     lastValid.current = null;

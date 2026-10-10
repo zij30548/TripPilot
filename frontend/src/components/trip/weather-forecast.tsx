@@ -1,47 +1,10 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useWeatherDisplayClock } from "@/lib/use-weather-display-clock";
 import type { useWeatherForecast } from "@/lib/use-weather-forecast";
-import { getShanghaiDate, getWeatherDates, getWeatherFreshness, type WeatherForecastRequest, type WeatherForecastResponse, type WeatherPeriod } from "@/types/weather";
+import { getShanghaiDate, getWeatherDates, getWeatherFreshness, type WeatherForecastRequest, type WeatherPeriod } from "@/types/weather";
 
 type WeatherController = ReturnType<typeof useWeatherForecast>;
-const DAY_MS = 86_400_000;
-
-// This is a local display clock, not a weather polling loop. Timers and visibility
-// events never call the request hook. Midnight and the 24-hour boundary are exact.
-function useDisplayClock(response: WeatherForecastResponse | null) {
-  const [clock, setClock] = useState(() => ({ response, now: Date.now() }));
-  // A newly received snapshot must not inherit the preceding timer's older time.
-  // React reapplies this same-component state adjustment before committing UI.
-  if (clock.response !== response) setClock(() => ({ response, now: Date.now() }));
-  useEffect(() => {
-    let timer: ReturnType<typeof setTimeout>;
-    function schedule() {
-      const current = Date.now();
-      const midnight = Date.parse(`${getShanghaiDate(current)}T00:00:00+08:00`) + DAY_MS;
-      const staleBoundary = response?.reported_at ? Date.parse(response.reported_at) + DAY_MS + 1 : Infinity;
-      const nextBoundary = Math.min(midnight, staleBoundary > current ? staleBoundary : Infinity);
-      timer = setTimeout(update, Math.max(1, Math.min(60_000, nextBoundary - current)));
-    }
-    function update() {
-      clearTimeout(timer);
-      setClock({ response, now: Date.now() });
-      schedule();
-    }
-    function onVisibility() {
-      if (document.visibilityState === "visible") update();
-    }
-    schedule();
-    document.addEventListener("visibilitychange", onVisibility);
-    window.addEventListener("focus", update);
-    return () => {
-      clearTimeout(timer);
-      document.removeEventListener("visibilitychange", onVisibility);
-      window.removeEventListener("focus", update);
-    };
-  }, [response]);
-  return clock.now;
-}
 
 function shanghaiTime(value: string) {
   return new Date(value).toLocaleString("zh-CN", { timeZone: "Asia/Shanghai", hour12: false });
@@ -73,7 +36,7 @@ function PeriodForecast({ label, period, allowGuidance }: { label: "白天" | "�
 export default function WeatherForecast({ request, weather }: { request: WeatherForecastRequest; weather: WeatherController }) {
   const { state, canQuery } = weather;
   const response = state.response;
-  const now = useDisplayClock(response);
+  const now = useWeatherDisplayClock(response);
   const freshness = response ? getWeatherFreshness(response, now) : null;
   const today = getShanghaiDate(now);
   const dates = getWeatherDates(request);

@@ -31,9 +31,11 @@
 - Milestone 5B-2: current non-excluded optional candidates participate in the same walking preview, with required-first scheduling and at most one fixed-tail addition per day, three optional inputs and one shared route-query budget
 - Milestone 5B-3: one explicitly selected walking or Shanghai transit-reference mode per schedule preview, mode-aware route acquisition/validation, actual bus/subway steps and synchronous cross-mode stale-request isolation
 - Milestone 5C-1: explicitly queried Shanghai daily forecasts, independent date-matched snapshots, day/night rain/snow text rules, source-publication freshness and isolated result-page lifecycle
+- Milestone 5C-2: user-labeled visit exposure, explicit local weather/schedule association, version-bound explainable checks, and explicit optional exclusion through the existing candidate → draft invalidation flow
 
 ## Current
 
+- Milestone 5C-2 implementation and acceptance are complete in the actual project, based on local `454d7939c3a730a47399b50431ab1e1850a87676`. This **13-file closeout** changes frontend/check tests and this document only. Final frontend tests **770 passed**, lint, typecheck, Webpack build and whitespace checks passed. Ten individually opened screenshots and a sanitized receipt are in the stable external `5c-2` directory below. User explicitly authorizes normal commit/push after acceptance; `git fetch origin main` confirmed no divergence (three preceding local commits ahead, zero behind before this closeout). The push bundle includes those existing 5B-2, 5B-3 and 5C-1 commits unchanged, plus this round; no force push/reset/amend. Earlier closeout bullets below describe their historical, then-unpushed state, not a claim that their earlier rounds performed a push
 - Milestone 5C-1 is accepted and included in this **local-only 17-file closeout**, with commit message `feat: add Shanghai weather forecasts and daily travel hints`. Its verified parent is `01224f166a5ff11057b4d522b6be0f4c579b877d` (local 5B-3). This adds one local commit, leaving `main` three commits ahead / zero behind the existing `origin/main` tracking record; no fetch, reset, amend or push. Only current closeout documentation changed in this round; no business code or full-suite rerun. The five original caches and stable evidence remain unchanged. Implementation tests, browser observations and limitations below remain historical results, not new closeout runs
 - Milestone 4B was committed/pushed as `0eeba167766216ffbaecfa4610c83539ae36577d`; 4C-1 was subsequently committed/pushed as `84f0eb17f618a13b01e5e16f4b906c32ac1c5e9b` (`feat: add real walking routes between bound activities`). Both acceptance records remain below
 - Milestone 4C-2 was reviewed, committed and pushed as `cb1a2605af312b9c8dcb319358615691ca56b0be` (`feat: add real transit routes between bound activities`). Its implementation, supplemental activity→Marker acceptance and historical limitations remain below. This is the verified starting HEAD for 5A-1; the five pre-existing Python cache changes remain excluded from this work
@@ -67,8 +69,91 @@
 
 ## Next
 
-- Stop after the authorized 5C-1 local commit; do not push, automatically replan or enter another milestone. Physical-phone/touch, dedicated live subway/transfer-operation samples, broader real upstream fault acceptance, six-required-plus-three-optional live full-load acceptance and the Turbopack limitation remain separate; historical evidence is retained
+- Stop after the authorized 5C-2 ordinary commit/push; do not automatically replan or enter another milestone. Physical-phone/touch, dedicated live subway/transfer-operation samples, broader real upstream fault acceptance, six-required-plus-three-optional live full-load acceptance and the Turbopack limitation remain separate; historical evidence is retained
 - Review existing dependency security advisories as a separate, approved maintenance task before deployment
+
+## Milestone 5C-2 Actual Implementation and Acceptance (2026-10-10)
+
+### Baseline, scope and closeout
+
+- Actual project `/Users/zijing/projects/trippilot`, `main`, starting HEAD `454d7939c3a730a47399b50431ab1e1850a87676`. The existing local commits `16e68ff8d02ef698bcf472c1395b455aaba1bc0b`, `01224f166a5ff11057b4d522b6be0f4c579b877d` and `454d7939c3a730a47399b50431ab1e1850a87676` are preserved, not reset/amended. Origin is `https://github.com/zij30548/TripPilot.git`; refreshed `origin/main` remains `e917000c140e3f9fedb3a3b9adaa17b03fb75244`, an ancestor, before the authorized new closeout
+- User authorizes ordinary commit and normal push only after checks/acceptance pass. Stage precisely the 13 files below, excluding all five original Python caches, secrets/environment files, build artifacts and external evidence. Commit message: `feat: add weather-aware schedule checks and optional adjustments`. Check the final staged manifest, whitespace and secrets and all four pending commits before pushing; report the actual resulting SHA/push status in the handoff
+- No backend, API, algorithm, dependency, proxy, key or CORS modification. The existing frontend production service was restarted on its original port to serve the new Webpack build; the existing backend on 8000 was reused. No temporary project copy
+
+### Data flow, rules and design tradeoffs
+
+1. `TripPlanResult` owns the new check next to the existing real draft. Only `visit` items actually present in `ScheduleResponse.days` participate. Their POI snapshots and required/optional identity come from that response's request by **ID**, not names, unscheduled candidates, Mock dates/activities or map bindings. Empty days do not acquire invented visits
+2. A result-local map keyed by POI ID stores the user's **户外为主 / 室内为主 / 不确定** setting; unknown is the default. No inferred POI attributes. Same-ID annotations survive draft regeneration; newly scheduled POIs remain unknown. Editing the overall request clears this map synchronously; unmount/refresh removes it. No persistence
+3. Explicit **检查天气对行程的影响** calls `checkWeatherSchedule` with draft, the existing normalized weather batch, annotations and an explicit current time. It is a pure function with no fetch and no input mutation. It reuses existing exact-description precipitation rules, Shanghai dates and publication freshness. Day/night remain separate; one known half survives an unknown half. It associates the same date, never invents an hourly day/night cutoff or matches an activity to precise weather hours
+4. Outdoor + same-day rain/snow calls attention to the relevant period, not necessarily the activity's actual time. Indoor is explicitly the user's setting and does not establish transport immunity; unknown exposure cannot establish exposure. No triggered precipitation rule is not a suitability guarantee. Missing coverage, stale/unknown publication, past dates or unknown descriptions leave the affected evidence **未评估**. It does not assess transport, opening, reservations or safety, or automatically change an itinerary
+5. A result-local monotonic revision is invalidated synchronously inside existing weather/schedule cancellation paths. Existing `candidates.exclude() → schedule.updateCandidates()` also invalidates it, without a second exclusion store. Weather query start invalidates the check but preserves the draft. Candidate refresh/exclude/restore and schedule settings/generation invalidate the check along with their existing draft behavior. User annotation changes invalidate only the check. Old reports remain visibly invalid, with unassessed current summaries and disabled adjustment actions
+6. A report captures that revision and its own identity. Exclusion rechecks the current revision, report identity, current clock, actual scheduled optional ID and current optional/non-excluded candidate status at the event boundary. Old closures and A→B→A cannot authorize actions on a newer report/draft. The shared network-free display clock invalidates at Shanghai midnight, the >24-hour freshness boundary, visibility restoration and focus. An exclusion checks time again even before the next render/tick
+7. Explicit optional exclusion explains **whole-trip** removal, draft clearing, restoration in the candidate panel and the need to click the existing **生成行程草案**. It does not query or automatically replace a place. Without rain, this is plainly the user's manual choice. Required places cannot be excluded here. With no usable weather evidence, this panel offers no weather adjustment action; ordinary candidate selection remains available
+8. The existing first-three candidate rule remains: excluding one POI can promote the old fourth candidate, but it is not an automatically indoor substitute. A new draft needs a new check; required order/confirmed requirements remain intact, while new route queries may change times/results. Empty/no-alternative/failed regeneration follows existing validation, never fabricated POIs or restored stale drafts
+9. A failed weather refresh can retain the old full batch but never reactivate its check. A new explicit check of a still-fresh prior batch carries **基于上次成功查询**, original query/publication times and the refresh failure. Map/Marker/Mock day and map traffic mode remain independent in both directions
+
+### Delivery manifest — 13 files
+
+1. `docs/PROGRESS.md`
+2. `frontend/src/components/trip-plan-result.tsx`
+3. `frontend/src/components/trip/weather-forecast.tsx`
+4. `frontend/src/components/trip/weather-schedule-check.tsx` (new)
+5. `frontend/src/components/trip/weather-schedule-check.integration.test.tsx` (new)
+6. `frontend/src/lib/use-schedule-preview.ts`
+7. `frontend/src/lib/use-weather-forecast.ts`
+8. `frontend/src/lib/use-weather-display-clock.ts` (new; extracted shared local clock)
+9. `frontend/src/lib/use-weather-schedule-check.ts` (new)
+10. `frontend/src/lib/use-weather-schedule-check.test.tsx` (new)
+11. `frontend/src/lib/weather-schedule-check.ts` (new)
+12. `frontend/src/lib/weather-schedule-check.test.ts` (new)
+13. `frontend/src/lib/weather-schedule-check.test-fixtures.ts` (new; fictional offline fixtures)
+
+### Automated checks actually run this round
+
+| Command (frontend unless stated) | Actual result |
+| --- | --- |
+| `npm test` | **770 passed**, 29 files; final full run 2026-10-10 13:24 Shanghai time |
+| `npm run lint` | Passed |
+| `npm run typecheck` | Passed (`next typegen && tsc --noEmit`) |
+| `npm run build -- --webpack` | Passed, production static generation |
+| `git diff --check` (root) | Passed; staged check repeated at closeout |
+| Full backend suite | **Not rerun**: no backend changes. Historical backend results below are not this round's runs |
+
+- 41 new tests (16 pure-rule, 20 hook/state, 5 result-composition tests) cover real-draft IDs/dates and same-name distinct IDs, missing/unknown/stale/past/partial-period evidence, day/night separation, user-only exposure, non-mutation and explicit clock rules
+- Controlled tests cover explicit exclusion/regeneration, candidate promotion/restore/all-optional exclusion without required, failed regeneration, same-ID setting retention/new-ID unknown, required exclusion refusal, replacement-report identity, synchronous same-event rejection, input ABA, old success/error/finally during newer work, edit/unmount, midnight/action-time recheck, visibility/focus and failed-refresh provenance. Existing weather, candidate, required/optional scheduling, walking/transit, binding and map tests remain in the full run
+- These tests use fictional fixtures and mocked services/SDK; they are **not live rain, live upstream failure or live request-attempt measurements**. No production fake-weather switch or relaxed validation was introduced
+
+### Real Chrome acceptance and stable evidence
+
+- Chrome **155.0.8059.39**, actual page/service interaction on 2026-10-10 13:21–13:25 Asia/Shanghai. Production frontend at `http://localhost:3000`, existing backend `http://127.0.0.1:8000`. Real POI search confirmed 静安寺 (`B00154BDE9`, accommodation reference) and 武康大楼 (`B00155ITJ1`, required). Exact normalized request/response evidence is in the receipt; no upstream secret URLs/headers/HAR were exported
+- Requested **2026-10-10**, 09:00–18:00, 摄影 interest. Real weather covered that date: **day 多云 26°C / night 晴 18°C**, source published **2026-10-10 13:01:17 +08:00**. Both periods triggered no rain/snow rule. This is **no-rain + explicit user adjustment acceptance**, not live rainy-weather acceptance
+- Initial real walking draft: 静安寺 → 武康大楼 2,156s → 36min; required visit 09:36–10:36; then 延中广场公园 3,498s → 59min, wait 11:35–12:00, lunch 12:00–13:00, optional visit 13:00–14:00, return 2,618s → 44min, lodging return **14:44**. Status partial reflects only one daily optional slot, not failed required visits
+- Explicitly excluding 延中广场公园 (`B0FFG188OL`) cleared the draft and marked that candidate excluded, with **no new request**. Manual regeneration retained required 武康大楼; optional 辅德里公园 (`B00155HNA3`) was visited 13:00–14:00, return 1,650s → 28min, lodging return **14:28**. Old fourth 人民公园-相亲角 entered the submitted first three. Required annotation remained; newly visited 辅德里 defaulted unknown. The old check stayed disabled until a new explicit check
+
+All ten screenshots below were opened and visually inspected after saving. Evidence remains **outside Git** at [`/Users/zijing/projects/trippilot-evidence/5c-2/`](/Users/zijing/projects/trippilot-evidence/5c-2/).
+
+| Actual observation | Result | Evidence |
+| --- | --- | --- |
+| Real required + optional walking draft, lunch and lodging return | Passed | [01 initial draft](/Users/zijing/projects/trippilot-evidence/5c-2/01-real-draft-before-check.png) |
+| User labels and explicit check; no rain claim; local business request count stays 6→6 and draft identical | Passed | [02 check and expanded basis](/Users/zijing/projects/trippilot-evidence/5c-2/02-real-weather-check.png) |
+| Explicit optional exclusion, candidate state synchronized, draft cleared; requests stay 6→6 | Passed | [03 exclusion / invalid report](/Users/zijing/projects/trippilot-evidence/5c-2/03-explicit-exclusion-invalidates.png), receipt |
+| Only manual generation requests new routes; excluded POI absent, required retained, new optional unknown | Passed | [04 regenerated draft](/Users/zijing/projects/trippilot-evidence/5c-2/04-regenerated-draft.png), receipt |
+| Annotation change invalidates only check (requests 7→7); weather refresh makes one weather request (7→8), preserves draft and leaves old check invalid | Passed | [05 invalidation](/Users/zijing/projects/trippilot-evidence/5c-2/05-weather-refresh-invalidates-only-check.png) |
+| Actual complete date coverage, day/night weather and original publication time | Passed | [06 real forecast](/Users/zijing/projects/trippilot-evidence/5c-2/06-real-weather.png) |
+| 400px browser viewport, document scrollWidth 400, readable single-column labels/report/actions | Passed | [07 narrow check](/Users/zijing/projects/trippilot-evidence/5c-2/07-check-400px.png) |
+| Existing activities bound to 静安寺/武康大楼; real walking query 2,695m / 2,156s, base map/route visible; draft and check unchanged | Passed | [08 existing map route](/Users/zijing/projects/trippilot-evidence/5c-2/08-existing-map-route.png) |
+| 外滩 activity → 静安寺 selected/centered Marker; previous Marker normal, route retained; no additional query | Passed | [09 activity → Marker](/Users/zijing/projects/trippilot-evidence/5c-2/09-activity-marker-selected.png) |
+| 武康 Marker → 午餐与休息 activity selected/scrolled into view, Marker colors switch, no request/check/draft change | Passed after viewport-aligned recheck | [10 Marker → activity](/Users/zijing/projects/trippilot-evidence/5c-2/10-marker-selects-activity.png). First partially visible map click did not switch selection and is explicitly **not** counted as passing evidence; whole-map-in-viewport real pointer click then verified both states |
+
+Sanitized receipt: [11 request counts, normalized results and action observations](/Users/zijing/projects/trippilot-evidence/5c-2/11-sanitized-receipt.json). Exactly **11 observed local business requests**: `/places/search` 4, `/trips/plan` 1, `/places/candidates` 1, `/trips/schedule-preview` 2, `/weather/forecast` 2, `/routes/walking` 1; all HTTP 200. Label/check/exclude/Marker operations did not add business requests. No console errors; one existing Canvas2D `willReadFrequently` performance suggestion. These counts do **not** include map tile traffic and do **not** establish individual upstream HTTP attempts
+
+### Remaining limits and deliberate choices
+
+- No unresolved 5C-2 business defect/core acceptance blocker observed. Actual rain/snow, stale/unknown/no-coverage checks, clock transitions, service failures and races are controlled-test coverage, not fabricated live evidence. 400px Chrome is not a physical phone/touch-device acceptance
+- No weather-driven automatic exclusion, indoor-place inference, optimal/reliable travel guarantee, exact activity weather-hour matching, transit weather-impact assessment or in-place replacement. Weather inspection is explanatory; only the user's ordinary candidate exclusion changes the **next explicitly generated** draft
+- Existing walking/transit references and query budgets remain unchanged: request-local throttling, shared 20-second search deadline (cancellation cleanup can add return time), 25-second browser timeout and bounded retries. No account-wide rate-limit claim. Historical real `data_error`, dedicated subway/transfer samples, broader live-fault and six-required/three-optional full-load limitations remain; no new real transit query was needed for this weather-only feature
+- Webpack is the validated build path; the historical Turbopack/environment limitation is retained. No backend full-suite rerun, dependency/security maintenance, persistence or next-stage work is claimed
+- Interview explanation: keep **facts** (validated draft/weather snapshots), **user intent** (exposure/exclusion) and **derived advice** (pure deterministic association) separate. A synchronous revision plus report identity and action-time clock check prevents stale advice from authorizing a mutation; reusing the existing candidate→schedule path avoids two competing exclusion states. Explicit actions and preserved uncertainty are favored over pretending to know POI indoor status or exact weather at a planned visit time
 
 ## Milestone 5C-1 Actual Implementation and Acceptance (2026-10-10)
 

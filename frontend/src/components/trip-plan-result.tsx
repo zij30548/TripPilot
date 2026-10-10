@@ -9,6 +9,7 @@ import { useTransitRoute } from "@/lib/use-transit-route";
 import { useCandidatePool } from "@/lib/use-candidate-pool";
 import { useSchedulePreview } from "@/lib/use-schedule-preview";
 import { useWeatherForecast } from "@/lib/use-weather-forecast";
+import { useWeatherCheckRevision, useWeatherScheduleCheck } from "@/lib/use-weather-schedule-check";
 import TripOverview from "./trip/trip-overview";
 import ConfirmedPlaces from "./trip/confirmed-places";
 import CandidatePreparation from "./trip/candidate-preparation";
@@ -17,6 +18,7 @@ import DayTimeline from "./trip/day-timeline";
 import BudgetSummary from "./trip/budget-summary";
 import WeatherSummary from "./trip/weather-summary";
 import WeatherForecast from "./trip/weather-forecast";
+import WeatherScheduleCheck from "./trip/weather-schedule-check";
 import PlaceExplorer from "./places/place-explorer";
 
 export default function TripPlanResult({ plan, onEdit }: { plan: TripPlan; onEdit: () => void }) {
@@ -32,10 +34,12 @@ export default function TripPlanResult({ plan, onEdit }: { plan: TripPlan; onEdi
   const [routeMode, setRouteMode] = useState<"walking" | "transit">("walking");
   const walking = useWalkingRoute();
   const transit = useTransitRoute();
-  const schedule = useSchedulePreview(plan.request);
+  const checkRevision = useWeatherCheckRevision();
+  const schedule = useSchedulePreview(plan.request, checkRevision.invalidate);
   const candidates = useCandidatePool(plan.request, schedule.updateCandidates);
   const weatherRequest = { start_date: plan.request.start_date, end_date: plan.request.end_date };
-  const weather = useWeatherForecast(weatherRequest);
+  const weather = useWeatherForecast(weatherRequest, checkRevision.invalidate);
+  const weatherCheck = useWeatherScheduleCheck({ schedule, weather, candidates }, checkRevision);
   const result = useRef<HTMLDivElement>(null);
   const explorer = useRef<HTMLDivElement>(null);
   const activityCards = useRef(new Map<string, HTMLElement>());
@@ -149,6 +153,7 @@ export default function TripPlanResult({ plan, onEdit }: { plan: TripPlan; onEdi
   }
 
   function editRequest() {
+    weatherCheck.clear();
     weather.invalidate();
     candidates.invalidate();
     schedule.invalidate();
@@ -170,6 +175,7 @@ export default function TripPlanResult({ plan, onEdit }: { plan: TripPlan; onEdi
       <WeatherForecast request={weatherRequest} weather={weather} />
       <CandidatePreparation request={plan.request} pool={candidates} />
       <SchedulePreview request={plan.request} preview={schedule} />
+      <WeatherScheduleCheck check={weatherCheck} onEdit={editRequest} />
       <section aria-label="旧 Mock 行程示例" className="mt-9 border-t-2 border-dashed border-[#18201d]/20 pt-7">
       <h2 className="mb-2 text-xl font-semibold text-[#18392f]">旧 Mock 行程示例</h2>
       <p className="mb-5 text-sm leading-6 text-[#68726c]">以下固定示例与上方行程草案相互独立；预算、天气、时间和原交通仍是 Mock。已有活动绑定和单段路线查询只影响这个示例区，不会修改草案；这里的交通方式也与草案单独设置。</p>
