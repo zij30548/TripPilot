@@ -12,6 +12,7 @@ import { useWeatherForecast } from "@/lib/use-weather-forecast";
 import { useWeatherCheckRevision, useWeatherScheduleCheck } from "@/lib/use-weather-schedule-check";
 import { useScheduleAdjustment } from "@/lib/use-schedule-adjustment";
 import ScheduleAdjustment from "./trip/schedule-adjustment";
+import ScheduleBudget from "./trip/schedule-budget";
 import TripOverview from "./trip/trip-overview";
 import ConfirmedPlaces from "./trip/confirmed-places";
 import CandidatePreparation from "./trip/candidate-preparation";
@@ -178,6 +179,7 @@ export default function TripPlanResult({ plan, onEdit }: { plan: TripPlan; onEdi
       <WeatherForecast request={weatherRequest} weather={weather} />
       <CandidatePreparation request={plan.request} pool={candidates} />
       <SchedulePreview request={plan.request} preview={schedule} />
+      <ScheduleBudget request={plan.request} response={schedule.state.status === "success" ? schedule.state.response : null} />
       <WeatherScheduleCheck check={weatherCheck} onEdit={editRequest} onPreview={adjustment.start} previewLoading={adjustment.loading} />
       <ScheduleAdjustment adjustment={adjustment} annotations={weatherCheck.annotations} />
       <section aria-label="旧 Mock 行程示例" className="mt-9 border-t-2 border-dashed border-[#18201d]/20 pt-7">
