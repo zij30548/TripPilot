@@ -34,9 +34,11 @@
 - Milestone 5C-2: user-labeled visit exposure, explicit local weather/schedule association, version-bound explainable checks, and explicit optional exclusion through the existing candidate → draft invalidation flow
 - Milestone 5C-3: isolated optional-exclusion adjustment previews, POI/date-based before/after comparison, cancellation preserving the official draft, and explicitly confirmed synchronous adoption
 - Milestone 5D-1: local cost/budget checking for the official schedule, occurrence-based reference fares, ID/date-scoped user estimates, exact integer-cent arithmetic and explicit unknown-cost boundaries
+- Milestone 5D-2: adjustment-preview cost comparison using shared current estimates, preview-only new-place inputs, signed exact differences only for complete known costs, and unchanged itinerary adoption eligibility
 
 ## Current
 
+- Milestone 5D-2 implementation and acceptance are complete on verified, pushed baseline `04cac8500925cc62a87b1d02c8cfd14563bf6e64` (5D-1), branch `main`. This **12-file delivery** changes frontend code/tests and this document only. Frontend **904 tests**, lint, typecheck, Webpack build and whitespace checks pass. Eleven individually opened screenshots and a minimal sanitized receipt are in the stable external `5d-2` directory below. Normal commit/push is authorized after final manifest/security/remote checks; all five original Python caches remain untouched and excluded. Real bus comparison used a valid required-only partial: all three optional trials returned `data_error`, so this is not a claim of successful bus-mode optional replacement. Historical records below are retained, not reclassified as current executions
 - Milestone 5D-1 implementation and acceptance are complete on verified, previously pushed baseline `5a11561b21076f19e960e6511855ed9ec59bf830` (5C-3), branch `main`. This **7-file delivery** changes frontend code/tests and this document only. Frontend **874 tests**, lint, typecheck, Webpack build and whitespace checks pass. Fourteen individually opened screenshots and a minimal sanitized receipt are in the stable external `5d-1` directory below. Ordinary commit/push is authorized after final manifest/security/remote checks; no force push, reset or amend. All five original Python caches remain untouched and excluded. Older current/closeout entries below are historical records, not this round's execution or present push status
 - Milestone 5C-3 implementation and acceptance are complete on verified baseline `ec558900d2a037d334910589edf0c7596b2d29f6`. This **18-file delivery** changes only frontend code/tests and this document. Frontend **815 tests**, lint, typecheck, Webpack build and whitespace checks pass. Fifteen individually opened screenshots and a sanitized receipt are in the stable external `5c-3` directory below. Normal commit/push is authorized; refreshed `origin/main` equals the baseline (zero ahead/behind before this closeout). Only the manifest below is to be staged; all five original cache files remain untouched. The older current/closeout bullets below are preserved historical records, not the current push status
 - Milestone 5C-2 implementation and acceptance are complete in the actual project, based on local `454d7939c3a730a47399b50431ab1e1850a87676`. This **13-file closeout** changes frontend/check tests and this document only. Final frontend tests **770 passed**, lint, typecheck, Webpack build and whitespace checks passed. Ten individually opened screenshots and a sanitized receipt are in the stable external `5c-2` directory below. User explicitly authorizes normal commit/push after acceptance; `git fetch origin main` confirmed no divergence (three preceding local commits ahead, zero behind before this closeout). The push bundle includes those existing 5B-2, 5B-3 and 5C-1 commits unchanged, plus this round; no force push/reset/amend. Earlier closeout bullets below describe their historical, then-unpushed state, not a claim that their earlier rounds performed a push
@@ -73,8 +75,75 @@
 
 ## Next
 
-- Stop after the authorized 5D-1 ordinary commit/push; do not automatically replan or enter another milestone. Physical-phone/touch, dedicated live subway/transfer-operation samples, broader real upstream fault acceptance, six-required-plus-three-optional live full-load acceptance and the Turbopack limitation remain separate; historical evidence is retained
+- Stop after the authorized 5D-2 ordinary commit/push; do not automatically replan or enter another milestone. Physical-phone/touch, dedicated live subway/transfer-operation samples, broader real upstream fault acceptance, six-required-plus-three-optional live full-load acceptance and the Turbopack limitation remain separate; historical evidence is retained
 - Review existing dependency security advisories as a separate, approved maintenance task before deployment
+
+## Milestone 5D-2 Actual Implementation and Acceptance (2026-10-10)
+
+### Baseline, scope and design
+
+- Actual project `/Users/zijing/projects/trippilot`, branch `main`, starting HEAD `04cac8500925cc62a87b1d02c8cfd14563bf6e64` (accepted/pushed 5D-1). Final `git fetch origin main` confirmed that same remote HEAD, zero ahead/behind before this commit and no divergence. Initial worktree contained only the five original Python cache changes; their content hashes remain unchanged. No temporary delivery copy, reset, unrelated cleanup or secret/environment changes
+- Reuse the existing 5C-3 adjustment preview and 5D-1 calculation. No backend, API, scheduling rule, route budget, weather/POI request behavior, dependency, persistence or map change. Existing backend service reused; frontend restarted on its existing port with the successfully checked Webpack production build
+- `TripPlanResult` now owns the **single** `CostInputs` state. `ScheduleBudget` and adjustment comparison receive that same object and edit callback. Ticket estimates remain POI-ID scoped, meals date scoped, lodging/other whole-trip all-traveler totals. Only current values are stored, not cost results, another formal schedule, request snapshots for costs, or new budget revisions
+- `compareScheduleCosts` calls existing `calculateScheduleCosts` twice: the preview's frozen `input.base.original` and its actual response, both with the same captured trip budget/travelers and current fee inputs. Actual movement occurrences, integer cents, null fares, unknowns, exact conversion and overflow rules remain in the original calculator. Neither all queried edges nor cached-edge uniqueness determines charging
+- Signed difference is **new subtotal minus original subtotal**, computed with `BigInt` and checked against safe integer-cent limits. It appears only when both sides validate, have visits, have all required visits arranged and have no invalid/unknown costs. Same missing labels never offset. A valid partial containing all required visits can compare; unused optional trials do not add missing costs. Each side retains known subtotals, missing items and qualified budget difference; invalid money removes that side's totals and any old overall difference immediately
+- `ScheduleAdjustment` mounts comparison/editor only for its existing ready/adoptable itinerary. Loading, failure, expiry, empty or required-incomplete output has no active cost comparison/editor; historical timelines remain inspectable. New `canUsePreview` reuses current state/session identity, prepared candidate token and action-time weather authorization for preview-only edits, including old handlers/ABA/time boundaries. No fee version system and no budget condition added to `adopt`
+- New visited POIs are identified by ID difference between real timelines. Only those tickets can be edited inside preview. Common tickets/meals/lodging/other remain editable in the formal panel and update both sides. A shared `CostEstimateInput` keeps the same validation/units. Unknown new ID stays blank; same-ID historical session estimate can be reused, with address/ID visible to distinguish same-name places
+- Cancel removes only the adjustment; actively entered estimates remain in result-level state, excluded from formal costs until their POI is actually arranged. The cancel message explicitly confirms this. Adoption uses the already-viewed route response, with no HTTP or fee merge/copy; formal totals become the preview-side totals for identical current estimates. Unknown, invalid or exceeded money does **not** disable otherwise valid itinerary adoption. Edit/new result/refresh discards fee state through the existing result lifecycle
+- The UI retains both route-generation batches, warns that different query batches can change reference fares independently of removing a place, and does not call a lower known subtotal guaranteed savings or sufficient budget. No automatic reduction of meal/lodging totals, no inferred free tickets, no cheapest-place optimization
+
+### Delivery manifest — 12 files
+
+1. `frontend/src/components/trip-plan-result.tsx` — shared result-level estimate state/callback, passed to both views
+2. `frontend/src/components/trip/schedule-budget.tsx` — controlled inputs, original formal-budget rules retained
+3. `frontend/src/components/trip/cost-estimate-input.tsx` — reusable ID/date/group-total estimate field and validation display
+4. `frontend/src/components/trip/schedule-cost-comparison.tsx` — old/new subtotals, unknowns, signed difference and new-visit inputs
+5. `frontend/src/components/trip/schedule-adjustment.tsx` — active-preview-only comparison and guarded edits
+6. `frontend/src/lib/schedule-costs.ts` — shared input update and pure dual invocation/difference helper
+7. `frontend/src/lib/use-schedule-adjustment.ts` — existing-session event guard and explicit cancel/estimate retention message
+8. `frontend/src/lib/schedule-cost-comparison.test.ts` — 15 pure comparison/scope/precision/unknown tests
+9. `frontend/src/components/trip/schedule-budget.test.tsx` — controlled parent harness preserves existing panel coverage
+10. `frontend/src/components/trip/schedule-budget.integration.test.tsx` — shared inputs, cancel/adopt, invalidation and original module regression
+11. `frontend/src/lib/use-schedule-adjustment.test.tsx` — synchronous current-preview guard, ABA and time-boundary coverage
+12. `docs/PROGRESS.md` — actual implementation, evidence, limits and closeout
+
+### Automated checks executed this round
+
+| Command in `frontend` unless noted | Result |
+| --- | --- |
+| `npm test` | **904 tests / 35 files passed**; 30 new tests, existing coverage retained |
+| `npm run lint` | Passed |
+| `npm run typecheck` | Passed (`next typegen && tsc --noEmit`) |
+| `npm run build -- --webpack` | Passed; final build used for Chrome acceptance |
+| `git diff --check` (project root) | Passed |
+
+Tests cover positive/negative/zero differences, exact signed safe-cent limits, one/two-sided unknowns and identical unknown labels, invalid current values/aggregate overflow, same-name/different-ID costs, partial/empty/required-incomplete distinctions, both-mode reference fare batches, new-only/common estimate propagation, cancel/reopen/adopt equality, ordinary regeneration, no added requests, active preview during cost edits, input/weather/candidate/annotation/midnight expiry, stale handlers/ABA and existing late response/Marker regressions. The old 5D-1 assertion that the **entire** preview text stays unchanged on fee edits was intentionally narrowed to unchanged itinerary differences: the new fee portion must update. No backend change, so no backend full-suite rerun or historical result relabeled as new
+
+### Actual Chrome acceptance — stable evidence
+
+Real Chrome **155.0.8059.39**, 2026-10-10 approximately 17:53–17:58 Asia/Shanghai. Actual production frontend `http://localhost:3000`, existing backend `http://127.0.0.1:8000`; real POIs, route responses and forecast, no interception or Mock substitute. One-day request for 2026-10-10, 09:00–18:00, three travelers, CNY 3,000 total, accommodation reference 静安寺, required 武康大楼, photography candidates. All manual ticket/meal/lodging examples below are **user estimates**, not verified prices
+
+Stable directory: [/Users/zijing/projects/trippilot-evidence/5d-2/](/Users/zijing/projects/trippilot-evidence/5d-2/). All **11 screenshots** were individually opened and visually inspected. The [sanitized receipt](/Users/zijing/projects/trippilot-evidence/5d-2/acceptance-receipt.json) stores projected paths/status/times/counts, fare occurrences and necessary assertions; no credentials, headers, SDK URLs, coordinates or raw request/response bodies. Evidence stays outside the repository
+
+| Actual check | Observation | Screenshot |
+| --- | --- | --- |
+| Walking, new fee unknown | Original includes 延中广场公园, preview adds 辅德里公园. Original **815.50**, preview known **795.50** with new ticket unknown: complete difference unavailable, not savings. Loading had no comparison | [01 unknown](/Users/zijing/projects/trippilot-evidence/5d-2/01-walking-new-place-unknown.png) |
+| New vs common edits | New ticket 30/20/10 gives +10/equal/−10 respectively without changing formal budget. Changing shared lodging 600→650 updates original to **865.50**, preview to **855.50**, delta −10. Adoption stays enabled; edits add zero requests | [02 shared estimates](/Users/zijing/projects/trippilot-evidence/5d-2/02-shared-estimates-and-difference.png) |
+| Cancel/reopen | Cancel retains original **865.50**, same itinerary and shared lodging; no request. Another explicit preview reuses new-place estimate **10** rather than blank/inheriting old-place 20 | [03 cancel](/Users/zijing/projects/trippilot-evidence/5d-2/03-cancel-official-unchanged.png), [04 reopen](/Users/zijing/projects/trippilot-evidence/5d-2/04-reopened-retained-estimate.png) |
+| Adopt | Formal subtotal becomes **855.50**, exactly the viewed preview side; preview disappears, new ticket 10 preserved, no additional request | [05 adopted](/Users/zijing/projects/trippilot-evidence/5d-2/05-adopted-matches-preview.png) |
+| Real transit comparison | Original actual 548/911/01 bus movements each 2 × 3 travelers: **18** transport, **873.50** subtotal. Preview actual 548/48 bus movements: **12** transport, **857.50** subtotal, delta **−16**. Only timeline movements count. Valid required-only partial remains compare/adopt eligible; not a subway/transfer-specialist test | [06 bus comparison](/Users/zijing/projects/trippilot-evidence/5d-2/06-transit-real-cost-comparison.png) |
+| Actual optional-route limitation | Preview's 静安雕塑公园、人民公园-相亲角、苏河湾亲水平台 optional trials each reported route data error; none added. Required visit and return remain valid, so compared the actual retained scope. No fallback, fabricated fare or relaxed validation | [08 optional reasons](/Users/zijing/projects/trippilot-evidence/5d-2/08-transit-optional-not-arranged.png) |
+| Narrow screen | 400px viewport/document width, vertically stacked old/new amounts and qualifications, no horizontal overflow | [07 400px](/Users/zijing/projects/trippilot-evidence/5d-2/07-400px-cost-comparison.png) |
+| Weather expiry | One explicit refresh immediately removes comparison/editor, disables adoption, keeps old timelines viewable and formal budget unchanged. Success does not revive old preview | [09 expired](/Users/zijing/projects/trippilot-evidence/5d-2/09-weather-expired-comparison.png) |
+| Old map/Marker | Real binding and separate walking route **2,695 m / 2,156 s**, visible road basemap/polyline. Activity→静安寺 centers/highlights; clicking 武康大楼 Marker selects its activity and clears first highlight. Budget unchanged and Marker interaction makes zero business requests | [10 activity→Marker](/Users/zijing/projects/trippilot-evidence/5d-2/10-map-activity-marker.png), [11 Marker→activity](/Users/zijing/projects/trippilot-evidence/5d-2/11-map-marker-activity.png) |
+
+Observed **14 browser-to-local-backend requests**, all HTTP 200: `/places/search` 4, `/trips/plan` 1, `/places/candidates` 1, `/trips/schedule-preview` 5 (walking original, cancelled preview, adopted preview, transit original, transit preview), `/weather/forecast` 2, `/routes/walking` 1. Fee edits, cancel, adopt and Marker operations add no requests. These local counts are not per-attempt upstream observations. Weather was day 多云/night 晴 (initial publication 2026-10-10 17:33:13 +08:00); adjustment was manual, not an asserted real rain-day test
+
+### Limitations and closeout
+
+- Live transit comparison succeeded for the **required-only partial** described above, not successful new optional insertion; the actual `data_error` limitation is retained without speculating about the raw upstream cause. Live adoption was walking. Transit adoption, same-name collision, monetary overflow/unknown fares, failures, expiry boundaries and ABA are covered by controlled tests or earlier records, not relabeled as new real samples
+- Estimates are not quotes, verified admission/room rates or guaranteed spending. Dedicated real subway/transfer samples, physical-phone/touch and six-required-plus-three-optional full-load remain pending. Existing future-date timetable, batch-local pacing, shared search deadline/cancellation-cleanup, Turbopack and security-advisory limits remain unchanged in historical records
+- Authorized ordinary commit/push of exactly the 12 delivery files after manifest, whitespace, sensitive-information and remote-divergence checks. No cache/env/build/evidence files, force push, reset, amend or next milestone. Commit SHA and push outcome belong in Git history and final handoff
 
 ## Milestone 5D-1 Actual Implementation and Acceptance (2026-10-10)
 

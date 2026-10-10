@@ -44,6 +44,10 @@ export function formatCents(value: number): string {
   return `${value < 0 ? "−" : ""}¥${String(cents / hundred).replace(/\B(?=(\d{3})+(?!\d))/g, ",")}.${String(cents % hundred).padStart(2, "0")}`;
 }
 export type UserCost = { key: string; category: "ticket" | "meal" | "accommodation" | "other"; label: string; detail: string; placeId?: string; date?: string; value: string; money: Money };
+export function updateCostInput(current: CostInputs, row: UserCost, value: string): CostInputs {
+  return row.category === "ticket" ? { ...current, tickets: { ...current.tickets, [row.placeId!]: value } }
+    : row.category === "meal" ? { ...current, meals: { ...current.meals, [row.date!]: value } } : { ...current, [row.category]: value };
+}
 export type TransportCost = { key: string; date: string; start: string; end: string; from: string; to: string; edgeId: string; queriedAt: string; source: "amap" | "same_place"; kind: "walk" | "transit"; samePlace: boolean; fare: Money; money: Money };
 type ReadyCosts = {
   status: "ready"; generatedAt: string; dates: string[]; travelers: number; budget: Money;
@@ -97,4 +101,25 @@ export function calculateScheduleCosts(response: ScheduleResponse | null, reques
   }
   return { status: "ready", generatedAt: response.generated_at, dates, travelers: request.travelers, budget, transport, user, missing, errors, transportCents, userCents, subtotalCents,
     differenceCents: subtotalCents !== null && budget.status === "known" ? budget.cents - subtotalCents : null, unarrangedRequired: response.unscheduled.length };
+}
+
+// Both sides use the SAME current inputs; never subtract/cancel unknown costs.
+// Preview identity/eligibility is controlled by the existing adjustment lifecycle.
+export function compareScheduleCosts(original: ScheduleResponse, proposed: ScheduleResponse, request: Pick<TripRequest, "budget" | "travelers" | "start_date" | "end_date">, inputs: CostInputs) {
+  const before = calculateScheduleCosts(original, request, inputs);
+  const after = calculateScheduleCosts(proposed, request, inputs);
+  const issues: string[] = [];
+  for (const [label, costs] of [["原方案", before], ["预览方案", after]] as const) {
+    if (costs.status === "unavailable") { issues.push(`${label}：${costs.message}`); continue; }
+    if (costs.unarrangedRequired) issues.push(`${label}尚有必去地点未安排，不能比较完整费用。`);
+    if (costs.errors.length) issues.push(`${label}存在无效金额，请查看对应原因。`);
+    if (costs.missing.length) issues.push(`${label}尚有未知费用；即使两侧缺失项相同，也不能抵消。`);
+  }
+  let deltaCents: number | null = null;
+  if (!issues.length && before.status === "ready" && after.status === "ready" && before.subtotalCents !== null && after.subtotalCents !== null) {
+    const delta = BigInt(after.subtotalCents) - BigInt(before.subtotalCents);
+    if (delta < -max || delta > max) issues.push("费用差额超出可安全计算范围。");
+    else deltaCents = Number(delta); // Signed new minus original, exact integer cents.
+  }
+  return { before, after, deltaCents, issues };
 }

@@ -130,6 +130,7 @@ describe("isolated adjustment request and synchronous adoption", () => {
       if (kind === "weather") task = result.current.weather.query();
       if (kind === "query") task = result.current.draft.query();
       if (kind === "edit") { result.current.check.clear(); result.current.draft.invalidate(); }
+      expect(old.canUsePreview()).toBe(false);
       expect(old.adopt()).toBe(false);
     });
     if (task) await act(async () => { await task; });
@@ -189,5 +190,15 @@ describe("isolated adjustment request and synchronous adoption", () => {
     expect(api.schedule.mock.calls[1][1].aborted).toBe(true);
     await act(async () => { if (outcome === "success") pending.resolve(adjustmentResponse(api.schedule.mock.calls[1][0])); else pending.reject(new Error("late unmount")); expect(await task).toBe(false); });
     expect(old.adopt()).toBe(false);
+  });
+  it('preview-only fee edit authority rejects old ready handlers after same-target ABA, cancellation, adoption and time boundary', async()=>{
+    const {result}=await ready();await act(async()=>{await result.current.preview.start(optionals[0].id);});
+    const old=result.current.preview;expect(old.canUsePreview()).toBe(true);
+    act(()=>old.cancel());expect(old.canUsePreview()).toBe(false);
+    await act(async()=>{await result.current.preview.start(optionals[0].id);});expect(old.canUsePreview()).toBe(false);expect(result.current.preview.canUsePreview()).toBe(true);
+    const readyAgain=result.current.preview;act(()=>readyAgain.adopt());expect(readyAgain.canUsePreview()).toBe(false);
+    act(()=>result.current.check.check());await act(async()=>{await result.current.preview.start(optionals[1].id);});
+    vi.setSystemTime('2026-10-10T16:00:00Z');act(()=>expect(result.current.preview.canUsePreview()).toBe(false));
+    vi.setSystemTime(now);expect(result.current.preview.canUsePreview()).toBe(false);
   });
 });

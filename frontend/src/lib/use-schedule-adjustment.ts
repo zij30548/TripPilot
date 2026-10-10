@@ -61,9 +61,16 @@ export function useScheduleAdjustment({ schedule, candidates, weather, check }: 
   };
   const cancel = () => {
     if (stateRef.current !== state) return false; // An old cancel must not erase a newer preview.
-    stop(); publish(idle(version.current, "已取消调整预览，未回写任何方案或设置。")); return true;
+    stop(); publish(idle(version.current, "已取消行程调整，原方案保持不变。你主动填写的费用估算仍在本次结果中保留。")); return true;
   };
   const issue = state.input && state.response ? adoptionIssue(state.input.base, state.input.targetId, state.input.proposed.request, state.response) : null;
+  // Event-time guard for preview-only UI edits. Reuse session authorization;
+  // cost edits have no revision and do not change adoption eligibility.
+  const canUsePreview = () => {
+    const session = active.current;
+    return stateRef.current === state && state.status === "ready" && !issue && !!session && session.id === state.id &&
+      session.exclusion.isCurrent() && session.authorize(session.input.targetId);
+  };
   const adopt = () => {
     const session = active.current;
     if (stateRef.current !== state || state.status !== "ready" || !session || session.id !== state.id || !state.response || !state.input) return false;
@@ -77,5 +84,5 @@ export function useScheduleAdjustment({ schedule, candidates, weather, check }: 
     publish(idle(version.current, `已采用调整方案，并在全行程候选中排除“${session.input.targetName}”。请重新检查天气；可在候选区恢复该地点。`));
     return true;
   };
-  return { state, start, cancel, adopt, adoptionIssue: issue, canAdopt: state.status === "ready" && !issue, loading: state.status === "loading" };
+  return { state, start, cancel, adopt, canUsePreview, adoptionIssue: issue, canAdopt: state.status === "ready" && !issue, loading: state.status === "loading" };
 }

@@ -48,9 +48,9 @@ describe('budget independence in the actual result composition',()=>{
     await ready();fill();await click('预览排除该地点后的草案');
     for(const label of ['甲','乙']){await click(`为测试活动${label}绑定地点`);await click('测试确认地点');}
     await click('查询步行路线');await click(`测试 Marker ${required.id}`);
-    const previous=counts(),map=screen.getByTestId('cost-map-state').textContent,preview=screen.getByRole('region',{name:'调整预览'}).textContent;
+    const previous=counts(),map=screen.getByTestId('cost-map-state').textContent,preview=screen.getByRole('region',{name:'新旧地点对比'}).textContent;
     fireEvent.change(budget().getByRole('textbox',{name:/全程其他费用/}),{target:{value:'0'}});
-    expect(counts()).toEqual(previous);expect(screen.getByTestId('cost-map-state').textContent).toBe(map);expect(screen.getByRole('region',{name:'调整预览'}).textContent).toBe(preview);
+    expect(counts()).toEqual(previous);expect(screen.getByTestId('cost-map-state').textContent).toBe(map);expect(screen.getByRole('region',{name:'新旧地点对比'}).textContent).toBe(preview);
     expect(screen.getByRole('button',{name:'采用此方案'}).hasAttribute('disabled')).toBe(false);
     const value=total();await click('刷新天气');expect(total()).toBe(value);await click('检查天气对行程的影响');
     fireEvent.change(within(screen.getByRole('region',{name:'天气与行程检查'})).getAllByRole('combobox')[0],{target:{value:'indoor'}});expect(total()).toBe(value);
@@ -67,5 +67,62 @@ describe('budget independence in the actual result composition',()=>{
   });
   it('leaving result and remounting clears session estimates',async()=>{
     const {view,input}=await ready();fill();fireEvent.click(screen.getAllByRole('button',{name:'修改旅行需求'})[0]);view.unmount();render(<TripPlanResult plan={input} onEdit={vi.fn()}/>);await click('获取候选地点');await click('生成行程草案');expect(budget().getAllByRole('textbox').every(i=>(i as HTMLInputElement).value==='')).toBe(true);
+  });
+});
+
+const comparison=()=>within(screen.getByRole('region',{name:'调整预览费用对比'}));
+const side=(label:'原方案费用'|'预览方案费用')=>within(comparison().getByRole('region',{name:label}));
+const fillNew=(value:string)=>fireEvent.change(within(comparison().getByRole('region',{name:'预览新增地点费用'})).getByRole('textbox'),{target:{value}});
+describe('shared costs in real adjustment composition',()=>{
+  it('new-only fee changes preview, common fees update both; cancel/reopen retains input and adopt equals the viewed subtotal',async()=>{
+    await ready();fill();await click('预览排除该地点后的草案');const n=counts(),original=total();
+    expect(comparison().getByText('完整费用增减：暂不可计算')).toBeTruthy();expect(side('预览方案费用').getByText('当前可计算小计：¥130.00')).toBeTruthy();
+    fillNew('10');expect(total()).toBe(original);expect(comparison().getByText('按当前参考票价和用户估算，新方案减少 ¥10.00')).toBeTruthy();
+    fireEvent.change(budget().getByRole('textbox',{name:/全程其他费用/}),{target:{value:'60'}});
+    expect(side('原方案费用').getByText('当前可计算小计：¥160.00')).toBeTruthy();expect(side('预览方案费用').getByText('当前可计算小计：¥150.00')).toBeTruthy();expect(counts()).toEqual(n);
+    await click('取消预览');expect(total()).toContain('当前可计算小计：¥160.00');expect(counts()).toEqual(n);expect(screen.getByText(/你主动填写的费用估算仍在本次结果中保留/)).toBeTruthy();
+    await click('预览排除该地点后的草案');expect((comparison().getByRole('textbox') as HTMLInputElement).value).toBe('10');
+    const expected=side('预览方案费用').getByText('当前可计算小计：¥150.00').textContent, beforeAdopt=counts();await click('采用此方案');
+    expect(counts()).toEqual(beforeAdopt);expect(total()).toContain(expected);expect(screen.queryByRole('region',{name:'调整预览费用对比'})).toBeNull();
+    expect((budget().getByRole('textbox',{name:/测试可选2.*门票/}) as HTMLInputElement).value).toBe('10');
+    await click('生成行程草案');expect(total()).toContain(expected);
+  });
+  it.each(['','bad','9000'])('unknown/invalid/excess %s changes no route adoption rule',async(value)=>{
+    await ready();fill();await click('预览排除该地点后的草案');fillNew(value);const n=counts();
+    expect(screen.getByRole('button',{name:'采用此方案'}).hasAttribute('disabled')).toBe(false);
+    if(value!=='9000')expect(comparison().getByText('完整费用增减：暂不可计算')).toBeTruthy();
+    if(value==='bad')expect(side('预览方案费用').getByRole('alert').textContent).toContain('金额无效');
+    if(value==='9000')expect(comparison().getByText('按当前参考票价和用户估算，新方案增加 ¥8,980.00')).toBeTruthy();
+    await click('采用此方案');expect(counts()).toEqual(n);expect((budget().getByRole('textbox',{name:/测试可选2.*门票/}) as HTMLInputElement).value).toBe(value);
+  });
+  it('previously displayed delta vanishes on invalid common input, with errors on both sides; correcting to zero restores it',async()=>{
+    await ready();fill();await click('预览排除该地点后的草案');fillNew('20');expect(comparison().getByText('按当前参考票价和用户估算，估算金额相同')).toBeTruthy();
+    const n=counts();fireEvent.change(budget().getByRole('textbox',{name:/全程住宿总额/}),{target:{value:'1.001'}});
+    expect(comparison().queryByText('按当前参考票价和用户估算，估算金额相同')).toBeNull();expect(comparison().getAllByRole('alert')).toHaveLength(2);expect(comparison().getByText('完整费用增减：暂不可计算')).toBeTruthy();
+    fireEvent.change(budget().getByRole('textbox',{name:/全程住宿总额/}),{target:{value:'0'}});expect(comparison().getByText('按当前参考票价和用户估算，估算金额相同')).toBeTruthy();expect(counts()).toEqual(n);
+  });
+  it.each(['weather','query','candidate','stay','mode','annotation','midnight'])('%s expires comparison and new-place editor, retains inspectable old timeline',async(kind)=>{
+    await ready();fill();await click('预览排除该地点后的草案');fillNew('10');
+    if(kind==='weather')await click('刷新天气');
+    if(kind==='query')await click('生成行程草案');
+    if(kind==='candidate')await click('排除可选地点：测试可选3');
+    if(kind==='stay')fireEvent.change(screen.getByRole('spinbutton',{name:'停留分钟：同名地点'}),{target:{value:'90'}});
+    if(kind==='mode')fireEvent.click(within(screen.getByRole('region',{name:'行程草案'})).getByRole('button',{name:'公交／地铁'}));
+    if(kind==='annotation')fireEvent.change(within(screen.getByRole('region',{name:'天气与行程检查'})).getAllByRole('combobox')[0],{target:{value:'indoor'}});
+    if(kind==='midnight'){vi.setSystemTime('2026-10-10T16:00:00Z');act(()=>window.dispatchEvent(new Event('focus')));}
+    expect(screen.queryByRole('region',{name:'调整预览费用对比'})).toBeNull();expect(screen.queryByRole('region',{name:'预览新增地点费用'})).toBeNull();
+    expect(screen.getByText('查看原方案完整时间轴与安排情况')).toBeTruthy();expect(screen.getByRole('button',{name:'采用此方案'}).hasAttribute('disabled')).toBe(true);
+  });
+  it('pending/failed/invalid or empty required-incomplete preview never exposes comparison or editor',async()=>{
+    await ready();fill();const pending=deferred<ScheduleResponse>();api.schedule.mockReturnValueOnce(pending.promise);await click('预览排除该地点后的草案');
+    expect(screen.queryByRole('region',{name:'调整预览费用对比'})).toBeNull();await act(async()=>pending.reject(new ScheduleError('timeout','受控超时')));
+    expect(screen.queryByRole('region',{name:'调整预览费用对比'})).toBeNull();await click('取消预览');
+    api.schedule.mockResolvedValueOnce({status:'complete'});await click('预览排除该地点后的草案');expect(screen.queryByRole('region',{name:'调整预览费用对比'})).toBeNull();await click('取消预览');
+    api.schedule.mockImplementationOnce(async(r)=>adjustmentResponse(r,'empty'));await click('预览排除该地点后的草案');
+    expect(screen.getByText('查看调整预览完整时间轴与未安排原因')).toBeTruthy();expect(screen.queryByRole('region',{name:'调整预览费用对比'})).toBeNull();
+  });
+  it('a valid required-only partial compares costs without a new ticket editor',async()=>{
+    await ready();fill();api.schedule.mockImplementationOnce(async(r)=>adjustmentResponse(r,'required_only'));await click('预览排除该地点后的草案');
+    expect(comparison().getByText('按当前参考票价和用户估算，新方案减少 ¥20.00')).toBeTruthy();expect(comparison().queryByRole('textbox')).toBeNull();expect(screen.getByRole('button',{name:'采用此方案'}).hasAttribute('disabled')).toBe(false);
   });
 });

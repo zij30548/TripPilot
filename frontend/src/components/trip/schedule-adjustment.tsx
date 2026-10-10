@@ -4,11 +4,13 @@ import type { useScheduleAdjustment } from "@/lib/use-schedule-adjustment";
 import { compareSchedules } from "@/lib/schedule-adjustment";
 import { exposureLabels, type VisitExposure } from "@/lib/weather-schedule-check";
 import { ScheduleResult } from "./schedule-preview";
+import type { CostInputs, UserCost } from "@/lib/schedule-costs";
+import ScheduleCostComparison from "./schedule-cost-comparison";
 
 const button = "min-h-11 rounded-xl border border-[#315f51]/30 px-4 py-2 text-sm font-medium disabled:cursor-not-allowed disabled:opacity-50";
 const time = (value: string) => new Date(value).toLocaleString("zh-CN", { timeZone: "Asia/Shanghai", hour12: false });
 const mode = (value: string) => value === "walking" ? "步行" : "公交／地铁参考";
-export default function ScheduleAdjustment({ adjustment, annotations }: { adjustment: ReturnType<typeof useScheduleAdjustment>; annotations: ReadonlyMap<string, VisitExposure> }) {
+export default function ScheduleAdjustment({ adjustment, annotations, costInputs, onEditCost }: { adjustment: ReturnType<typeof useScheduleAdjustment>; annotations: ReadonlyMap<string, VisitExposure>; costInputs: CostInputs; onEditCost: (row: UserCost, value: string) => void }) {
   const { state, loading, canAdopt, adoptionIssue } = adjustment;
   if (state.status === "idle") return state.message ? <p role="status" className="mt-4 rounded-xl bg-[#edf3ef] p-4 text-sm text-[#315f51]">{state.message}</p> : null;
   const input = state.input, response = state.response;
@@ -40,6 +42,9 @@ export default function ScheduleAdjustment({ adjustment, annotations }: { adjust
         {differences.returns.map((d) => <p key={d.date} className="mt-2 rounded-xl bg-white p-3">{d.date} · 原：{d.before ?? "无返回时刻"} → 新：{d.after ?? "无返回时刻"}</p>)}
       </section>
       {adoptionIssue && <p role="alert" className="mt-4 text-sm text-[#835718]">{adoptionIssue}</p>}
+      {state.status === "ready" && canAdopt ? <ScheduleCostComparison original={input.base.original} proposed={response} request={input.base.request} inputs={costInputs}
+        onEdit={(row, value) => { if (adjustment.canUsePreview()) onEditCost(row, value); }} />
+        : <p className="mt-4 text-sm text-[#835718]">当前预览不可用于费用比较；上方历史方案仍可查看，费用输入已关闭。</p>}
       <div className="mt-4 space-y-3">
         <details className="min-w-0 rounded-xl border border-[#315f51]/20 bg-white p-4"><summary className="cursor-pointer font-medium">查看原方案完整时间轴与安排情况</summary><ScheduleResult response={input.base.original} /></details>
         <details className="min-w-0 rounded-xl border border-[#315f51]/20 bg-white p-4"><summary className="cursor-pointer font-medium">查看调整预览完整时间轴与未安排原因</summary><ScheduleResult response={response} /></details>

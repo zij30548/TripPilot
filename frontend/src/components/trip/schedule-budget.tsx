@@ -1,21 +1,16 @@
 "use client";
 
-import { useId, useState } from "react";
-import { calculateScheduleCosts, emptyCostInputs, formatCents, type Money, type UserCost } from "@/lib/schedule-costs";
+import { calculateScheduleCosts, formatCents, type CostInputs, type Money, type UserCost } from "@/lib/schedule-costs";
+import CostEstimateInput from "./cost-estimate-input";
 import type { ScheduleResponse } from "@/types/schedule";
 import type { TripRequest } from "@/types/trip";
 
 const timestamp = (value: string) => new Date(value).toLocaleString("zh-CN", { timeZone: "Asia/Shanghai", hour12: false });
 const money = (value: Money) => value.status === "known" ? formatCents(value.cents) : value.status === "unknown" ? "未知" : "金额无效";
 
-// This component owns only user text, never a second schedule snapshot. It stays
-// mounted while the official draft is invalidated; leaving the result unmounts it.
-export default function ScheduleBudget({ response, request }: { response: ScheduleResponse | null; request: TripRequest }) {
-  const [inputs, setInputs] = useState(emptyCostInputs);
-  const prefix = useId();
+// Result-level text is shared with adjustment comparison; no saved cost snapshot.
+export default function ScheduleBudget({ response, request, inputs, onEdit }: { response: ScheduleResponse | null; request: TripRequest; inputs: CostInputs; onEdit: (row: UserCost, value: string) => void }) {
   const costs = calculateScheduleCosts(response, request, inputs);
-  const edit = (row: UserCost, value: string) => setInputs((current) => row.category === "ticket" ? { ...current, tickets: { ...current.tickets, [row.placeId!]: value } }
-    : row.category === "meal" ? { ...current, meals: { ...current.meals, [row.date!]: value } } : { ...current, [row.category]: value });
   return <section aria-label="正式草案费用与预算" className="mt-6 min-w-0 rounded-3xl border border-[#315f51]/25 bg-[#f4f8f5] p-5 sm:p-8">
     <h2 className="text-xl font-semibold text-[#18392f]">正式草案费用与预算</h2>
     <p className="mt-2 text-sm leading-6 text-[#56605c]">人民币 · 全部旅客 · 全程总预算。仅核对当前正式草案，不使用下方 Mock 费用；本地核算不会改变排程、候选或调整预览。</p>
@@ -36,16 +31,7 @@ export default function ScheduleBudget({ response, request }: { response: Schedu
       <section aria-label="用户费用估算" className="mt-5">
         <h3 className="font-semibold text-[#18392f]">你的费用估算</h3>
         <p className="mt-2 text-xs leading-6 text-[#56605c]">以下均为用户估算，单位：元，全部旅客合计，不再乘人数。空白表示未知，明确填 0 才计零，不代表已核实免费。同 ID 的原估算在本次结果内保留，不是新日期报价；新地点默认未知，移出当前草案的地点不计费。返回修改需求或刷新页面后清空。</p>
-        <div className="mt-3 grid gap-3 sm:grid-cols-2">{costs.user.map((row) => {
-          const id = `${prefix}-${row.key}`;
-          return <div key={row.key} className="min-w-0 rounded-xl bg-white p-4">
-            <label htmlFor={id} className="block break-words text-sm font-medium">{row.label}<span className="mt-1 block text-xs font-normal text-[#68726c]">用户估算 · 全部旅客合计（元）</span></label>
-            <p id={`${id}-detail`} className="mt-1 break-words text-xs leading-5 text-[#68726c]">{row.detail}</p>
-            <input id={id} type="text" inputMode="decimal" autoComplete="off" value={row.value} placeholder="留空表示未知" aria-invalid={row.money.status === "invalid"} aria-describedby={`${id}-detail ${id}-status`}
-              onChange={(event) => edit(row, event.target.value)} className="mt-2 min-h-11 w-full rounded-lg border border-[#315f51]/30 px-3 py-2 text-sm focus-visible:outline-2 focus-visible:outline-[#315f51]" />
-            <p id={`${id}-status`} role={row.money.status === "invalid" ? "alert" : undefined} className={`mt-1 text-xs leading-5 ${row.money.status === "invalid" ? "text-[#9b3d30]" : "text-[#68726c]"}`}>{row.money.status === "invalid" ? row.money.message : row.money.status === "unknown" ? "未知，尚未计入" : `${money(row.money)} · 用户估算${row.money.cents === 0 ? "，未核实免费" : ""}`}</p>
-          </div>;
-        })}</div>
+        <div className="mt-3 grid gap-3 sm:grid-cols-2">{costs.user.map((row) => <CostEstimateInput key={row.key} row={row} onChange={onEdit} />)}</div>
       </section>
       <section aria-label="预算核对汇总" aria-live="polite" className="mt-5 rounded-xl border border-[#315f51]/25 bg-white p-4 text-sm leading-6">
         <h3 className="font-semibold text-[#18392f]">当前核对结果</h3>

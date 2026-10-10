@@ -1,11 +1,17 @@
 import { fireEvent, render, screen, within } from "@testing-library/react";
 import { describe, expect, it } from "vitest";
-import ScheduleBudget from "./schedule-budget";
+import { useState, type ComponentProps } from "react";
+import BudgetPanel from "./schedule-budget";
+import { emptyCostInputs, updateCostInput } from "@/lib/schedule-costs";
 import { adjustmentResponse } from "@/lib/schedule-adjustment.test-fixtures";
 import { optionals, required, scheduleRequest, tripRequest } from "@/lib/weather-schedule-check.test-fixtures";
 const region = () => within(screen.getByRole('region',{name:'正式草案费用与预算'}));
 const summary = () => within(screen.getByRole('region',{name:'预算核对汇总'}));
 const change = (name: RegExp, value: string) => fireEvent.change(region().getByRole('textbox',{name}),{target:{value}});
+function ScheduleBudget(props: Pick<ComponentProps<typeof BudgetPanel>, 'request' | 'response'>) {
+  const [inputs, setInputs] = useState(emptyCostInputs);
+  return <BudgetPanel {...props} inputs={inputs} onEdit={(row,value)=>setInputs(current=>updateCostInput(current,row,value))} />;
+}
 
 describe('official schedule budget panel',()=>{
   it('no valid visit/draft means no amount or sufficiency conclusion',()=>{

@@ -13,6 +13,7 @@ import { useWeatherCheckRevision, useWeatherScheduleCheck } from "@/lib/use-weat
 import { useScheduleAdjustment } from "@/lib/use-schedule-adjustment";
 import ScheduleAdjustment from "./trip/schedule-adjustment";
 import ScheduleBudget from "./trip/schedule-budget";
+import { emptyCostInputs, updateCostInput, type UserCost } from "@/lib/schedule-costs";
 import TripOverview from "./trip/trip-overview";
 import ConfirmedPlaces from "./trip/confirmed-places";
 import CandidatePreparation from "./trip/candidate-preparation";
@@ -25,6 +26,8 @@ import WeatherScheduleCheck from "./trip/weather-schedule-check";
 import PlaceExplorer from "./places/place-explorer";
 
 export default function TripPlanResult({ plan, onEdit }: { plan: TripPlan; onEdit: () => void }) {
+  const [costInputs, setCostInputs] = useState(emptyCostInputs);
+  const editCost = (row: UserCost, value: string) => setCostInputs((current) => updateCostInput(current, row, value));
   const [selectedDay, setSelectedDay] = useState(0);
   const [bindings, setBindings] = useState<ActivityPlaceBindings>({});
   const [selectedActivityKey, setSelectedActivityKey] = useState<string | null>(null);
@@ -179,9 +182,9 @@ export default function TripPlanResult({ plan, onEdit }: { plan: TripPlan; onEdi
       <WeatherForecast request={weatherRequest} weather={weather} />
       <CandidatePreparation request={plan.request} pool={candidates} />
       <SchedulePreview request={plan.request} preview={schedule} />
-      <ScheduleBudget request={plan.request} response={schedule.state.status === "success" ? schedule.state.response : null} />
+      <ScheduleBudget request={plan.request} response={schedule.state.status === "success" ? schedule.state.response : null} inputs={costInputs} onEdit={editCost} />
       <WeatherScheduleCheck check={weatherCheck} onEdit={editRequest} onPreview={adjustment.start} previewLoading={adjustment.loading} />
-      <ScheduleAdjustment adjustment={adjustment} annotations={weatherCheck.annotations} />
+      <ScheduleAdjustment adjustment={adjustment} annotations={weatherCheck.annotations} costInputs={costInputs} onEditCost={editCost} />
       <section aria-label="旧 Mock 行程示例" className="mt-9 border-t-2 border-dashed border-[#18201d]/20 pt-7">
       <h2 className="mb-2 text-xl font-semibold text-[#18392f]">旧 Mock 行程示例</h2>
       <p className="mb-5 text-sm leading-6 text-[#68726c]">以下固定示例与上方行程草案相互独立；预算、天气、时间和原交通仍是 Mock。已有活动绑定和单段路线查询只影响这个示例区，不会修改草案；这里的交通方式也与草案单独设置。</p>
