@@ -38,6 +38,7 @@
 
 ## Current
 
+- Milestone **6B-1 SQLite snapshot saving and read-only history are implemented and accepted** on verified pushed `main` baseline **`582a9100e143e2a2a963122d14a429c9ada39faf`** (6A-2). This **20-file delivery** adds explicit frozen saves, idempotent database transactions, bounded history pagination and strictly validated read-only replay. This round: backend **318 tests**, frontend **980 tests / 44 files**, lint, typecheck and Webpack build passed; final read-only-copy follow-up passed its **5 targeted tests** plus lint/typecheck/build. Real Chrome saved two distinct actual walking drafts, verified original-vs-adopted snapshots, immutable fees, reload and backend-restart persistence, 400px history and real map/Marker regression. Thirteen opened screenshots and a sanitized receipt are in stable `6b-1` evidence below. **0 new Qwen calls**; cumulative **20/20** remains exhausted. Normal stage-only commit/push follows final manifest/security/remote checks; five original Python caches remain untouched and excluded. Older current entries describe their historical rounds, not today's HEAD or remote status
 - Milestone **6A-2 implementation and its budgeted real acceptance are complete** on verified pushed `main` baseline **`c23ad4055131756248ca5092b2d4c52f7d84d280`** (6A-1). This **17-file delivery** adds only natural-language preview of excluding one currently scheduled optional POI. Backend **309 tests**, frontend **963 tests / 41 files**, lint, typecheck and Webpack production build pass this round. Two real Qwen requests passed business validation (execute and clarify), exhausting the inherited allowance at **20 / 20 cumulative**, not a reset allowance. Nine individually opened screenshots and a sanitized receipt are in the stable `6a-2` directory below. Cancellation/AI-retention, adverse responses and races are controlled-test coverage this round, not additional live-Qwen claims. Ordinary stage-only commit/push follows final security/manifest/remote checks; the five original Python caches remain untouched and excluded. Older closeout entries below retain their historical status, not current remote state
 - Milestone **6A-1 implementation, offline checks and real Qwen/Chrome acceptance are complete**, on verified `main` baseline `796280180ffd6b104d3ff5840ee68d1cb8f71028` (5D-2). This **22-file delivery** adds single-provider, explicit-click explanation of the official schedule only. Final backend **300 tests**, frontend **931 tests / 38 files**, lint, typecheck and Webpack build pass. **18 / 20 real model calls** were made; no more calls are planned. Twelve controlled business samples and three actual-browser explanations passed business checks; an initial harness parsing error and two safely rejected reference failures remain recorded, not hidden as successes. Ten individually opened screenshots and a sanitized receipt are in the stable external directory below. Normal commit/push is authorized after final manifest, sensitive-information, whitespace and remote checks; five original Python cache hashes remain unchanged and excluded
 - Milestone 5D-2 implementation and acceptance are complete on verified, pushed baseline `04cac8500925cc62a87b1d02c8cfd14563bf6e64` (5D-1), branch `main`. This **12-file delivery** changes frontend code/tests and this document only. Frontend **904 tests**, lint, typecheck, Webpack build and whitespace checks pass. Eleven individually opened screenshots and a minimal sanitized receipt are in the stable external `5d-2` directory below. Normal commit/push is authorized after final manifest/security/remote checks; all five original Python caches remain untouched and excluded. Real bus comparison used a valid required-only partial: all three optional trials returned `data_error`, so this is not a claim of successful bus-mode optional replacement. Historical records below are retained, not reclassified as current executions
@@ -77,8 +78,97 @@
 
 ## Next
 
-- Close out only this 6A-2 delivery with an ordinary stage-only commit/push after remote and staged-content checks. Stop afterward. No further Qwen call is authorized by the exhausted **20 / 20** allowance. Physical-phone/touch, dedicated live subway/transfer-operation samples, broader real upstream fault acceptance, six-required-plus-three-optional live full-load acceptance and the Turbopack limitation remain separate; historical evidence is retained
+- Close out only this **6B-1** delivery with an ordinary stage-only commit/push after remote and staged-content checks. Stop afterward; do not start history editing (6B-2). No further Qwen call is authorized by the exhausted **20 / 20** allowance. Physical-phone/touch, dedicated live subway/transfer-operation samples, broader real upstream fault acceptance, six-required-plus-three-optional live full-load acceptance and the Turbopack limitation remain separate; historical evidence is retained
 - Review existing dependency security advisories as a separate, approved maintenance task before deployment
+
+## Milestone 6B-1 SQLite Snapshot History (2026-10-12)
+
+### Baseline, scope and data flow
+
+- Actual repository `/Users/zijing/projects/trippilot`, branch `main`; starting HEAD and fetched `origin/main` both `582a9100e143e2a2a963122d14a429c9ada39faf`. The original five Python cache contents are preserved. No reset, dependency addition/upgrade, model call, scheduler change, environment/key/proxy/CORS change or temporary project copy.
+- Explicit save → synchronous `schedule.capture()` and current cost ref → immutable whitelist projection → frontend validation → `POST /saved-trips` → strict backend validation and pure scheduling replay → one SQLModel transaction → commit → success response. Preview creation/cancellation never substitutes a draft; adopting an adjustment changes the next captured official response.
+- Version **`saved-trip-v1`** contains `requirements`, complete normalized `schedule` (including its own actual `request`, all edge references/traffic details, rules, unknowns, dates and unscheduled reasons), and raw user `costs`. No duplicate second schedule request. Requirement dates, daily window, full confirmed accommodation/must-visit snapshots and their order must agree with the schedule request.
+- Only actual visit POI IDs are projected into ticket estimates; meals cover every trip date, including blank days; lodging/other remain whole-trip/all-traveler text. Empty string, explicit `0` and invalid text remain distinct. Preview-only new POI estimates are omitted until that POI is actually in the official timeline. Totals are not trusted or persisted: read-only display reuses `calculateScheduleCosts` and its integer-cent/unknown/invalid/range rules.
+- No old Mock plan, active candidate pool/exclusion workflow, pending preview, natural-language intent, AI explanation, weather snapshot, map/bindings, selection, request/loading state or controller is archived. History is a separate read-only dialog; opening it leaves the working result mounted, and never generates a schedule or calls an external service.
+
+### Contract and storage boundaries
+
+- Routes: `POST /saved-trips`; `GET /saved-trips?offset=0&limit=10`; `GET /saved-trips/{id}`. Server-generated lowercase UUID hex IDs. List returns summaries only: name, dates, mode, status, server save time and schema version. Newest save first, ID tie-breaker; limit **1–20**, UI uses **10**, offset **0–100,000**. No overwrite/edit/delete/share/login or autosave.
+- POST body ≤ **2 MiB**, 10-second body-receive deadline; reject duplicate JSON keys, nonfinite numbers, unknown/missing normalized fields and unsupported versions. General tree limits: depth 24, 200,000 nodes, 1,024 Unicode characters/string, 64 dictionary entries and 10,000 list entries; name 1–80 nonblank/control-free characters; each raw cost ≤256 characters. Existing 1–3 days, 6 required + 3 optional, bounded route/visit limits remain; archive travelers ≤1,000, interests/avoid lists ≤32, transit ≤60 legs and ≤256 geometry parts/leg. Oversize data fails explicitly, never truncates geometry. UTC generation/query times are required.
+- Backend recursively checks exact Pydantic wire fields, strictly parses existing request/result models, reuses `ScheduleSnapshot` cross-reference/minute/mode validations and the existing pure `build_schedule` replay, then compares the **full normalized result**. Transit uses the existing traffic models plus archive bounds; no network verification. This demonstrates internal consistency of the submitted snapshot, **not authentication of the upstream data's origin**.
+- Reading repeats version/content validation and verifies derived list metadata. Unsupported/corrupt content returns safe `invalid_record`, not silently filled defaults. Missing ID, operation conflict, too-large/invalid input and storage unavailable have controlled codes; database paths, SQL and underlying exceptions are not returned.
+- Database: **`/Users/zijing/projects/trippilot/backend/data/saved-trips.sqlite3`**, resolved from backend source location, independent of startup CWD. The first archive access lazily creates the directory/empty schema; ordinary app startup/health does not touch the database. Later accesses/restarts use `create_all` only for missing tables, never drop/reset rows. This is **initial table creation, not a migration framework**.
+- One table stores ID, unique operation ID, name, UTC saved time, version, derived list metadata and canonical validated JSON text. `app/saved_trips.py` owns engines, queries and transactions; request-level `Session` dependency closes/rolls back safely. SQLite busy wait is bounded at 3 seconds. Tests override the database-path dependency to a temporary disk database; they never use the user's database. Existing SQLModel dependency reused, following [official session-dependency guidance](https://sqlmodel.tiangolo.com/tutorial/fastapi/session-with-dependency/).
+- Same operation ID + same canonical snapshot/name returns the existing row; differing content returns 409. The database unique constraint handles concurrent duplicates. Response is prepared before commit, but success returns only after commit. There is no automatic write retry. Browser timeout (15 seconds) or stopping waiting does **not** imply rollback; the explicit retry button resends the exact frozen operation ID/content, even if the current draft/costs changed. A new save click intentionally creates a new record.
+- Save/read hooks isolate old success/error/cancellation using monotonic versions and AbortController. Old save success only acknowledges that named captured snapshot, never declares subsequently edited content saved. Rapid record switches clear prior content and reject late results. Save/history operations do not invoke Qwen, AMap, weather or route acquisition.
+- `backend/data/`, SQLite databases and WAL/SHM/journal sidecars are ignored. Local archives may contain private travel details and stay outside Git/evidence. This is **local single-user storage with no account isolation**, not a public multi-user service. Future deployment needs authentication/ownership, backups/recovery, migrations and transaction/concurrency review; another DB also needs data migration and compatibility tests. Future contract changes must preserve/version old readers/replay semantics or explicitly migrate, not reinterpret historical JSON silently.
+
+### Executed automatic checks
+
+| Command | Actual result this round |
+| --- | --- |
+| `cd backend && .venv/bin/python -B -m unittest discover -s tests -q` | **318 passed**, existing Starlette/httpx warning only; no backend lint command configured |
+| `cd frontend && npm test -- --reporter=dot` | **980 passed / 44 files** |
+| `cd frontend && npm run lint` | Passed, also rerun after final read-only copy correction |
+| `cd frontend && npm run typecheck` | Passed, also rerun after final copy correction |
+| `cd frontend && npm run build -- --webpack` | Passed, also rebuilt final copy; existing Google Fonts network permission used |
+| `cd frontend && npm test -- --reporter=dot src/components/trip/saved-history.integration.test.tsx src/components/trip/schedule-budget.test.tsx` | **5 passed** after final history wording correction; not represented as a second full-suite run |
+| `git diff --check` and staged manifest/format/security checks | Required for stage-only closeout; no cache/env/DB/evidence files included |
+
+- Disk tests exercise new initialization, repeated initialization/reopen persistence, summary pagination, walking/transit/required-prefix/blank-date/unscheduled cases, same-operation retries, 4-way concurrent duplicates, conflict, commit failure rollback, actual SQLite exclusive-lock error/recovery and corrupt JSON/unsupported versions. Unwritable storage/commit failure are controlled injected errors; not claims of actual production disk failure.
+- Strict-boundary tests reject extra fields, bad references, altered replay/rules, inconsistent requirements, excessive text/body, duplicate JSON and nonfinite numbers. Twelve complete Python archive outputs are parsed by actual TypeScript runtime validation using the existing cross-language fixture pattern. No external HTTP is allowed in persistence tests.
+- Hook/component tests cover frozen payload vs later changes, ambiguous timeout/retry without new operation ID, cancellation and old completion, out-of-order reads, unadopted vs adopted adjustment snapshots, related-cost projection, read-only rendering and no extra route/weather/candidate calls. Existing full-suite budget/adjustment/map/AI/state tests remained passing.
+- Browser inspection caught a **copy-only** ambiguity from reusing the live budget panel's “refresh clears inputs” text. History now says the stored estimates are read-only and refresh does not clear/change the archive; invalid archived amounts cannot be edited here and are not converted to zero. This was rebuilt and the final copy rechecked in Chrome. No pricing/scheduling logic changed.
+
+### Real Chrome acceptance and evidence
+
+- Actual Chrome on the current Webpack **production** build. Verified project processes were reused/restarted explicitly; FastAPI used `python -B` with access logging disabled. All observations below are **2026-10-12 Asia/Shanghai** (UTC response dates are the preceding evening), not fabricated future data.
+- Prepared one-day request 2026-10-12, 2 travelers, CNY3,000, confirmed accommodation **静安寺** and required **武康大楼**, photography candidates. Real walking official result and separately queried optional-exclusion preview both succeeded. Each retained one required plus one optional visit; remaining optional results kept original reasons (`partial`, not relabeled complete).
+- Record **`f206276392794235bd13d7aece36900d`**, “6B-1 原正式草案”: saved at 02:28:10 while adjustment was **unadopted**, exactly equals original official schedule generated 02:25:04, not preview. Saved original optional 延中广场公园, omitted preview-only 辅德里公园 ticket estimate. Costs preserved ticket `0`, optional blank, meal `100`, lodging `500`, other `bad`; history correctly shows unknown/invalid, not ¥0 total.
+- Record **`83430e1750184a4cab09bf9910350bb6`**, “6B-1 已采用调整草案”: saved at 02:28:31 after explicit adoption, exactly equals viewed preview generated 02:27:56; new optional 辅德里公园 ticket estimate `25.50` now included, old optional removed. With other `0`, subtotal **¥625.50**, budget difference **¥2,374.50**; these are user estimates, not real admission/lodging quotes. Changing current other estimate to `999` afterward did not alter either stored snapshot.
+- Homepage empty history, newest-first two-record list, read-only requirements, route seconds/minutes/query times, lunch/wait, 14:28 return and unarranged reasons were inspected. After a full page refresh the second record was unchanged. After safely restarting FastAPI on the same DB, **both** records returned 200 with identical canonical full-snapshot SHA256, original save/generation/query times and cost text. No database or raw response was exported as evidence.
+- Live read-only dialog at **400×900** had client/scroll width **374/374**; details and budget summary remained usable. Existing map regression used real 静安寺/武康大楼 bindings, real **2.69 km / estimated 36 min** walking line, activity→centered highlighted Marker, fit-full and Marker→selected activity with prior Marker reset. It did not change archives or formal schedule. Initial off-screen Marker click was retried only after fitting the full route, not forced through another element.
+- Observed local API counts across preparation/regression: POI search **4**, Mock `/trips/plan` **1**, candidates **1**, schedule-preview **2**, weather **1**, standalone walking **1**. Archive actions: POST `/saved-trips` **2**, list GET **6**, detail GET **5**. Each isolated save only added its own archive POST; after full reload all **6** backend requests were archive GETs. **0 new external business requests from archive actions; 0 Qwen requests this round**. These browser counts are not a claim about upstream retry/HTTP-attempt counts. SDK/static traffic is excluded from these business counts.
+- Stable external evidence: [sanitized receipt](/Users/zijing/projects/trippilot-evidence/6b-1/receipt.json). **All 13 screenshots were opened and visually inspected**, including final-copy replacement of screenshot 05:
+  - [01 empty homepage history](/Users/zijing/projects/trippilot-evidence/6b-1/01-empty-history-home.png)
+  - [02 save original before adoption](/Users/zijing/projects/trippilot-evidence/6b-1/02-save-original-before-adoption.png)
+  - [03 two-record list](/Users/zijing/projects/trippilot-evidence/6b-1/03-history-list.png)
+  - [04 original read-only requirements](/Users/zijing/projects/trippilot-evidence/6b-1/04-original-history-detail.png)
+  - [05 unknown, zero and invalid cost inputs](/Users/zijing/projects/trippilot-evidence/6b-1/05-original-unknown-zero-invalid-costs.png)
+  - [06 400px history](/Users/zijing/projects/trippilot-evidence/6b-1/06-history-mobile-400px.png)
+  - [07 adopted cost summary, 400px](/Users/zijing/projects/trippilot-evidence/6b-1/07-adopted-budget-mobile.png)
+  - [08 original route estimates and visits](/Users/zijing/projects/trippilot-evidence/6b-1/08-adopted-timeline.png)
+  - [09 activity→Marker](/Users/zijing/projects/trippilot-evidence/6b-1/09-map-activity-to-marker.png)
+  - [10 Marker→activity](/Users/zijing/projects/trippilot-evidence/6b-1/10-map-marker-to-activity.png)
+  - [11 history after page refresh](/Users/zijing/projects/trippilot-evidence/6b-1/11-reloaded-history.png)
+  - [12 same archive after backend restart](/Users/zijing/projects/trippilot-evidence/6b-1/12-after-backend-restart.png)
+  - [13 lunch, return and unarranged reasons](/Users/zijing/projects/trippilot-evidence/6b-1/13-return-and-unarranged-reasons.png)
+- Live archives here are **walking**, not transit. Transit archive/unknown fare, unarranged-required/empty days, concurrency, response loss, malformed records and faults are controlled disk/contract/state tests, not real upstream or real device failure acceptance. Physical phone, dedicated subway/transfer samples, maximum six-required/three-optional live load, historical transit `data_error`, batch-local throttling and deadline-vs-cleanup restrictions remain unchanged. The existing Turbopack/network/dependency-advisory limitations still apply. History does not certify present traffic, weather, prices, opening hours or reservations.
+
+### Delivery manifest (20 files)
+
+1. `.gitignore`
+2. `backend/main.py`
+3. `backend/app/api/saved_trips.py`
+4. `backend/app/saved_trips.py`
+5. `backend/app/schemas/saved_trip.py`
+6. `backend/tests/export_saved_contract.py`
+7. `backend/tests/test_saved_trips.py`
+8. `frontend/src/app/page.tsx`
+9. `frontend/src/components/trip-plan-result.tsx`
+10. `frontend/src/components/trip/cost-estimate-input.tsx`
+11. `frontend/src/components/trip/schedule-budget.tsx`
+12. `frontend/src/components/trip/save-trip.tsx`
+13. `frontend/src/components/trip/saved-history.tsx`
+14. `frontend/src/components/trip/saved-history.integration.test.tsx`
+15. `frontend/src/lib/api.ts`
+16. `frontend/src/lib/saved-trips.ts`
+17. `frontend/src/lib/saved-trips.test.ts`
+18. `frontend/src/lib/use-saved-trips.ts`
+19. `frontend/src/lib/use-saved-trips.test.tsx`
+20. `docs/PROGRESS.md`
+
+Only these files belong to 6B-1. Existing five Python caches, private database/sidecars, environment files, build artifacts and the external evidence directory are excluded. Normal commit/push after final checks is authorized; stop at 6B-1, no history-edit workflow.
 
 ## Milestone 6A-2 Natural-language Adjustment Preview (2026-10-12)
 

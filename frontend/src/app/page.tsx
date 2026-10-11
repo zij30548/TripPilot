@@ -1,4 +1,5 @@
 import TripPlanner from "@/components/trip/trip-planner";
+import SavedHistory from "@/components/trip/saved-history";
 
 const planningSteps = [
   {
@@ -35,7 +36,8 @@ export default function Home() {
               TripPilot
             </span>
           </a>
-          <span className="rounded-full border border-[#18392f]/15 bg-white/70 px-3 py-1.5 text-xs font-semibold text-[#31564b] sm:px-4 sm:text-sm">
+          <SavedHistory />
+          <span className="hidden rounded-full border border-[#18392f]/15 bg-white/70 px-3 py-1.5 text-xs font-semibold text-[#31564b] sm:inline sm:px-4 sm:text-sm">
             上海限定 · MVP
           </span>
         </header>

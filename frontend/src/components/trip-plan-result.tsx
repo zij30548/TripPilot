@@ -11,6 +11,7 @@ import { useSchedulePreview } from "@/lib/use-schedule-preview";
 import { useScheduleExplanation } from "@/lib/use-schedule-explanation";
 import ScheduleExplanation from "./trip/schedule-explanation";
 import NaturalAdjustment from "./trip/natural-adjustment";
+import SaveTrip from "./trip/save-trip";
 import { useWeatherForecast } from "@/lib/use-weather-forecast";
 import { useWeatherCheckRevision, useWeatherScheduleCheck } from "@/lib/use-weather-schedule-check";
 import { useScheduleAdjustment } from "@/lib/use-schedule-adjustment";
@@ -30,7 +31,11 @@ import PlaceExplorer from "./places/place-explorer";
 
 export default function TripPlanResult({ plan, onEdit }: { plan: TripPlan; onEdit: () => void }) {
   const [costInputs, setCostInputs] = useState(emptyCostInputs);
-  const editCost = (row: UserCost, value: string) => setCostInputs((current) => updateCostInput(current, row, value));
+  const costRef = useRef(costInputs);
+  const editCost = (row: UserCost, value: string) => {
+    costRef.current = updateCostInput(costRef.current, row, value);
+    setCostInputs(costRef.current);
+  };
   const [selectedDay, setSelectedDay] = useState(0);
   const [bindings, setBindings] = useState<ActivityPlaceBindings>({});
   const [selectedActivityKey, setSelectedActivityKey] = useState<string | null>(null);
@@ -186,6 +191,7 @@ export default function TripPlanResult({ plan, onEdit }: { plan: TripPlan; onEdi
       <WeatherForecast request={weatherRequest} weather={weather} />
       <CandidatePreparation request={plan.request} pool={candidates} />
       <SchedulePreview request={plan.request} preview={schedule} />
+      <SaveTrip schedule={schedule} requirements={plan.request} getCosts={()=>costRef.current}/>
       <ScheduleExplanation explanation={explanation} />
       <NaturalAdjustment adjustment={adjustment} response={schedule.state.status === "success" ? schedule.state.response : null} />
       <ScheduleBudget request={plan.request} response={schedule.state.status === "success" ? schedule.state.response : null} inputs={costInputs} onEdit={editCost} />

@@ -50,7 +50,7 @@ function matchesConfirmedRequest(sent: TripRequest, echoed: TripRequest): boolea
   return true;
 }
 
-function isTripRequest(value: unknown): value is TripRequest {
+export function isTripRequest(value: unknown): value is TripRequest {
   return isRecord(value) &&
     typeof value.start_date === "string" && typeof value.end_date === "string" &&
     Number.isFinite(Date.parse(value.start_date)) && Number.isFinite(Date.parse(value.end_date)) &&

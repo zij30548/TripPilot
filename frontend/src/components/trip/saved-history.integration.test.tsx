@@ -1,0 +1,48 @@
+import { act, fireEvent, render, screen, within } from "@testing-library/react";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import TripPlanResult from "../trip-plan-result";
+import { candidateResponse, forecast, now, optionals, plan, required } from "@/lib/weather-schedule-check.test-fixtures";
+import { adjustmentResponse } from "@/lib/schedule-adjustment.test-fixtures";
+import { calculateScheduleCosts } from "@/lib/schedule-costs";
+import type { SavedDetail, SaveOperation } from "@/lib/saved-trips";
+const api=vi.hoisted(()=>({save:vi.fn(),list:vi.fn(),read:vi.fn(),schedule:vi.fn(),candidates:vi.fn(),weather:vi.fn()}));
+vi.mock("@/lib/saved-trips",async original=>({...await original<typeof import("@/lib/saved-trips")>(),saveTrip:api.save,listTrips:api.list,readTrip:api.read}));
+vi.mock("@/lib/schedule-api",async original=>({...await original<typeof import("@/lib/schedule-api")>(),querySchedulePreview:api.schedule}));
+vi.mock("@/lib/candidates-api",async original=>({...await original<typeof import("@/lib/candidates-api")>(),queryCandidates:api.candidates}));
+vi.mock("@/lib/weather-api",async original=>({...await original<typeof import("@/lib/weather-api")>(),queryWeatherForecast:api.weather}));
+vi.mock("@/components/places/place-explorer",()=>({default:()=> <p>受控地图</p>}));
+const click=async(name:string)=>act(async()=>{fireEvent.click(screen.getByRole("button",{name}));});
+const saved:SavedDetail[]=[];
+beforeEach(()=>{
+  vi.resetAllMocks();saved.length=0;vi.useFakeTimers({toFake:["Date"]});vi.setSystemTime(now);
+  Object.defineProperty(HTMLDialogElement.prototype,"showModal",{configurable:true,value:function(this:HTMLDialogElement){this.setAttribute("open","");}});
+  api.schedule.mockImplementation(async r=>adjustmentResponse(r));api.candidates.mockResolvedValue(candidateResponse());api.weather.mockResolvedValue(forecast());
+  api.save.mockImplementation(async (o:SaveOperation)=>{const s=o.snapshot.schedule;const d:SavedDetail={id:String(saved.length+1).repeat(32),name:o.name,saved_at:"2026-10-12T00:00:00Z",schema_version:"saved-trip-v1",start_date:s.request.start_date,end_date:s.request.end_date,transport_mode:s.request.transport_mode,status:s.status,snapshot:structuredClone(o.snapshot)};saved.push(d);return d;});
+  api.list.mockImplementation(async()=>({items:saved.map(({snapshot:_,...s})=>{void _;return s;}),offset:0,limit:10,has_more:false}));api.read.mockImplementation(async id=>saved.find(d=>d.id===id));
+});
+afterEach(()=>{vi.useRealTimers();vi.restoreAllMocks();Reflect.deleteProperty(HTMLDialogElement.prototype,"showModal");});
+describe("actual formal/preview/archive composition",()=>{
+  it("save during unadopted preview projects original only; adopting then saving captures new official and related costs",async()=>{
+    render(<TripPlanResult plan={plan()} onEdit={vi.fn()}/>);
+    expect(screen.getByRole("button",{name:"保存当前正式草案"})).toHaveProperty("disabled",true);expect(api.list).not.toHaveBeenCalled();
+    await click("获取候选地点");await click("生成行程草案");await click("查询天气");await click("检查天气对行程的影响");await click("预览排除该地点后的草案");
+    fireEvent.change(within(screen.getByRole("region",{name:"预览新增地点费用"})).getByRole("textbox"),{target:{value:"12.30"}});
+    const formal=within(screen.getByRole("region",{name:"正式草案费用与预算"}));fireEvent.change(formal.getByRole("textbox",{name:/全程其他/}),{target:{value:"bad"}});
+    await click("保存当前正式草案");
+    expect(saved[0].snapshot.schedule.request.optional_places![0].id).toBe(optionals[0].id);
+    expect(Object.hasOwn(saved[0].snapshot.costs.tickets,optionals[1].id)).toBe(false);
+    expect(saved[0].snapshot.costs.other).toBe("bad");expect(api.schedule).toHaveBeenCalledTimes(2);
+    await click("采用此方案");fireEvent.change(screen.getByRole("textbox",{name:"存档名称"}),{target:{value:"已采用版本"}});await click("保存当前正式草案");
+    expect(saved[1].snapshot.schedule.request.optional_places![0].id).toBe(optionals[1].id);expect(saved[1].snapshot.costs.tickets[optionals[1].id]).toBe("12.30");
+    expect(Object.hasOwn(saved[1].snapshot.costs.tickets,optionals[0].id)).toBe(false);expect(saved[1].snapshot.schedule.request.must_visit_places[0].id).toBe(required.id);
+    const counts=[api.schedule.mock.calls.length,api.weather.mock.calls.length,api.candidates.mock.calls.length];
+    await click("查看历史存档");await click("已采用版本");
+    const dialog=within(screen.getByRole("dialog",{name:"历史行程"}));expect(dialog.getByRole("article",{name:"历史快照详情"})).toBeTruthy();
+    expect(dialog.getAllByRole("textbox").every(el=>(el as HTMLInputElement).readOnly)).toBe(true);
+    expect(dialog.queryByRole("button",{name:"生成行程草案"})).toBeNull();expect(dialog.getByText(/只读存档，不覆盖/)).toBeTruthy();
+    expect(dialog.getByText(/刷新不会清空或改写存档/)).toBeTruthy();expect(dialog.getByText(/存档保留了无效金额/)).toBeTruthy();
+    expect([api.schedule.mock.calls.length,api.weather.mock.calls.length,api.candidates.mock.calls.length]).toEqual(counts);
+    await click("关闭历史");fireEvent.change(formal.getByRole("textbox",{name:/全程其他/}),{target:{value:"0"}});expect(saved[1].snapshot.costs.other).toBe("bad");
+    const costs=calculateScheduleCosts(saved[1].snapshot.schedule,saved[1].snapshot.requirements,saved[1].snapshot.costs);expect(costs.status==="ready"&&costs.errors.length>0).toBe(true);
+  });
+});

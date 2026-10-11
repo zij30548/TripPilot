@@ -1,5 +1,8 @@
-from fastapi import FastAPI
+from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import JSONResponse
+from app.saved_trips import ArchiveError
+from app.api.saved_trips import router as saved_trips_router
 
 from app.api.places import router as places_router
 from app.api.amap_proxy import router as amap_proxy_router
@@ -31,6 +34,12 @@ app.include_router(schedule_router)
 app.include_router(weather_router)
 app.include_router(explanation_router)
 app.include_router(adjustment_intent_router)
+app.include_router(saved_trips_router)
+
+
+@app.exception_handler(ArchiveError)
+async def archive_error(_request: Request, error: ArchiveError) -> JSONResponse:
+    return JSONResponse(status_code=error.status, content={"detail": {"code": error.code, "message": "行程存档操作未完成，请稍后主动重试。"}})
 
 
 @app.get("/health")
