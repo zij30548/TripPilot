@@ -19,6 +19,10 @@ class RedactHttpCredentials(logging.Filter):
         # redaction. This deliberately trades DEBUG detail for credential safety.
         if record.name.startswith("httpcore"):
             message = "HTTP transport event [details redacted]"
+        elif "aliyuncs.com" in decoded.lower() or "authorization" in decoded.lower():
+            # Qwen uses bearer headers, not AMap query keys. Neither headers,
+            # workspace URLs nor arbitrary raw HTTP details belong in evidence.
+            message = "Model HTTP event [details redacted]"
         elif record.name == "uvicorn.access" and isinstance(record.args, tuple) and len(record.args) == 5:
             address, method, target, version, status = record.args
             if "?" in str(target):

@@ -70,6 +70,7 @@ def append_move(request: ScheduleRequest, items: list[ScheduleItem], now: int, e
 
 def build_required_schedule(
     request: ScheduleRequest, edges: list[ScheduleEdge], generated_at: datetime,
+    *, response_type: type[ScheduleResponse] = ScheduleResponse,
 ) -> ScheduleResponse:
     """Pure given request/normalized edges and the injected display timestamp."""
     validate_edge_modes(request, edges)
@@ -158,7 +159,7 @@ def build_required_schedule(
         ))
     used_ids = {item.edge_id for day in days for item in day.items if item.kind in ("walk", "transit")}
     mode_rules, mode_unknowns = transport_notices(request)
-    return ScheduleResponse(
+    return response_type(
         status="complete" if not unscheduled else "partial" if visited else "unscheduled",
         generated_at=generated_at, request=request,
         days=days, unscheduled=unscheduled,
@@ -250,6 +251,7 @@ def add_optional_schedule(
     })
 
 
-def build_schedule(request: ScheduleRequest, edges: list[ScheduleEdge], generated_at: datetime) -> ScheduleResponse:
+def build_schedule(request: ScheduleRequest, edges: list[ScheduleEdge], generated_at: datetime,
+                   *, response_type: type[ScheduleResponse] = ScheduleResponse) -> ScheduleResponse:
     """Pure public wrapper, preserving required-only callers and their schedule."""
-    return add_optional_schedule(request, build_required_schedule(request, edges, generated_at), edges)
+    return add_optional_schedule(request, build_required_schedule(request, edges, generated_at, response_type=response_type), edges)

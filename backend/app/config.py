@@ -18,6 +18,9 @@ class Settings(BaseSettings):
     amap_web_key: SecretStr = SecretStr("")
     amap_js_key: SecretStr = SecretStr("")
     amap_js_security_code: SecretStr = SecretStr("")
+    qwen_api_key: SecretStr = SecretStr("")
+    qwen_base_url: str = ""
+    qwen_model: str = "qwen3.7-flash-2026-07-15"
 
 
 def get_settings() -> Settings:

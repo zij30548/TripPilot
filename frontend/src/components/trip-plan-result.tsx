@@ -8,6 +8,8 @@ import { useWalkingRoute, walkingSegmentKey } from "@/lib/use-walking-route";
 import { useTransitRoute } from "@/lib/use-transit-route";
 import { useCandidatePool } from "@/lib/use-candidate-pool";
 import { useSchedulePreview } from "@/lib/use-schedule-preview";
+import { useScheduleExplanation } from "@/lib/use-schedule-explanation";
+import ScheduleExplanation from "./trip/schedule-explanation";
 import { useWeatherForecast } from "@/lib/use-weather-forecast";
 import { useWeatherCheckRevision, useWeatherScheduleCheck } from "@/lib/use-weather-schedule-check";
 import { useScheduleAdjustment } from "@/lib/use-schedule-adjustment";
@@ -42,6 +44,7 @@ export default function TripPlanResult({ plan, onEdit }: { plan: TripPlan; onEdi
   const transit = useTransitRoute();
   const checkRevision = useWeatherCheckRevision();
   const schedule = useSchedulePreview(plan.request, checkRevision.invalidate);
+  const explanation = useScheduleExplanation(schedule);
   const candidates = useCandidatePool(plan.request, schedule.updateCandidates);
   const weatherRequest = { start_date: plan.request.start_date, end_date: plan.request.end_date };
   const weather = useWeatherForecast(weatherRequest, checkRevision.invalidate);
@@ -182,6 +185,7 @@ export default function TripPlanResult({ plan, onEdit }: { plan: TripPlan; onEdi
       <WeatherForecast request={weatherRequest} weather={weather} />
       <CandidatePreparation request={plan.request} pool={candidates} />
       <SchedulePreview request={plan.request} preview={schedule} />
+      <ScheduleExplanation explanation={explanation} />
       <ScheduleBudget request={plan.request} response={schedule.state.status === "success" ? schedule.state.response : null} inputs={costInputs} onEdit={editCost} />
       <WeatherScheduleCheck check={weatherCheck} onEdit={editRequest} onPreview={adjustment.start} previewLoading={adjustment.loading} />
       <ScheduleAdjustment adjustment={adjustment} annotations={weatherCheck.annotations} costInputs={costInputs} onEditCost={editCost} />

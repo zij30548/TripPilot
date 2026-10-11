@@ -23,9 +23,23 @@ export function useSchedulePreview(request: TripRequest, onInvalidate?: () => vo
   const [candidateInput, setCandidateInput] = useState<CandidatePoolSnapshot>(() => ({ response: null, lastAttempt: null, excludedIds: new Set(), loading: false, showingPrevious: false, message: null }));
   const candidateRef = useRef(candidateInput);
   const [state, setState] = useState<SchedulePreviewState>(idle);
+  const stateRef = useRef(state);
+  const publish = useCallback((next: SchedulePreviewState) => { stateRef.current = next; setState(next); }, []);
+  const invalidationListeners = useRef(new Set<() => void>());
+  const subscribeInvalidation = useCallback((listener: () => void) => {
+    invalidationListeners.current.add(listener);
+    return () => { invalidationListeners.current.delete(listener); };
+  }, []);
   const version = useRef(0); const controller = useRef<AbortController | null>(null); const pending = useRef(false);
-  const cancel = useCallback(() => { onInvalidate?.(); version.current++; controller.current?.abort(); controller.current = null; pending.current = false; }, [onInvalidate]);
-  const invalidate = useCallback(() => { cancel(); setState(idle()); }, [cancel]);
+  const readVersion = useCallback(() => version.current, []);
+  const cancel = useCallback(() => {
+    version.current++; stateRef.current = idle(); controller.current?.abort(); controller.current = null; pending.current = false;
+    // Only official-draft changes publish here. Weather/check revisions are not
+    // subscribed back into this channel; fee/map/preview renders are independent.
+    invalidationListeners.current.forEach((listener) => listener());
+    onInvalidate?.();
+  }, [onInvalidate]);
+  const invalidate = useCallback(() => { cancel(); publish(idle()); }, [cancel, publish]);
   useEffect(() => cancel, [cancel]);
   const updateCandidates = (input: CandidatePoolSnapshot) => {
     cancel();
@@ -33,12 +47,12 @@ export function useSchedulePreview(request: TripRequest, onInvalidate?: () => vo
       lastAttempt: input.lastAttempt ? structuredClone(input.lastAttempt) : null, excludedIds: new Set(input.excludedIds) };
     candidateRef.current = snapshot; setCandidateInput(snapshot);
     const next = withOptionalDefaults(settingsRef.current, eligibleOptional(request, snapshot).slice(0, 3)); settingsRef.current = next; setSettings(next);
-    setState({ status: "idle", response: null, message: input.loading ? "候选地点正在更新，原草案已清除。" : "候选地点或排除选择已更新，请重新生成草案。" });
+    publish({ status: "idle", response: null, message: input.loading ? "候选地点正在更新，原草案已清除。" : "候选地点或排除选择已更新，请重新生成草案。" });
   };
   const update = (change: (current: ScheduleSettings) => ScheduleSettings) => {
     cancel();
     const next = change(settingsRef.current); settingsRef.current = next; setSettings(next);
-    setState({ status: "idle", response: null, message: "设置已更新，请重新生成草案。" });
+    publish({ status: "idle", response: null, message: "设置已更新，请重新生成草案。" });
   };
   const setStayMinutes = (id: string, value: string) => {
     if (![...(request.must_visit_places ?? []), ...eligibleOptional(request, candidateRef.current).slice(0, 3)].some((place) => place.id === id)) return;
@@ -58,16 +72,16 @@ export function useSchedulePreview(request: TripRequest, onInvalidate?: () => vo
     const optionalPlaces = eligibleOptional(request, candidateRef.current).slice(0, 3);
     const issue = validateScheduleInput(request, settingsRef.current, optionalPlaces, candidateRef.current.loading);
     const body = issue ? null : buildRequest(request, settingsRef.current, optionalPlaces);
-    if (!body) { setState({ status: "failed", response: null, message: issue }); return false; }
+    if (!body) { cancel(); publish({ status: "failed", response: null, message: issue }); return false; }
     cancel(); const generation = version.current; const active = new AbortController(); controller.current = active; pending.current = true;
-    setState({ status: "loading", response: null, message: null });
+    publish({ status: "loading", response: null, message: null });
     try {
       const response = await querySchedulePreview(body, active.signal);
       if (version.current !== generation || active.signal.aborted) return false;
-      setState({ status: "success", response, message: null }); return true;
+      publish({ status: "success", response, message: null }); return true;
     } catch (error) {
       if (version.current !== generation || active.signal.aborted) return false;
-      setState({ status: "failed", response: null, message: error instanceof ScheduleError ? error.message : "生成行程草案失败，请主动重试。" }); return false;
+      publish({ status: "failed", response: null, message: error instanceof ScheduleError ? error.message : "生成行程草案失败，请主动重试。" }); return false;
     } finally { if (version.current === generation) { controller.current = null; pending.current = false; } }
   };
 
@@ -75,8 +89,9 @@ export function useSchedulePreview(request: TripRequest, onInvalidate?: () => vo
   // are not currently in the first three, without adding them to the request.
   const capture = (): ScheduleCapture | null => {
     const input = buildRequest(request, settingsRef.current, eligibleOptional(request, candidateRef.current).slice(0, 3));
-    if (pending.current || candidateRef.current.loading || state.status !== "success" || !input || !isScheduleResponse(state.response, input)) return null;
-    return structuredClone({ version: version.current, original: state.response, request, settings: settingsRef.current, candidates: candidateRef.current });
+    const current = stateRef.current;
+    if (pending.current || candidateRef.current.loading || current.status !== "success" || !input || !isScheduleResponse(current.response, input)) return null;
+    return structuredClone({ version: version.current, original: current.response, request, settings: settingsRef.current, candidates: candidateRef.current });
   };
   const adoptAdjustment = (base: ScheduleCapture, targetId: string, exclusion: CandidateExclusion, proposed: PreparedAdjustment, response: ScheduleResponse): boolean => {
     if (version.current !== base.version || pending.current || !exclusion.isCurrent()) return false;
@@ -90,14 +105,14 @@ export function useSchedulePreview(request: TripRequest, onInvalidate?: () => vo
     cancel();
     candidateRef.current = next.candidates; settingsRef.current = next.settings;
     setCandidateInput(next.candidates); setSettings(next.settings);
-    setState({ status: "success", response: accepted, message: null });
+    publish({ status: "success", response: accepted, message: null });
     return true;
   };
   const eligible = eligibleOptional(request, candidateInput);
   const optionalPlaces = eligible.slice(0, 3);
   const validationMessage = validateScheduleInput(request, settings, optionalPlaces, candidateInput.loading);
   return { transportMode: settings.transportMode, setTransportMode, stays: settings.stays, lunch: settings.lunch, setStayMinutes, setLunchEnabled, setLunchStart, setLunchEnd,
-    capture, adoptAdjustment, state, canQuery: validationMessage === null, validationMessage, query, invalidate, updateCandidates,
+    capture, readVersion, subscribeInvalidation, adoptAdjustment, state, canQuery: validationMessage === null, validationMessage, query, invalidate, updateCandidates,
     optionalPlaces, eligibleCount: eligible.length, notSelectedCount: Math.max(eligible.length - 3, 0),
     candidateLoading: candidateInput.loading, candidateQueriedAt: candidateInput.response?.queried_at ?? null,
     candidateStatus: candidateInput.response?.status ?? null, showingPreviousCandidates: candidateInput.showingPrevious,
