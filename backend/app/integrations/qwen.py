@@ -106,7 +106,7 @@ def model_payload(facts: list[Fact], model: str = MODEL) -> dict[str, object]:
     }
 
 
-def parse_result(data: object) -> tuple[ModelSelection, ExplanationUsage]:
+def parse_content(data: object) -> tuple[object, ExplanationUsage]:
     if not isinstance(data, dict):
         raise QwenError("structure")
     error = data.get("error")
@@ -134,7 +134,7 @@ def parse_result(data: object) -> tuple[ModelSelection, ExplanationUsage]:
     if not isinstance(content, str) or len(content.encode()) > 8192:
         raise QwenError("structure")
     try:
-        selection = ModelSelection.model_validate(strict_json(content))
+        selection = strict_json(content)
     except (ValidationError, ValueError):
         raise QwenError("structure") from None
     usage = data.get("usage")
@@ -145,6 +145,14 @@ def parse_result(data: object) -> tuple[ModelSelection, ExplanationUsage]:
     if output is not None and output > MAX_OUTPUT_TOKENS:
         raise QwenError("truncated")
     return selection, ExplanationUsage(input_tokens=tokens("prompt_tokens"), output_tokens=output)
+
+
+def parse_result(data: object) -> tuple[ModelSelection, ExplanationUsage]:
+    content, usage = parse_content(data)
+    try:
+        return ModelSelection.model_validate(content), usage
+    except ValidationError:
+        raise QwenError("structure") from None
 
 
 def strict_json(raw: str | bytes | bytearray) -> object:
@@ -180,8 +188,18 @@ class QwenClient:
         self.settings, self.client = settings, client
 
     async def select(self, facts: list[Fact]) -> tuple[ModelSelection, ExplanationUsage]:
-        endpoint = configured_endpoint(self.settings)
         payload = model_payload(facts, self.settings.qwen_model)
+        content, usage = await self.generate(payload)
+        try:
+            return ModelSelection.model_validate(content), usage
+        except ValidationError:
+            raise QwenError("structure") from None
+
+    async def generate(self, payload: dict[str, object]) -> tuple[object, ExplanationUsage]:
+        """Shared bounded transport for server-built schemas only, never client payloads."""
+        endpoint = configured_endpoint(self.settings)
+        if len(json.dumps(payload, ensure_ascii=False).encode()) > MAX_PROMPT_BYTES:
+            raise QwenError("structure")
         install_http_log_redaction()
         try:
             # Encloses connection, all incremental reads, parse and context cleanup.
@@ -201,7 +219,7 @@ class QwenClient:
                         body.extend(chunk)
                     if response.status_code != 200:
                         raise QwenError(error_category(response.status_code, bytes(body)))
-                    return parse_result(strict_json(body))
+                    return parse_content(strict_json(body))
         except (TimeoutError, httpx.TimeoutException):
             raise QwenError("timeout") from None
         except httpx.HTTPError:

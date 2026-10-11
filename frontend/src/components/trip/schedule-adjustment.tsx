@@ -12,10 +12,11 @@ const time = (value: string) => new Date(value).toLocaleString("zh-CN", { timeZo
 const mode = (value: string) => value === "walking" ? "步行" : "公交／地铁参考";
 export default function ScheduleAdjustment({ adjustment, annotations, costInputs, onEditCost }: { adjustment: ReturnType<typeof useScheduleAdjustment>; annotations: ReadonlyMap<string, VisitExposure>; costInputs: CostInputs; onEditCost: (row: UserCost, value: string) => void }) {
   const { state, loading, canAdopt, adoptionIssue } = adjustment;
+  if (["parsing", "clarify", "unsupported"].includes(state.status)) return null;
   if (state.status === "idle") return state.message ? <p role="status" className="mt-4 rounded-xl bg-[#edf3ef] p-4 text-sm text-[#315f51]">{state.message}</p> : null;
   const input = state.input, response = state.response;
   const differences = input && response ? compareSchedules(input.base.original, response) : null;
-  return <section aria-label="调整预览" className="mt-6 min-w-0 rounded-3xl border-2 border-amber-300 bg-amber-50/40 p-5 sm:p-8">
+  return <section id="schedule-adjustment" aria-label="调整预览" className="mt-6 min-w-0 rounded-3xl border-2 border-amber-300 bg-amber-50/40 p-5 sm:p-8">
     <h2 className="text-xl font-semibold text-[#18392f]">调整预览，尚未采用</h2>
     {input && <p className="mt-2 break-words text-sm">本次拟排除：{input.targetName}。采用后将从全行程候选排除，可在候选区恢复。</p>}
     <p className="mt-2 text-sm leading-6 text-[#56605c]">预览和取消不会修改原方案。两份方案来自不同查询批次的参考估时，时间变化不一定全部由排除地点造成；新地点不是自动选出的室内替代，也不代表已解决天气影响。</p>

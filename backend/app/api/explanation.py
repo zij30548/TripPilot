@@ -1,7 +1,7 @@
 import asyncio
 from collections.abc import AsyncIterator, Callable, Coroutine
 from datetime import datetime, timezone
-from typing import Annotated, Any
+from typing import Annotated, Any, TypeVar
 
 import httpx
 from fastapi import APIRouter, Depends, HTTPException, Request, Response
@@ -43,6 +43,29 @@ async def get_qwen_http_client() -> AsyncIterator[httpx.AsyncClient]:
         yield client
 
 
+T = TypeVar("T")
+
+
+async def while_connected(raw: Request, call: Coroutine[Any, Any, T]) -> T:
+    operation = asyncio.create_task(call)
+    async def disconnected() -> None:
+        while True:
+            if (await raw.receive())["type"] == "http.disconnect":
+                return
+            await asyncio.sleep(0)
+    watch = asyncio.create_task(disconnected())
+    try:
+        done, _ = await asyncio.wait((operation, watch), return_when=asyncio.FIRST_COMPLETED)
+        if operation not in done:
+            raise HTTPException(499, detail="已取消等待；上游是否停止处理或计费无法保证。")
+        return operation.result()
+    finally:
+        for task in (operation, watch):
+            if not task.done():
+                task.cancel()
+        await asyncio.gather(operation, watch, return_exceptions=True)
+
+
 @router.post("/schedule-explanation", response_model=ExplanationResponse)
 async def explain_schedule(
     raw: Request,
@@ -57,23 +80,8 @@ async def explain_schedule(
     except (ValidationError, ValueError, RecursionError):
         raise HTTPException(422, detail="行程解读快照不完整或与当前排程规则不一致。") from None
     facts = build_facts(schedule)
-    operation = asyncio.create_task(QwenClient(settings, client).select(facts))
-
-    async def disconnected() -> None:
-        # Body is already completely consumed. Await ASGI disconnect directly;
-        # polling is_disconnected uses an AnyIO cancellation scope and can
-        # swallow the asyncio cancellation used to clean up this watcher.
-        while True:
-            if (await raw.receive())["type"] == "http.disconnect":
-                return
-            await asyncio.sleep(0)
-
-    watch = asyncio.create_task(disconnected())
     try:
-        done, _ = await asyncio.wait((operation, watch), return_when=asyncio.FIRST_COMPLETED)
-        if operation not in done:
-            raise HTTPException(499, detail="解读已取消；上游是否停止处理或计费无法保证。")
-        selection, usage = operation.result()
+        selection, usage = await while_connected(raw, QwenClient(settings, client).select(facts))
         try:
             highlights = render_selection(selection, facts)
         except ValueError:
@@ -83,8 +91,3 @@ async def explain_schedule(
                                    highlights=highlights, limitations=fixed_limitations(schedule), usage=usage)
     except QwenError as error:
         raise HTTPException(error.status, detail={"code": error.code, "message": str(error)}) from None
-    finally:
-        for task in (operation, watch):
-            if not task.done():
-                task.cancel()
-        await asyncio.gather(operation, watch, return_exceptions=True)

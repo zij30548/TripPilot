@@ -10,6 +10,7 @@ import { useCandidatePool } from "@/lib/use-candidate-pool";
 import { useSchedulePreview } from "@/lib/use-schedule-preview";
 import { useScheduleExplanation } from "@/lib/use-schedule-explanation";
 import ScheduleExplanation from "./trip/schedule-explanation";
+import NaturalAdjustment from "./trip/natural-adjustment";
 import { useWeatherForecast } from "@/lib/use-weather-forecast";
 import { useWeatherCheckRevision, useWeatherScheduleCheck } from "@/lib/use-weather-schedule-check";
 import { useScheduleAdjustment } from "@/lib/use-schedule-adjustment";
@@ -186,6 +187,7 @@ export default function TripPlanResult({ plan, onEdit }: { plan: TripPlan; onEdi
       <CandidatePreparation request={plan.request} pool={candidates} />
       <SchedulePreview request={plan.request} preview={schedule} />
       <ScheduleExplanation explanation={explanation} />
+      <NaturalAdjustment adjustment={adjustment} response={schedule.state.status === "success" ? schedule.state.response : null} />
       <ScheduleBudget request={plan.request} response={schedule.state.status === "success" ? schedule.state.response : null} inputs={costInputs} onEdit={editCost} />
       <WeatherScheduleCheck check={weatherCheck} onEdit={editRequest} onPreview={adjustment.start} previewLoading={adjustment.loading} />
       <ScheduleAdjustment adjustment={adjustment} annotations={weatherCheck.annotations} costInputs={costInputs} onEditCost={editCost} />

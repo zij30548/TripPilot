@@ -38,6 +38,7 @@
 
 ## Current
 
+- Milestone **6A-2 implementation and its budgeted real acceptance are complete** on verified pushed `main` baseline **`c23ad4055131756248ca5092b2d4c52f7d84d280`** (6A-1). This **17-file delivery** adds only natural-language preview of excluding one currently scheduled optional POI. Backend **309 tests**, frontend **963 tests / 41 files**, lint, typecheck and Webpack production build pass this round. Two real Qwen requests passed business validation (execute and clarify), exhausting the inherited allowance at **20 / 20 cumulative**, not a reset allowance. Nine individually opened screenshots and a sanitized receipt are in the stable `6a-2` directory below. Cancellation/AI-retention, adverse responses and races are controlled-test coverage this round, not additional live-Qwen claims. Ordinary stage-only commit/push follows final security/manifest/remote checks; the five original Python caches remain untouched and excluded. Older closeout entries below retain their historical status, not current remote state
 - Milestone **6A-1 implementation, offline checks and real Qwen/Chrome acceptance are complete**, on verified `main` baseline `796280180ffd6b104d3ff5840ee68d1cb8f71028` (5D-2). This **22-file delivery** adds single-provider, explicit-click explanation of the official schedule only. Final backend **300 tests**, frontend **931 tests / 38 files**, lint, typecheck and Webpack build pass. **18 / 20 real model calls** were made; no more calls are planned. Twelve controlled business samples and three actual-browser explanations passed business checks; an initial harness parsing error and two safely rejected reference failures remain recorded, not hidden as successes. Ten individually opened screenshots and a sanitized receipt are in the stable external directory below. Normal commit/push is authorized after final manifest, sensitive-information, whitespace and remote checks; five original Python cache hashes remain unchanged and excluded
 - Milestone 5D-2 implementation and acceptance are complete on verified, pushed baseline `04cac8500925cc62a87b1d02c8cfd14563bf6e64` (5D-1), branch `main`. This **12-file delivery** changes frontend code/tests and this document only. Frontend **904 tests**, lint, typecheck, Webpack build and whitespace checks pass. Eleven individually opened screenshots and a minimal sanitized receipt are in the stable external `5d-2` directory below. Normal commit/push is authorized after final manifest/security/remote checks; all five original Python caches remain untouched and excluded. Real bus comparison used a valid required-only partial: all three optional trials returned `data_error`, so this is not a claim of successful bus-mode optional replacement. Historical records below are retained, not reclassified as current executions
 - Milestone 5D-1 implementation and acceptance are complete on verified, previously pushed baseline `5a11561b21076f19e960e6511855ed9ec59bf830` (5C-3), branch `main`. This **7-file delivery** changes frontend code/tests and this document only. Frontend **874 tests**, lint, typecheck, Webpack build and whitespace checks pass. Fourteen individually opened screenshots and a minimal sanitized receipt are in the stable external `5d-1` directory below. Ordinary commit/push is authorized after final manifest/security/remote checks; no force push, reset or amend. All five original Python caches remain untouched and excluded. Older current/closeout entries below are historical records, not this round's execution or present push status
@@ -76,8 +77,95 @@
 
 ## Next
 
-- Close out only the accepted 6A-1 delivery with an ordinary commit/push after remote and staged-content checks. Do not enter the next milestone. Physical-phone/touch, dedicated live subway/transfer-operation samples, broader real upstream fault acceptance, six-required-plus-three-optional live full-load acceptance and the Turbopack limitation remain separate; historical evidence is retained
+- Close out only this 6A-2 delivery with an ordinary stage-only commit/push after remote and staged-content checks. Stop afterward. No further Qwen call is authorized by the exhausted **20 / 20** allowance. Physical-phone/touch, dedicated live subway/transfer-operation samples, broader real upstream fault acceptance, six-required-plus-three-optional live full-load acceptance and the Turbopack limitation remain separate; historical evidence is retained
 - Review existing dependency security advisories as a separate, approved maintenance task before deployment
+
+## Milestone 6A-2 Natural-language Adjustment Preview (2026-10-12)
+
+### Baseline, scope and contract
+
+- Actual project, not a copy: `/Users/zijing/projects/trippilot`, `main`, baseline `c23ad4055131756248ca5092b2d4c52f7d84d280`. The user-confirmed 6A-1 commit is pushed. Its 300 backend / 931 frontend tests and 18 model calls are historical baseline records; the new executions are listed below. No dependency, environment, key, proxy, CORS, scheduler or budget-rule change
+- One input can propose **excluding one actual scheduled optional POI only**. Required, unarranged, unknown and cross-draft IDs cannot execute. No multi-action partial execution, manual replacement, automatic indoor choice, chat, provider switch or model-written schedule. The original candidate exclusion remains an immediate action; natural language instead creates an isolated preview
+- Explicit click → `explanationSnapshot` → `POST /trips/adjustment-intent` → existing snapshot replay/validation → one Qwen classification → strict target/scope check → existing `/trips/schedule-preview` → existing comparison → explicit adoption. The intent endpoint itself does not request AMap or mutate state
+- New `adjustment-intent-v1` request carries program-managed request ID/draft version, a 1–400-character instruction and the existing bounded compact schedule snapshot. Unknown fields, malformed/duplicate-key JSON, invalid replay/references and excessive bodies fail before model invocation. Reuse the 64 KiB/body deadline and deterministic scheduler replay; internal consistency is not authentication of a client snapshot's provenance
+- The model receives only the instruction and actual visit entities with ID/name/required-or-optional/date. It does not receive coordinates, full geometry, route prose, weather, cost, history or formal versions. Server-built strict JSON Schema has `execute`, `clarify`, `unsupported` branches; executable target enum contains only scheduled optional IDs. Output is a whitelist `{decision, action, target_id, reason_code}`, not free factual prose. The program renders all user messages
+- The model is not sole execution authority: after ID/role validation, a conservative whole-instruction gate requires an explicit single exclusion clause grounded to the exact unique name or ID, optionally preserving required/other inputs. Negation, ambiguous names and complex phrasing are clarified rather than guessed; recognized additional modifications are unsupported. This deliberately narrows language coverage. A same-name place needs its ID; names and injection strings remain plain data. It does not run a second model, choose a default target or retry a rejected result
+- Reused backend-only Beijing configuration/SecretStr from 6A-1 unchanged; no key re-entry. Shared `QwenClient.generate` keeps official fixed endpoints, no redirects, nonthinking/nonstreaming JSON Schema, at most 1,024 output tokens, bounded bodies and a 20-second whole-operation deadline. Exactly one model attempt per click, **no retries or repair**. Frontend parse wait is 25 seconds; a subsequent separately authorized preview route request retains its existing 25-second wait and route-query limits. The full two-step action can therefore take longer than one timeout. Disconnect cancels local work; upstream billing cessation is not guaranteed
+
+### State, comparison and adoption
+
+- Extended the existing adjustment hook, not a second preview/commit implementation. It owns one active source (`weather` or `natural`), parser controller, route controller and monotonic identity. Editing the instruction, cancel, new request or official draft invalidation aborts work; old success/error/finally and old cancel/adopt callbacks cannot publish or commit. Current draft capture reads existing synchronous refs, including mode ABA protection
+- A natural-language action freezes the current official response/settings, candidate transaction snapshot and target. It uses the same `prepareExclusion` / `prepareAdjustmentInput`, first-three selection, retained/default stays, strict response validation, before/after timelines and shared cost comparison as 5C-3/5D-2. Preview loading/failure/cancel does not alter official exclusions, settings, response or existing explanation
+- Both entry points share `adoptionIssue` and `schedule.adoptAdjustment`: event-time official version/candidate identity/required-order/actual-visit/return checks precede one synchronous candidate-settings-response commit. Valid partials remain eligible when all required visits are arranged. Double/old adoption cannot commit twice. No extra request on adoption; candidate exclusion, selected inputs and official draft update consistently, and existing explanation/weather report invalidate
+- Natural adjustments are an explicit user choice, **not a weather conclusion**, so they do not require or subscribe to a weather-check report. Weather refresh/annotations and fee edits do not expire them. Weather-origin previews retain their original report/time guards. Both sources expire on official inputs/candidate changes/regeneration/adoption/edit/unmount. Old Mock date/map/Marker operations stay independent. The source distinction avoids accidentally retaining an expired weather-derived proposal or clearing a manual one on unrelated weather activity
+- Comparison uses existing actual ID/date/time/return and cost rules. Unknown costs remain unknown; estimates do not become verified prices, a replacement does not become an indoor recommendation, and different route batches are not claimed identical or optimal
+
+### Delivery manifest — 17 files
+
+1. `backend/app/api/explanation.py` — extract/reuse disconnect cleanup and bounded route/client
+2. `backend/app/integrations/qwen.py` — shared single-attempt transport/content validation, preserve explanation parser
+3. `backend/main.py` — register the independent intent route
+4. `backend/app/api/adjustment_intent.py` — strict snapshot + intent API, safe errors
+5. `backend/app/schemas/adjustment_intent.py` — bounded request, decision and echo contracts
+6. `backend/app/services/adjustment_intent.py` — actual entities, constrained prompt/schema and independent authorization
+7. `backend/tests/test_adjustment_intent.py` — scope/security/replay/deadline/cancellation tests
+8. `backend/tests/export_intent_contract.py` — offline Python→TypeScript intent fixtures
+9. `frontend/src/lib/adjustment-intent-api.ts` — timed request, strict runtime guard and code-owned messages
+10. `frontend/src/lib/adjustment-intent-api.test.ts` — cross-language/API validation and no-retry tests
+11. `frontend/src/lib/use-schedule-adjustment.ts` — shared source-aware parse/preview/adopt lifecycle
+12. `frontend/src/lib/use-natural-adjustment.test.tsx` — state/ABA/cancel/adopt/independence coverage
+13. `frontend/src/components/trip/natural-adjustment.tsx` — explicit input, current target identities and clarify/failure UI
+14. `frontend/src/components/trip/natural-adjustment.integration.test.tsx` — actual result composition with controlled transport
+15. `frontend/src/components/trip/schedule-adjustment.tsx` — reuse existing comparison for this entry point
+16. `frontend/src/components/trip-plan-result.tsx` — mount alongside formal draft and explanation
+17. `docs/PROGRESS.md` — this record; historical evidence/limitations preserved
+
+### Automated checks actually executed this round
+
+| Command | Result |
+| --- | --- |
+| `cd backend && .venv/bin/python -B -m unittest discover -s tests -q` | **309 passed**, all 300 baseline tests retained; existing Starlette/httpx deprecation warning |
+| `cd frontend && npm test -- --reporter=dot` | **963 passed / 41 files**, including the 931 baseline tests |
+| `cd frontend && npm run lint` | Passed |
+| `cd frontend && npm run typecheck` | Passed |
+| `cd frontend && npm run build -- --webpack` | Passed; production frontend restarted from this build |
+| `git diff --check` / staged whitespace check | Passed in final delivery review |
+| Original five cache content hashes | Unchanged; excluded from stage |
+
+Controlled tests cover explicit optional exclusion; retained required order; same names/different IDs; negation/ambiguity/multiple changes/out-of-scope and prompt injection; strict fields/invalid IDs; replay inconsistency; parser/route timeout/failure/cancel; one model attempt and disconnect cleanup; late success/error/finally and reverse completion; mode/candidate ABA; stale cancel/adopt; no-visits and incomplete-required rejection; fourth candidate/default stay; subsequent ordinary generation using adopted input; existing AI retained on cancel and cleared on adoption; cost/weather/map independence. Three Python decision branches pass the real TypeScript validator, with adversarial response mutations rejected. These use controlled transports, not real provider faults. Test-only harness fixes corrected a date fixture and React event ordering; no production validation was relaxed for a passing test
+
+### Real Chrome acceptance — two remaining Qwen attempts, no more
+
+- Restarted only the verified existing TripPilot frontend/backend processes to serve this version. Backend uses `python -B` and no access log; actual production frontend at `localhost:3000`, backend at `127.0.0.1:8000`. No environment values, auth headers, raw model output or sensitive SDK URLs were printed/saved
+- Actual form: 2026-10-12, Shanghai, two travelers, accommodation 静安寺, required 武康大楼, photography interest. Real candidate query and real walking draft arranged the required visit plus 延中广场公园. No fixture/interception/Mock data was used for these inputs, route results or model decisions
+- **Cumulative call 19** (stage 1): fixed `qwen3.7-flash-2026-07-15`, `adjustment-intent-v1`, execute/single_optional, 200, about **1,030 ms**, usage **288 input / 59 output tokens**. Exact user request excluded 延中广场公园 and preserved required visits. One intent request led to exactly one schedule preview. Before adoption, official draft and candidate-panel text were unchanged
+- Actual preview removed 延中广场公园 and added 辅德里公园. Required 武康大楼 stayed 09:36–10:36; optional 13:00–14:00, lunch 12:00–13:00, home return changed from 14:44 to 14:28. Existing comparison disclosed route batches and unknown fees. Editing the shared user estimate to 20 yuan and querying real weather did not expire the manual preview or change the original schedule
+- Adopted the viewed preview: **zero additional business requests**; official generation time, visits, timeline and 14:28 return matched the viewed response. Candidate panel showed the target excluded; fourth candidate entered the prepared first-three input. Required visit remained. Preview was consumed, not re-requested
+- **Cumulative call 20** (stage 2): same model/contract, clarify/ambiguous_target for “轻松一点”, 200, about **2,774 ms**, **278 input / 33 output tokens**. No extra schedule request, no executable proposal, formal draft unchanged. Both live responses passed business checks, not just HTTP status. Total is now **20 / 20**, including the earlier 18; zero stage retries and no further model calls
+- Chrome 400px viewport: input, target IDs, clarify/preview controls and full comparison use a single column; measured no horizontal document overflow. This is not physical-phone/touch acceptance
+- Existing real map regression: bound 静安寺 and 武康大楼 to two adjacent Mock activities, queried one actual walking route (200). Visible basemap/roads/names/copyright and route; activity→Marker centered/highlighted the selected point, Marker→activity selected the second card, complete-route view retained the line and points. Official adopted draft and natural intent state were unchanged
+- Safe local business counts: `/trips/plan` 1, `/places/search` 4, `/places/candidates` 1, `/trips/schedule-preview` 2, `/trips/adjustment-intent` 2, `/weather/forecast` 1, `/routes/walking` 1; `/trips/schedule-explanation` and `/routes/transit` 0. All twelve observed responses were 200. These are **local browser business counts**, not an observation of every AMap upstream attempt; Qwen's two calls are also bounded by the no-retry adapter and corresponding usage receipts
+
+### Stable evidence, verification limits and handoff
+
+Evidence directory: [/Users/zijing/projects/trippilot-evidence/6a-2/](/Users/zijing/projects/trippilot-evidence/6a-2/), outside Git. Every screenshot below was saved and opened individually; the long comparison/draft images are full-section captures, with the candidate screenshot focused on the visible scroll area containing the affected target
+
+| Evidence | What was actually observed |
+| --- | --- |
+| [01-before-explicit-request.png](/Users/zijing/projects/trippilot-evidence/6a-2/01-before-explicit-request.png) | Explicit instruction and eligible original target; no input-triggered call |
+| [02-real-preview-desktop.png](/Users/zijing/projects/trippilot-evidence/6a-2/02-real-preview-desktop.png) | Real new/old places, required timing, return and unknown-cost comparison |
+| [03-natural-400px.png](/Users/zijing/projects/trippilot-evidence/6a-2/03-natural-400px.png) | Natural input and ready state at 400px |
+| [04-preview-400px.png](/Users/zijing/projects/trippilot-evidence/6a-2/04-preview-400px.png) | Full narrow comparison, shared estimate and adopt/cancel controls |
+| [05-adopted-formal.png](/Users/zijing/projects/trippilot-evidence/6a-2/05-adopted-formal.png) | Adopted formal timeline, required visit, lunch and actual return |
+| [06-adopted-candidates.png](/Users/zijing/projects/trippilot-evidence/6a-2/06-adopted-candidates.png) | Original target excluded only after adoption |
+| [07-real-clarification.png](/Users/zijing/projects/trippilot-evidence/6a-2/07-real-clarification.png) | Second actual Qwen decision rendered as program-owned clarification |
+| [08-activity-marker-real-route.png](/Users/zijing/projects/trippilot-evidence/6a-2/08-activity-marker-real-route.png) | Activity selects/centers highlighted real Marker while route remains |
+| [09-marker-route-fit.png](/Users/zijing/projects/trippilot-evidence/6a-2/09-marker-route-fit.png) | Marker-selected second activity and complete real walking route view |
+| [acceptance.json](/Users/zijing/projects/trippilot-evidence/6a-2/acceptance.json) | Minimal model/contract/usage/duration/count receipts and observed assertions; no prompts/raw outputs/keys/full itinerary logs |
+
+- **Controlled only this round:** natural-preview cancellation preserving an already populated AI explanation, adoption clearing that explanation, live-provider error/refusal/timeout/injection, adverse timing/ABA and transit-mode natural adjustment. They passed offline actual-hook/component tests. Budget was deliberately reserved for the two requested normal/clarify samples, so there was no third Qwen call to repeat cancellation/retry or recreate an explanation. Historical 6A-1 live cancellation/AI records are retained, not labeled new live 6A-2 verification
+- No claim of general natural-language coverage, real rainy-weather decision, physical phone, dedicated subway/transfer operation, full-load route acceptance or real provider fault reproduction. Existing AMap transit `data_error`, request-local throttling versus account-wide limits, search-cutoff/cleanup distinction, unknown costs/opening/booking, dependency advisories and Turbopack restrictions still apply
+- Interview summary: the model selects a tightly scoped intent, not a new itinerary. Program code checks both current entity/constraint identity and the explicit request, then computes a read-only preview using existing real-route planning. Only a fresh, explicit adoption atomically publishes candidate exclusion/settings/formal response. Monotonic identities reject ABA and late responses; source-specific invalidation separates user intent from weather-derived advice. No new Agent system, optimizer or parallel commit path
 
 ## Milestone 6A-1 Implementation and Offline Checks (2026-10-11)
 
