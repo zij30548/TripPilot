@@ -1,11 +1,12 @@
 "use client";
 
-import { useRef, useState, type FormEvent } from "react";
+import { useEffect, useRef, useState, type FormEvent } from "react";
 import { planTrip } from "@/lib/api";
 import type { Place } from "@/types/place";
 import type { Pace, TripPlan, TripRequest } from "@/types/trip";
 import PlaceDetails from "./places/place-details";
 import RequirementPlacePicker from "./places/requirement-place-picker";
+import { validEditedRequirements } from "@/lib/restore-trip";
 
 const paces = [
   { value: "relaxed", label: "轻松", description: "少走一点，慢慢感受" },
@@ -92,18 +93,26 @@ type PickerSession = {
 
 const placeButtonClass = "min-h-10 rounded-lg border border-[#315f51]/30 bg-white px-3 py-2 text-xs font-semibold text-[#315f51] disabled:opacity-50";
 
-export default function TripRequestForm({ onSuccess }: { onSuccess: (plan: TripPlan) => void }) {
-  const [form, setForm] = useState<FormState>(initialFormState);
+type FormProps = { onSuccess: (plan: TripPlan) => void; initialRequest?: never; onConfirm?: never; onCancel?: never }
+  | { initialRequest: TripRequest; onConfirm: (request: TripRequest) => void; onCancel: () => void; onSuccess?: never };
+export default function TripRequestForm({ onSuccess, initialRequest, onConfirm, onCancel }: FormProps) {
+  const [form, setForm] = useState<FormState>(() => initialRequest ? {
+    startDate: initialRequest.start_date, endDate: initialRequest.end_date, totalBudget: String(initialRequest.budget),
+    travelers: String(initialRequest.travelers), pace: initialRequest.pace, interests: [...initialRequest.interests],
+    excludedPlaces: initialRequest.avoid_places.join("\n"), earliestStartTime: initialRequest.daily_start_time.slice(0,5), latestEndTime: initialRequest.daily_end_time.slice(0,5),
+  } : initialFormState);
   const [dateError, setDateError] = useState("");
   const [timeError, setTimeError] = useState("");
   const [placeError, setPlaceError] = useState("");
-  const [accommodationPlace, setAccommodationPlace] = useState<Place | null>(null);
-  const [mustVisitPlaces, setMustVisitPlaces] = useState<Place[]>([]);
+  const [accommodationPlace, setAccommodationPlace] = useState<Place | null>(() => structuredClone(initialRequest?.accommodation_place ?? null));
+  const [mustVisitPlaces, setMustVisitPlaces] = useState<Place[]>(() => structuredClone(initialRequest?.must_visit_places ?? []));
   const [picker, setPicker] = useState<PickerSession | null>(null);
   const pickerSession = useRef<PickerSession | null>(null);
   const pickerVersion = useRef(0);
   const [submission, setSubmission] = useState<SubmissionState>({ status: "idle" });
   const submitting = useRef(false);
+  const alive = useRef(true);
+  useEffect(() => { alive.current = true; return () => { alive.current = false; pickerSession.current?.controller.abort(); pickerSession.current = null; pickerVersion.current++; }; }, []);
   const isLoading = submission.status === "loading";
   const replacingMustVisitId = picker?.target.role === "must_visit" ? picker.target.replacingId : undefined;
   const excludedPlaceIds = picker?.target.role === "must_visit"
@@ -119,7 +128,7 @@ export default function TripRequestForm({ onSuccess }: { onSuccess: (plan: TripP
   }
 
   function openPicker(target: PickerTarget, initialKeyword = "") {
-    if (submitting.current) return;
+    if (!alive.current || submitting.current) return;
     pickerSession.current?.controller.abort();
     const session: PickerSession = {
       version: ++pickerVersion.current, target, initialKeyword, controller: new AbortController(),
@@ -131,7 +140,7 @@ export default function TripRequestForm({ onSuccess }: { onSuccess: (plan: TripP
   }
 
   function confirmPlace(session: PickerSession, place: Place) {
-    if (submitting.current || pickerSession.current !== session || session.controller.signal.aborted) return;
+    if (!alive.current || submitting.current || pickerSession.current !== session || session.controller.signal.aborted) return;
     if (session.target.role === "accommodation") {
       setAccommodationPlace(place);
     } else {
@@ -166,7 +175,7 @@ export default function TripRequestForm({ onSuccess }: { onSuccess: (plan: TripP
 
   const handleSubmit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
-    if (submitting.current) return;
+    if (!alive.current || submitting.current) return;
     if (pickerSession.current) {
       setPlaceError("请先确认或取消当前地点选择，再生成行程。");
       return;
@@ -201,26 +210,34 @@ export default function TripRequestForm({ onSuccess }: { onSuccess: (plan: TripP
       interests: form.interests,
       must_visit: mustVisitPlaces.map((place) => place.name),
       must_visit_places: mustVisitPlaces,
-      avoid_places: splitPlaces(form.excludedPlaces),
+      avoid_places: initialRequest && form.excludedPlaces === initialRequest.avoid_places.join("\n") ? [...initialRequest.avoid_places] : splitPlaces(form.excludedPlaces),
       daily_start_time: form.earliestStartTime,
       daily_end_time: form.latestEndTime,
     };
 
     // Even an already closed selection session is invalidated before the form hides.
+    if (onConfirm) {
+      if (!validEditedRequirements(tripRequest)) { setPlaceError("请检查预算、人数、地点与时间后再确认需求。"); return; }
+      closePicker();
+      onConfirm(structuredClone(tripRequest)); // Local confirmation only; never POST /trips/plan.
+      return;
+    }
     closePicker();
     submitting.current = true;
     setSubmission({ status: "loading" });
     try {
       const plan = await planTrip(tripRequest);
+      if (!alive.current) return;
       setSubmission({ status: "idle" });
-      onSuccess(plan);
+      onSuccess!(plan);
     } catch (error) {
+      if (!alive.current) return;
       setSubmission({
         status: "error",
         message: error instanceof Error ? error.message : "获取行程失败，请重试。",
       });
     } finally {
-      submitting.current = false;
+      if (alive.current) submitting.current = false;
     }
   };
 
@@ -563,7 +580,7 @@ export default function TripRequestForm({ onSuccess }: { onSuccess: (plan: TripP
             disabled={isLoading}
             type="submit"
           >
-            {isLoading ? "正在获取行程…" : "生成我的行程"}
+            {isLoading ? "正在获取行程…" : onConfirm ? "确认需求修改" : "生成我的行程"}
             <span
               aria-hidden="true"
               className="transition-transform group-hover:translate-x-1"
@@ -572,9 +589,10 @@ export default function TripRequestForm({ onSuccess }: { onSuccess: (plan: TripP
             </span>
           </button>
           <p className="mt-3 text-center text-xs leading-5 text-[#8a8f8c]">
-            当前返回固定上海两日 Mock 示例，暂不按你的需求调整行程。
+            {onConfirm ? "这里只应用需求，不查询或生成行程。确认后请主动生成新草案。" : "当前返回固定上海两日 Mock 示例，暂不按你的需求调整行程。"}
           </p>
-          <p className="mt-1 text-center text-xs leading-5 text-[#8a8f8c]">已确认地点在返回修改需求时保留，刷新页面后清空。尚未用于安排当前 Mock 行程，也不会自动绑定活动。</p>
+          {onCancel ? <button type="button" onClick={() => { if (!alive.current) return; closePicker(); onCancel(); }} className="mt-4 min-h-11 w-full rounded-xl border px-4 py-2">取消需求修改</button>
+            : <p className="mt-1 text-center text-xs leading-5 text-[#8a8f8c]">已确认地点在返回修改需求时保留，刷新页面后清空。尚未用于安排当前 Mock 行程，也不会自动绑定活动。</p>}
         </div>
       </form>
     </section>

@@ -1,41 +1,19 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useMemo, useRef, useState } from "react";
 import type { TripPlan } from "@/types/trip";
 import type { Place } from "@/types/place";
 import { activityPlaceKey, type ActivityPlaceBindings } from "@/lib/activity-places";
 import { useWalkingRoute, walkingSegmentKey } from "@/lib/use-walking-route";
 import { useTransitRoute } from "@/lib/use-transit-route";
-import { useCandidatePool } from "@/lib/use-candidate-pool";
-import { useSchedulePreview } from "@/lib/use-schedule-preview";
-import { useScheduleExplanation } from "@/lib/use-schedule-explanation";
-import ScheduleExplanation from "./trip/schedule-explanation";
-import NaturalAdjustment from "./trip/natural-adjustment";
-import SaveTrip from "./trip/save-trip";
-import { useWeatherForecast } from "@/lib/use-weather-forecast";
-import { useWeatherCheckRevision, useWeatherScheduleCheck } from "@/lib/use-weather-schedule-check";
-import { useScheduleAdjustment } from "@/lib/use-schedule-adjustment";
-import ScheduleAdjustment from "./trip/schedule-adjustment";
-import ScheduleBudget from "./trip/schedule-budget";
-import { emptyCostInputs, updateCostInput, type UserCost } from "@/lib/schedule-costs";
 import TripOverview from "./trip/trip-overview";
-import ConfirmedPlaces from "./trip/confirmed-places";
-import CandidatePreparation from "./trip/candidate-preparation";
-import SchedulePreview from "./trip/schedule-preview";
 import DayTimeline from "./trip/day-timeline";
 import BudgetSummary from "./trip/budget-summary";
 import WeatherSummary from "./trip/weather-summary";
-import WeatherForecast from "./trip/weather-forecast";
-import WeatherScheduleCheck from "./trip/weather-schedule-check";
 import PlaceExplorer from "./places/place-explorer";
+import PlanningWorkspace from "./trip/planning-workspace";
 
-export default function TripPlanResult({ plan, onEdit }: { plan: TripPlan; onEdit: () => void }) {
-  const [costInputs, setCostInputs] = useState(emptyCostInputs);
-  const costRef = useRef(costInputs);
-  const editCost = (row: UserCost, value: string) => {
-    costRef.current = updateCostInput(costRef.current, row, value);
-    setCostInputs(costRef.current);
-  };
+function MockTripExample({ plan }: { plan: TripPlan }) {
   const [selectedDay, setSelectedDay] = useState(0);
   const [bindings, setBindings] = useState<ActivityPlaceBindings>({});
   const [selectedActivityKey, setSelectedActivityKey] = useState<string | null>(null);
@@ -48,15 +26,6 @@ export default function TripPlanResult({ plan, onEdit }: { plan: TripPlan; onEdi
   const [routeMode, setRouteMode] = useState<"walking" | "transit">("walking");
   const walking = useWalkingRoute();
   const transit = useTransitRoute();
-  const checkRevision = useWeatherCheckRevision();
-  const schedule = useSchedulePreview(plan.request, checkRevision.invalidate);
-  const explanation = useScheduleExplanation(schedule);
-  const candidates = useCandidatePool(plan.request, schedule.updateCandidates);
-  const weatherRequest = { start_date: plan.request.start_date, end_date: plan.request.end_date };
-  const weather = useWeatherForecast(weatherRequest, checkRevision.invalidate);
-  const weatherCheck = useWeatherScheduleCheck({ schedule, weather, candidates }, checkRevision);
-  const adjustment = useScheduleAdjustment({ schedule, candidates, weather, check: weatherCheck }, checkRevision);
-  const result = useRef<HTMLDivElement>(null);
   const explorer = useRef<HTMLDivElement>(null);
   const activityCards = useRef(new Map<string, HTMLElement>());
   const day = plan.days[selectedDay];
@@ -68,11 +37,6 @@ export default function TripPlanResult({ plan, onEdit }: { plan: TripPlan; onEdi
     return place ? [{ key, activity, place }] : [];
   }), [day, bindings]);
   const itineraryPlaces = useMemo(() => Array.from(new Map(boundActivities.map(({ place }) => [place.id, place])).values()), [boundActivities]);
-
-  useEffect(() => {
-    result.current?.focus();
-    result.current?.scrollIntoView({ block: "start" });
-  }, []);
 
   function choosePlace(key: string) {
     setBindingTargetKey(key);
@@ -168,35 +132,7 @@ export default function TripPlanResult({ plan, onEdit }: { plan: TripPlan; onEdi
     explorer.current?.scrollIntoView({ block: "start", behavior: "smooth" });
   }
 
-  function editRequest() {
-    weatherCheck.clear();
-    weather.invalidate();
-    candidates.invalidate();
-    schedule.invalidate();
-    walking.invalidate();
-    transit.invalidate();
-    onEdit();
-  }
-
   return (
-    <div ref={result} tabIndex={-1} aria-label="旅行结果" className="scroll-mt-6 outline-none">
-      <div className="mb-6 flex flex-wrap items-center justify-between gap-4">
-        <p role="status" className="text-sm font-medium text-[#315f51]">旅行需求已确认</p>
-        <div className="flex flex-wrap gap-3">
-          <button type="button" onClick={editRequest} className="min-h-11 rounded-full border border-[#315f51] bg-white px-5 py-2 text-sm font-semibold text-[#315f51] focus-visible:outline-2 focus-visible:outline-offset-2">修改旅行需求</button>
-          <button type="button" disabled className="min-h-11 cursor-not-allowed rounded-full border border-[#18201d]/10 px-5 py-2 text-sm text-[#68726c]">重新规划 · 暂未开放</button>
-        </div>
-      </div>
-      <ConfirmedPlaces request={plan.request} />
-      <WeatherForecast request={weatherRequest} weather={weather} />
-      <CandidatePreparation request={plan.request} pool={candidates} />
-      <SchedulePreview request={plan.request} preview={schedule} />
-      <SaveTrip schedule={schedule} requirements={plan.request} getCosts={()=>costRef.current}/>
-      <ScheduleExplanation explanation={explanation} />
-      <NaturalAdjustment adjustment={adjustment} response={schedule.state.status === "success" ? schedule.state.response : null} />
-      <ScheduleBudget request={plan.request} response={schedule.state.status === "success" ? schedule.state.response : null} inputs={costInputs} onEdit={editCost} />
-      <WeatherScheduleCheck check={weatherCheck} onEdit={editRequest} onPreview={adjustment.start} previewLoading={adjustment.loading} />
-      <ScheduleAdjustment adjustment={adjustment} annotations={weatherCheck.annotations} costInputs={costInputs} onEditCost={editCost} />
       <section aria-label="旧 Mock 行程示例" className="mt-9 border-t-2 border-dashed border-[#18201d]/20 pt-7">
       <h2 className="mb-2 text-xl font-semibold text-[#18392f]">旧 Mock 行程示例</h2>
       <p className="mb-5 text-sm leading-6 text-[#68726c]">以下固定示例与上方行程草案相互独立；预算、天气、时间和原交通仍是 Mock。已有活动绑定和单段路线查询只影响这个示例区，不会修改草案；这里的交通方式也与草案单独设置。</p>
@@ -234,6 +170,9 @@ export default function TripPlanResult({ plan, onEdit }: { plan: TripPlan; onEdi
         </aside>
       </div>
       </section>
-    </div>
   );
+}
+
+export default function TripPlanResult({ plan, onEdit }: { plan: TripPlan; onEdit: () => void }) {
+  return <PlanningWorkspace request={plan.request} onEdit={onEdit}><MockTripExample plan={plan} /></PlanningWorkspace>;
 }

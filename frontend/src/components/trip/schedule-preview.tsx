@@ -149,7 +149,7 @@ export function ScheduleResult({ response }: { response: ScheduleResponse }) {
     </div>;
 }
 
-export default function SchedulePreview({ request, preview }: { request: TripRequest; preview: ScheduleController }) {
+export default function SchedulePreview({ request, preview, restored = false }: { request: TripRequest; preview: ScheduleController; restored?: boolean }) {
   const { lunch, state, validationMessage, canQuery, optionalPlaces, candidateLoading, transportMode } = preview;
   const required = request.must_visit_places ?? [];
   const response = state.response;
@@ -158,7 +158,7 @@ export default function SchedulePreview({ request, preview }: { request: TripReq
     <h2 className="text-xl font-semibold text-[#18392f]">行程草案 · {transportMode === "walking" ? "步行" : "公交／地铁参考"}</h2>
     <p className="mt-2 text-sm leading-6 text-[#56605c]">先按原顺序安排全部必去地点，再尝试在每日尾部加入最多 1 个可选地点，并校验当日返回住宿。支持上海 1～3 天、最多 6 个必去地点和本次前 3 个有效可选地点；至少需要 1 个必去或可选地点。每日 1 个可选名额是本轮产品规则，不代表最优安排。</p>
     <p className="mt-2 text-sm leading-6 text-[#315f51]">旅行日期：{request.start_date} 至 {request.end_date}；每日窗口：{scheduleClock(request.daily_start_time)}—{scheduleClock(request.daily_end_time)}。修改日期或每日窗口请返回修改旅行需求。</p>
-    <p className="mt-2 text-xs leading-5 text-[#68726c]">修改交通方式、规则、停留时间，或获取、排除、恢复候选都会立即清除旧草案，但不会自动生成。返回修改需求、重新生成或刷新页面后，草案与本区设置清空，交通方式恢复步行；不改写旧 Mock 活动、绑定或地图路线。</p>
+    <p className="mt-2 text-xs leading-5 text-[#68726c]">修改交通方式、规则、停留时间，或获取、排除、恢复候选都会立即清除旧草案，但不会自动生成。{restored ? "本副本带入历史设置，确认需求修改后保留仍相关的停留与午餐；不兼容的午餐需你修正。刷新会丢失编辑并重新从原存档创建，历史结果不充当新正式草案。" : "返回修改需求、重新生成或刷新页面后，草案与本区设置清空，交通方式恢复步行；不改写旧 Mock 活动、绑定或地图路线。"}</p>
     <fieldset className="mt-5 min-w-0 rounded-xl border border-[#315f51]/20 p-4">
       <legend className="px-1 text-sm font-semibold text-[#18392f]">草案交通方式</legend>
       <div className="flex flex-wrap gap-2">
@@ -175,6 +175,7 @@ export default function SchedulePreview({ request, preview }: { request: TripReq
       {optionalPlaces.length > 0 ? <ol aria-label="本次试排可选地点" className="mt-2 list-decimal space-y-1 pl-5">{optionalPlaces.map((place) => <li key={place.id} className="break-words">{place.name}<span className="block text-xs text-[#68726c]">{place.address || "暂未提供地址"}</span></li>)}</ol>
         : <p className="mt-2 text-xs text-[#68726c]">目前没有有效的未排除可选地点。有必去地点时仍可只生成必去草案。</p>}
       {preview.candidateQueriedAt && <p className="mt-2 text-xs text-[#68726c]">采用的候选检索时间：<time dateTime={preview.candidateQueriedAt}>{timestamp(preview.candidateQueriedAt)}</time></p>}
+      {preview.historicalCandidates && <p className="mt-2 text-xs text-[#835718]">可选地点来自历史存档，未重新检索；不存在本次候选检索时间。</p>}
       {preview.candidateStatus === "partial" && <p className="mt-2 text-xs text-[#835718]">候选检索仅部分成功，本轮只使用成功取得的有效候选，不代表完整候选范围。</p>}
       {preview.showingPreviousCandidates && !candidateLoading && <p className="mt-2 text-xs text-[#835718]">最近检索失败，保留的是上次有效候选及排除决定，不是本次新结果。可以主动基于这份旧清单生成草案。</p>}
       {candidateLoading && <p role="status" className="mt-2 text-sm text-[#835718]">候选正在更新，请等待检索结束后再生成；旧草案已经失效。</p>}

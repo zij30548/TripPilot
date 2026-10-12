@@ -2,6 +2,7 @@ import { isConfirmedPlace, type Place } from "@/types/place";
 import type { CandidatePoolSnapshot } from "@/lib/use-candidate-pool";
 import { isScheduleRequest, scheduleClock, scheduleDates, scheduleMinutes, type ScheduleRequest } from "@/types/schedule";
 import type { TripRequest } from "@/types/trip";
+import { candidateItems } from "./candidate-pool-state";
 
 export type StayDraft = { value: string; source: "default" | "user" };
 export type ScheduleSettings = { transportMode: "walking" | "transit"; stays: Record<string, StayDraft>; lunch: { enabled: boolean; start: string; end: string } };
@@ -9,13 +10,15 @@ export type ScheduleSettings = { transportMode: "walking" | "transit"; stays: Re
 export function eligibleOptional(request: TripRequest, candidates: CandidatePoolSnapshot): Place[] {
   const excluded = new Set([request.accommodation_place?.id, ...(request.must_visit_places ?? []).map((place) => place.id), ...candidates.excludedIds]);
   const selected: Place[] = [];
-  for (const candidate of candidates.response?.candidates ?? []) {
+  for (const candidate of candidateItems(candidates)) {
     if (candidate.role !== "optional" || !isConfirmedPlace(candidate.place) || excluded.has(candidate.place.id)) continue;
     excluded.add(candidate.place.id); selected.push(candidate.place);
   }
   return selected;
 }
 export function buildRequest(request: TripRequest, settings: ScheduleSettings, optionalPlaces: Place[]): ScheduleRequest | null {
+  const lunchStart = scheduleMinutes(settings.lunch.start), lunchEnd = scheduleMinutes(settings.lunch.end);
+  const validLunchClocks = lunchStart !== null && lunchEnd !== null && lunchStart < lunchEnd;
   const value: unknown = {
     transport_mode: settings.transportMode,
     start_date: request.start_date, end_date: request.end_date,
@@ -29,7 +32,7 @@ export function buildRequest(request: TripRequest, settings: ScheduleSettings, o
     })),
     // Disabled lunch never participates. Preserve its UI draft for re-enabling,
     // but send harmless valid clocks even if that draft is currently blank/invalid.
-    lunch: { enabled: settings.lunch.enabled, start_time: settings.lunch.enabled ? settings.lunch.start : "12:00", end_time: settings.lunch.enabled ? settings.lunch.end : "13:00" },
+    lunch: { enabled: settings.lunch.enabled, start_time: settings.lunch.enabled || validLunchClocks ? settings.lunch.start : "12:00", end_time: settings.lunch.enabled || validLunchClocks ? settings.lunch.end : "13:00" },
   };
   // Freeze this generation's complete input independently of later pool/settings edits.
   return isScheduleRequest(value) ? structuredClone(value) : null;

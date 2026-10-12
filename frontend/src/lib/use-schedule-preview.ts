@@ -8,19 +8,22 @@ import { buildRequest, eligibleOptional, validateScheduleInput, withOptionalDefa
 import { prepareAdjustmentInput, adoptionIssue, type ScheduleCapture, type PreparedAdjustment } from "@/lib/schedule-adjustment";
 import type { CandidateExclusion } from "@/lib/use-candidate-pool";
 import type { TripRequest } from "@/types/trip";
+import { emptyCandidateSnapshot } from "./candidate-pool-state";
 
 export type { StayDraft, ScheduleSettings } from "@/lib/schedule-input";
 export type SchedulePreviewState = { status: "idle" | "loading" | "success" | "failed"; response: ScheduleResponse | null; message: string | null };
 const idle = (): SchedulePreviewState => ({ status: "idle", response: null, message: null });
 
-export function useSchedulePreview(request: TripRequest, onInvalidate?: () => void) {
-  const [settings, setSettings] = useState<ScheduleSettings>(() => ({
+export type ScheduleInitialization = { settings: ScheduleSettings; candidates: CandidatePoolSnapshot };
+export function useSchedulePreview(request: TripRequest, onInvalidate?: () => void, initial?: ScheduleInitialization) {
+  const [settings, setSettings] = useState<ScheduleSettings>(() => structuredClone(initial?.settings ?? {
     transportMode: "walking",
     stays: Object.fromEntries((request.must_visit_places ?? []).map((place) => [place.id, { value: "60", source: "default" }])),
     lunch: { enabled: true, start: "12:00", end: "13:00" },
   }));
+  const alive = useRef(true);
   const settingsRef = useRef(settings);
-  const [candidateInput, setCandidateInput] = useState<CandidatePoolSnapshot>(() => ({ response: null, lastAttempt: null, excludedIds: new Set(), loading: false, showingPrevious: false, message: null }));
+  const [candidateInput, setCandidateInput] = useState<CandidatePoolSnapshot>(() => structuredClone(initial?.candidates ?? emptyCandidateSnapshot()));
   const candidateRef = useRef(candidateInput);
   const [state, setState] = useState<SchedulePreviewState>(idle);
   const stateRef = useRef(state);
@@ -40,16 +43,17 @@ export function useSchedulePreview(request: TripRequest, onInvalidate?: () => vo
     onInvalidate?.();
   }, [onInvalidate]);
   const invalidate = useCallback(() => { cancel(); publish(idle()); }, [cancel, publish]);
-  useEffect(() => cancel, [cancel]);
+  useEffect(() => { alive.current = true; return () => { alive.current = false; cancel(); }; }, [cancel]);
   const updateCandidates = (input: CandidatePoolSnapshot) => {
+    if (!alive.current) return;
     cancel();
-    const snapshot: CandidatePoolSnapshot = { ...input, response: input.response ? structuredClone(input.response) : null,
-      lastAttempt: input.lastAttempt ? structuredClone(input.lastAttempt) : null, excludedIds: new Set(input.excludedIds) };
+    const snapshot: CandidatePoolSnapshot = structuredClone(input);
     candidateRef.current = snapshot; setCandidateInput(snapshot);
     const next = withOptionalDefaults(settingsRef.current, eligibleOptional(request, snapshot).slice(0, 3)); settingsRef.current = next; setSettings(next);
     publish({ status: "idle", response: null, message: input.loading ? "候选地点正在更新，原草案已清除。" : "候选地点或排除选择已更新，请重新生成草案。" });
   };
   const update = (change: (current: ScheduleSettings) => ScheduleSettings) => {
+    if (!alive.current) return;
     cancel();
     const next = change(settingsRef.current); settingsRef.current = next; setSettings(next);
     publish({ status: "idle", response: null, message: "设置已更新，请重新生成草案。" });
@@ -68,7 +72,7 @@ export function useSchedulePreview(request: TripRequest, onInvalidate?: () => vo
     update((current) => ({ ...current, transportMode }));
   };
   const query = async (): Promise<boolean> => {
-    if (pending.current) return false;
+    if (!alive.current || pending.current) return false;
     const optionalPlaces = eligibleOptional(request, candidateRef.current).slice(0, 3);
     const issue = validateScheduleInput(request, settingsRef.current, optionalPlaces, candidateRef.current.loading);
     const body = issue ? null : buildRequest(request, settingsRef.current, optionalPlaces);
@@ -88,13 +92,14 @@ export function useSchedulePreview(request: TripRequest, onInvalidate?: () => vo
   // Capture only a validated current success. Refs include historical stays that
   // are not currently in the first three, without adding them to the request.
   const capture = (): ScheduleCapture | null => {
+    if (!alive.current) return null;
     const input = buildRequest(request, settingsRef.current, eligibleOptional(request, candidateRef.current).slice(0, 3));
     const current = stateRef.current;
     if (pending.current || candidateRef.current.loading || current.status !== "success" || !input || !isScheduleResponse(current.response, input)) return null;
     return structuredClone({ version: version.current, original: current.response, request, settings: settingsRef.current, candidates: candidateRef.current });
   };
   const adoptAdjustment = (base: ScheduleCapture, targetId: string, exclusion: CandidateExclusion, proposed: PreparedAdjustment, response: ScheduleResponse): boolean => {
-    if (version.current !== base.version || pending.current || !exclusion.isCurrent()) return false;
+    if (!alive.current || version.current !== base.version || pending.current || !exclusion.isCurrent()) return false;
     const prepared = prepareAdjustmentInput(base, targetId, exclusion.snapshot);
     if (!prepared.value || JSON.stringify(prepared.value.request) !== JSON.stringify(proposed.request) ||
         adoptionIssue(base, targetId, prepared.value.request, response)) return false;
@@ -111,10 +116,12 @@ export function useSchedulePreview(request: TripRequest, onInvalidate?: () => vo
   const eligible = eligibleOptional(request, candidateInput);
   const optionalPlaces = eligible.slice(0, 3);
   const validationMessage = validateScheduleInput(request, settings, optionalPlaces, candidateInput.loading);
+  const readInputs = (): ScheduleInitialization => structuredClone({ settings: settingsRef.current, candidates: candidateRef.current });
   return { transportMode: settings.transportMode, setTransportMode, stays: settings.stays, lunch: settings.lunch, setStayMinutes, setLunchEnabled, setLunchStart, setLunchEnd,
-    capture, readVersion, subscribeInvalidation, adoptAdjustment, state, canQuery: validationMessage === null, validationMessage, query, invalidate, updateCandidates,
+    capture, readInputs, readVersion, subscribeInvalidation, adoptAdjustment, state, canQuery: validationMessage === null, validationMessage, query, invalidate, updateCandidates,
     optionalPlaces, eligibleCount: eligible.length, notSelectedCount: Math.max(eligible.length - 3, 0),
     candidateLoading: candidateInput.loading, candidateQueriedAt: candidateInput.response?.queried_at ?? null,
     candidateStatus: candidateInput.response?.status ?? null, showingPreviousCandidates: candidateInput.showingPrevious,
+    historicalCandidates: !!candidateInput.history,
     candidateMessage: candidateInput.message };
 }

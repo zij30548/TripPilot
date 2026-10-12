@@ -9,9 +9,10 @@ type SaveState = { status:"idle"|"saving"|"uncertain"|"saved"|"invalid"; operati
 export function useSaveTrip(schedule:ReturnType<typeof useSchedulePreview>, requirements:TripRequest, getCosts:()=>CostInputs) {
   const [state,setState]=useState<SaveState>({status:"idle",operation:null,detail:null,message:""});
   const ref=useRef(state), serial=useRef(0), controller=useRef<AbortController|null>(null);
+  const alive=useRef(true);
   const publish=(s:SaveState)=>{ref.current=s;setState(s);};
   const run=async (operation:SaveOperation) => {
-    if(ref.current.status==="saving") return;
+    if(!alive.current||ref.current.status==="saving") return;
     controller.current?.abort(); const abort=new AbortController();controller.current=abort;const version=++serial.current;
     publish({status:"saving",operation,detail:null,message:"正在保存点击时捕获的快照…"});
     try {
@@ -24,7 +25,7 @@ export function useSaveTrip(schedule:ReturnType<typeof useSchedulePreview>, requ
     }
   };
   const save=(name:string)=>{
-    if(ref.current.status==="saving")return;
+    if(!alive.current||ref.current.status==="saving")return;
     try{
       const capture=schedule.capture();
       if(!capture||!validSaveName(name))throw new Error("请先生成有效正式草案，并填写 1～80 字的存档名称。");
@@ -38,7 +39,8 @@ export function useSaveTrip(schedule:ReturnType<typeof useSchedulePreview>, requ
     ++serial.current;controller.current?.abort();
     publish({...state,status:"uncertain",message:"已停止等待，但数据库可能已提交。重试会沿用这份快照和标识，不会自动重复建档。"});
   };
-  useEffect(()=>()=>{++serial.current;controller.current?.abort();},[]);
+  const dispose=useCallback(()=>{alive.current=false;++serial.current;controller.current?.abort();},[]);
+  useEffect(()=>{alive.current=true;return dispose;},[dispose]);
   return {state,save,retry,cancel};
 }
 

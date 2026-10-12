@@ -3,6 +3,7 @@ import { isScheduleResponse, type ScheduleRequest, type ScheduleResponse } from 
 import type { CandidatePoolSnapshot } from "./use-candidate-pool";
 import { buildRequest, eligibleOptional, validateScheduleInput, withOptionalDefaults, type ScheduleSettings } from "./schedule-input";
 import { scheduledVisits } from "./weather-schedule-check";
+import { candidateItems } from "./candidate-pool-state";
 
 export type ScheduleCapture = { version: number; original: ScheduleResponse; request: TripRequest; settings: ScheduleSettings; candidates: CandidatePoolSnapshot };
 export type PreparedAdjustment = { request: ScheduleRequest; settings: ScheduleSettings; candidates: CandidatePoolSnapshot };
@@ -14,7 +15,7 @@ export function prepareAdjustmentInput(base: ScheduleCapture, targetId: string, 
   const expected = { ...base.candidates, excludedIds: new Set([...base.candidates.excludedIds, targetId]) };
   const target = scheduledVisits(base.original).find((v) => v.place.id === targetId && v.role === "optional");
   if (!target || base.candidates.loading || base.candidates.excludedIds.has(targetId) ||
-      !base.candidates.response?.candidates.some((c) => c.role === "optional" && c.place.id === targetId) || snapshotKey(expected) !== snapshotKey(candidates)) {
+      !candidateItems(base.candidates).some((c) => c.role === "optional" && c.place.id === targetId) || snapshotKey(expected) !== snapshotKey(candidates)) {
     return { value: null, message: "当前地点或候选已变化，请重新检查后再预览。" };
   }
   const optional = eligibleOptional(base.request, candidates).slice(0, 3);

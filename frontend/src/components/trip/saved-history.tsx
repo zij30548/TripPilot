@@ -8,10 +8,11 @@ import PlaceDetails from "../places/place-details";
 
 const stamp=(value:string)=>new Date(value).toLocaleString("zh-CN",{timeZone:"Asia/Shanghai",hour12:false});
 const button="min-h-11 rounded-xl border border-[#315f51]/40 bg-white px-4 py-2 text-sm text-[#18392f] disabled:opacity-40";
-export function SavedTripDetails({detail}:{detail:SavedDetail}){
+export function SavedTripDetails({detail,allowRestore=true}:{detail:SavedDetail;allowRestore?:boolean}){
   const {requirements:r,schedule:s,costs}=detail.snapshot;
   return <article aria-label="历史快照详情" className="min-w-0 space-y-4 break-words">
     <h2 className="text-xl font-semibold">{detail.name} · 历史快照</h2>
+    {allowRestore && <a href={`/plan/from/${detail.id}`} target="_blank" rel="noopener noreferrer" className="inline-flex min-h-11 items-center rounded-xl bg-[#18392f] px-4 py-2 text-sm text-white">基于此行程继续规划<span className="ml-2 text-xs">（新标签页）</span></a>}
     <p>服务端保存时间：{stamp(detail.saved_at)}<br/>原草案生成时间：{stamp(s.generated_at)}</p>
     <p className="rounded-xl bg-amber-50 p-3 text-sm leading-6">只读存档，不覆盖当前工作草案。以下是保存时的数据；打开历史未重新查询交通、天气、营业或预约。保存时间不是核验时间，路线原查询时间在各段保留。</p>
     <section aria-label="历史确认需求" className="rounded-xl bg-[#f4f8f5] p-4 text-sm leading-7">
@@ -36,7 +37,7 @@ function HistoryWindow({close}:{close:()=>void}){
   useEffect(()=>{dialog.current?.showModal?.();void load(null);},[load]);
   return <dialog ref={dialog} aria-label="历史行程" onCancel={e=>{e.preventDefault();close();}} className="fixed inset-0 m-auto h-[92dvh] w-[calc(100%-24px)] max-w-6xl overflow-y-auto rounded-2xl border border-[#315f51]/30 bg-[#f4f2ec] p-4 text-[#18201d] shadow-xl backdrop:bg-black/40 sm:p-7">
     <header className="mb-5 flex flex-wrap items-center justify-between gap-3"><h1 className="text-2xl font-semibold">历史行程 · 只读</h1><button className={button} onClick={close}>关闭历史</button></header>
-    <p className="mb-4 text-sm">本机单用户存档，无账号隔离；没有继续编辑、删除或分享功能。查看历史不会生成行程或调用外部服务。</p>
+    <p className="mb-4 text-sm">本机单用户存档，无账号隔离；原记录不可修改、删除或分享。可从详情在新标签页创建独立规划副本。查看历史不会生成行程或调用外部服务。</p>
     {state.status!=="list"&&<button className={button} onClick={()=>void load(null,state.offset)}>返回历史列表</button>}
     {state.status==="loading"&&<p role="status" className="mt-4">正在读取历史…</p>}
     {state.status==="error"&&<p role="alert" className="mt-4">{state.error}</p>}
