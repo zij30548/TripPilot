@@ -75,9 +75,45 @@ describe("6C-1 formal homepage and stable presentation (controlled services)", (
     open(); const pending = deferred<ScheduleResponse>(); api.schedule.mockReturnValueOnce(pending.promise); await click("生成行程草案");
     const [body, signal] = api.schedule.mock.calls[0]; await click("修改旅行需求"); change(/总预算/, "5000"); await click("确认需求修改");
     expect(signal.aborted).toBe(true);
+    expect(screen.getByRole("status", { name: "需求修改后的草案状态" }).textContent).toContain("请主动重新生成");
     await act(async () => { if (outcome === "success") pending.resolve(adjustmentResponse(body)); else pending.reject(new Error("old")); });
-    expect(screen.queryByRole("list", { name: "草案时间线" })).toBeNull(); await click("生成行程草案"); await click("保存当前正式草案");
+    expect(screen.queryByRole("list", { name: "草案时间线" })).toBeNull();
+    expect(screen.getByRole("status", { name: "需求修改后的草案状态" }).textContent).toContain("请主动重新生成");
+    await click("生成行程草案");
+    expect(screen.queryByRole("status", { name: "需求修改后的草案状态" })).toBeNull();
+    await click("保存当前正式草案");
     expect(api.save.mock.calls[0][0].snapshot.requirements.budget).toBe(5000); expect(api.plan).not.toHaveBeenCalled();
+  });
+  it("edited-requirement guidance follows loading/failure/success while fee cleanup facts and cancelled work survive", async () => {
+    open(); await click("生成行程草案");
+    fireEvent.change(official().getByRole("textbox", { name: /全程其他/ }), { target: { value: "25" } });
+    await click("修改旅行需求"); change(/旅行人数/, "3"); await click("确认需求修改");
+    const guidance = () => screen.queryByRole("status", { name: "需求修改后的草案状态" });
+    expect(guidance()?.textContent).toContain("请主动重新生成");
+    expect(screen.getByText(/全部用户费用估算已清空/)).toBeTruthy();
+    const pending = deferred<ScheduleResponse>(); api.schedule.mockReturnValueOnce(pending.promise);
+    await click("生成行程草案"); expect(guidance()?.textContent).toContain("正在生成");
+    expect(guidance()?.textContent).not.toContain("请主动重新生成");
+    await act(async () => pending.reject(new Error("controlled failure")));
+    expect(guidance()?.textContent).toContain("请主动重新生成");
+    await click("生成行程草案"); expect(guidance()).toBeNull();
+    expect(screen.getByText(/已有有效正式草案/)).toBeTruthy();
+    expect(screen.getByText(/全部用户费用估算已清空/)).toBeTruthy();
+    const before = timeline(), requests = counts();
+    await click("修改旅行需求"); change(/旅行人数/, "4"); await click("取消需求修改");
+    expect(guidance()).toBeNull(); expect(timeline()).toBe(before); expect(counts()).toEqual(requests);
+    expect(screen.getByText(/全部用户费用估算已清空/)).toBeTruthy();
+  });
+  it.each(["success", "error"])("a late invalidated %s cannot clear regeneration guidance within the same edited workspace", async outcome => {
+    open(); await click("修改旅行需求"); change(/总预算/, "4000"); await click("确认需求修改");
+    const pending = deferred<ScheduleResponse>(); api.schedule.mockReturnValueOnce(pending.promise);
+    await click("生成行程草案"); const [body, signal] = api.schedule.mock.calls[0];
+    change("停留分钟：同名地点", "75"); expect(signal.aborted).toBe(true);
+    await act(async () => { if (outcome === "success") pending.resolve(adjustmentResponse(body)); else pending.reject(new Error("old")); });
+    expect(screen.getByRole("status", { name: "需求修改后的草案状态" }).textContent).toContain("请主动重新生成");
+    expect(screen.queryByRole("list", { name: "草案时间线" })).toBeNull();
+    await click("生成行程草案");
+    expect(screen.queryByRole("status", { name: "需求修改后的草案状态" })).toBeNull();
   });
   it("collapse/navigation preserves draft, fee input, uncertain frozen save content and operation ID", async () => {
     open(); await click("生成行程草案"); const before = timeline();

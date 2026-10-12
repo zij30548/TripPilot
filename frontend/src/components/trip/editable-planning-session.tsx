@@ -57,7 +57,7 @@ export default function EditablePlanningSession({ initial, sessionId, origin }: 
       }} />
     </section>}
     <div hidden={!!editing}>
-      <PlanningWorkspace key={`${sessionId}:${revision}`} request={inputs.request} initial={inputs} origin={origin.kind} onEdit={edit} onDirty={markDirty} />
+      <PlanningWorkspace key={`${sessionId}:${revision}`} request={inputs.request} initial={inputs} origin={origin.kind} requirementsEdited={revision > 0} onEdit={edit} onDirty={markDirty} />
     </div>
     {origin.kind === "history" && <details className="mt-8 rounded-2xl border border-[#315f51]/30 bg-white p-5">
       <summary className="cursor-pointer font-semibold">只读历史参考 · 不是新正式草案</summary>

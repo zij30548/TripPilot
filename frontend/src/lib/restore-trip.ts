@@ -52,7 +52,8 @@ export function applyEditedRequirements(current: WorkspaceInputs, request: TripR
     meals: Object.fromEntries(Object.entries(current.costs.meals).filter(([date]) => scheduleDates(request.start_date, request.end_date)!.includes(date))),
     accommodation: homeChanged ? "" : current.costs.accommodation, other: current.costs.other,
   };
-  const notices = ["需求已应用，旧正式草案及相关解读、检查和预览已清除；请主动重新生成。"];
+  // Persistent notices describe input changes; draft guidance follows live workspace state.
+  const notices: string[] = [];
   if (resetCandidates) notices.push("住宿、必去或兴趣已变化，可选清单及本次排除选择已清空，请主动重新获取候选。");
   if (resetCosts) notices.push("日期或人数已变化，全部用户费用估算已清空；没有自动缩放或搬移旧餐饮费。");
   else if (homeChanged) notices.push("住宿参考点已变化，住宿估算已清空；其他仍相关的原估算保留。");

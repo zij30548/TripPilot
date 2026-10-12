@@ -38,6 +38,8 @@
 
 ## Current
 
+- **6C-1 notice lifecycle follow-up is implemented and accepted** on `7148b5957a910b61b2cd85575f29c5684a865725`. Five delivery files separate persistent input-change notices from regeneration guidance derived from the current version-guarded draft state. Frontend **1,023 / 49 files**, lint, typecheck and Webpack build passed. Real Chrome verified confirm people change → new walking success removes the obsolete prompt while fee cleanup remains → cancel preserves work, at 400px. Three inspected screenshots and sanitized receipt: `trippilot-evidence/6c-1/notice-fix/`. **0 Qwen calls**, no database/backend/configuration change; five original caches match baseline hashes. Ordinary fix-only commit/push follows final checks; stop after this fix. Earlier entries below retain historical results.
+
 - Milestone **6C-1 unified formal planning entry is implemented and accepted**, based on verified pushed `main` **`1a25cff0b6809699bcd8572560eeddab00974784`** (6B-2). This **26-file frontend/document delivery** moves the default homepage directly from confirmed TripRequest to the shared editable PlanningWorkspace; `/demo` preserves the explicit legacy Mock/map integration example. Final frontend **1,020 tests / 49 files**, lint, typecheck, Webpack production build and diff checks pass. Actual production Chrome passed new → real required-only/optional walking drafts → costs → preview/cancel/adopt → save → new-tab history copy → regenerate/another save, plus 400px/keyboard and independent real map/Marker regression. Twenty individually opened screenshots and sanitized counts are in stable `6c-1` evidence below. **0 Qwen calls**, cumulative **20/20** unchanged. Ordinary stage-only commit/push follows final manifest/security/remote checks; five original cache contents remain untouched and excluded. Earlier Current/Next entries remain historical records.
 - Milestone **6B-2 historical snapshots → independent editable copies is implemented and accepted** on verified pushed `main` baseline **`45a14edcee1463188925a0dbe99f20853186eedd`** (6B-1). This **23-file frontend/document delivery** keeps `saved-trip-v1`, the database and backend unchanged. History opens a fresh tab with input-only restoration; only an explicit newly validated generation becomes saveable. This round: frontend **1,011 tests / 48 files**, lint, typecheck, Webpack build and whitespace checks passed; **9 targeted backend archive tests** passed on temporary databases (not a full backend rerun). Actual production Chrome restored an existing archive with no business queries, regenerated real walking routes with changed stay/lunch, cleared estimates on confirmed traveler change, saved a distinct record during an unadopted adjustment, re-read it after reload, and verified original full-snapshot hashes unchanged. Sixteen individually opened screenshots and a sanitized receipt are in the stable `6b-2` directory below. **0 Qwen calls**, cumulative **20/20** unchanged. Normal stage-only commit/push follows final manifest/security/remote checks; the five original cache contents remain untouched and excluded. Prior Current/Next statements below describe their historical rounds.
 - Milestone **6B-1 SQLite snapshot saving and read-only history are implemented and accepted** on verified pushed `main` baseline **`582a9100e143e2a2a963122d14a429c9ada39faf`** (6A-2). This **20-file delivery** adds explicit frozen saves, idempotent database transactions, bounded history pagination and strictly validated read-only replay. This round: backend **318 tests**, frontend **980 tests / 44 files**, lint, typecheck and Webpack build passed; final read-only-copy follow-up passed its **5 targeted tests** plus lint/typecheck/build. Real Chrome saved two distinct actual walking drafts, verified original-vs-adopted snapshots, immutable fees, reload and backend-restart persistence, 400px history and real map/Marker regression. Thirteen opened screenshots and a sanitized receipt are in stable `6b-1` evidence below. **0 new Qwen calls**; cumulative **20/20** remains exhausted. Normal stage-only commit/push follows final manifest/security/remote checks; five original Python caches remain untouched and excluded. Older current entries describe their historical rounds, not today's HEAD or remote status
@@ -80,10 +82,43 @@
 
 ## Next
 
+- **Current instruction: close out only the 6C-1 notice lifecycle fix with ordinary commit/push, then stop.** Do not begin 6C-2 or spend Qwen calls. Earlier stopping points below are historical.
+
 - **Current instruction: stop after ordinary 6C-1 commit/push.** No next stage, new Qwen allowance, formal-draft map, autosave, schema/dependency/configuration change or optimization is included. The earlier stage stopping points below are historical and superseded by explicit 6C-1 authorization.
 - **Current instruction: stop after ordinary 6B-2 commit/push.** Do not start a subsequent stage. The earlier 6B-1 stopping point below is retained as history and was superseded by the explicit 6B-2 authorization. No new Qwen allowance, archive update/delete, autosave, persistence of working copies or multi-user access is introduced.
 - Close out only this **6B-1** delivery with an ordinary stage-only commit/push after remote and staged-content checks. Stop afterward; do not start history editing (6B-2). No further Qwen call is authorized by the exhausted **20 / 20** allowance. Physical-phone/touch, dedicated live subway/transfer-operation samples, broader real upstream fault acceptance, six-required-plus-three-optional live full-load acceptance and the Turbopack limitation remain separate; historical evidence is retained
 - Review existing dependency security advisories as a separate, approved maintenance task before deployment
+
+## 6C-1 Follow-up: Regeneration Notice Lifecycle (2026-10-12)
+
+### Problem and fix
+
+The original `6c-1/12-mobile-workspace.png` showed a persistent “please regenerate” notice above a successful official draft. `applyEditedRequirements` put this transient instruction in the parent's durable notice array, which did not follow generation state.
+
+- Durable notices now contain only input-change facts (such as cleared fee estimates). The existing reconciliation and fee rules are unchanged.
+- The shared editable session passes `requirementsEdited` from its workspace revision. `PlanningWorkspace` derives guidance directly from its existing official schedule state: idle/failed asks for regeneration, loading reports generation in progress, current success removes the instruction. No mirrored status, success callback, new effect or response handling was added.
+- The existing AbortController/version checks continue to reject stale success/error/finally. Cancel leaves the same workspace mounted. Later invalidation correctly shows the action guidance again while no valid current draft exists.
+
+### Checks and real acceptance
+
+- Targeted formal composition + restore tests: **23 passed**. Final full frontend suite: **1,023 tests / 49 files passed**; lint, typecheck, `npm run build -- --webpack`, and final diff checks passed. Three cases were added, and existing cross-workspace stale-response tests gained notice assertions. Tests cover loading/failure/retry, retained fee facts, cancellation and stale success/error both within and across workspace revisions. Backend source unchanged; no full backend rerun. Existing temporary-database contract checks remain part of the frontend suite.
+- Restarted only the verified project production frontend to load the new build; reused the existing backend. Actual Chrome **155.0.8059.39** used the normal homepage, real POI searches and real walking routes. No Mock, model, weather, archive-save or database-mutating operation was performed.
+- Shanghai **2026-10-13**, 静安寺 accommodation reference, 武康大楼 required, initially two people. After an initial successful draft and a user estimate of25, confirming three people cleared all four estimate inputs and displayed the regeneration notice. Explicit regeneration returned200; outbound2156s→36min, visit09:36–10:36, return2153s→36min, back11:12. The obsolete prompt disappeared; the fee-cleared explanation remained.
+- Editing to four people and cancelling preserved the exact displayed new timeline, fee notice and lack of stale regeneration guidance, with no additional business request. Viewport and document width were both400px. The three screenshots were opened and visually inspected.
+- Final filtered network list: **2 POI GETs + 2 schedule POSTs**, all200; **0 Qwen calls**. The first custom listener mistakenly filtered localhost instead of127.0.0.1; counts come from the complete browser network list, not that incomplete listener. No raw headers/network dump retained.
+- Failed generation and adverse responses are controlled tests, not live induced failures. This narrow fix does not repeat transit/map/AI or physical-phone acceptance. Existing Turbopack, upstream, load and other historical limitations remain. Early screenshot attempts timed out with a background tab; bringing Chrome forward allowed actual captures.
+
+### Files and evidence
+
+Five delivery files: `frontend/src/components/trip/editable-planning-session.tsx`, `frontend/src/components/trip/planning-workspace.tsx`, `frontend/src/lib/restore-trip.ts`, `frontend/src/components/trip/formal-planning.integration.test.tsx`, `docs/PROGRESS.md`.
+
+Stable evidence, outside Git:
+- [Before generation: prompt and fee notice](/Users/zijing/projects/trippilot-evidence/6c-1/notice-fix/01-before.png)
+- [After success: prompt removed, fee notice retained](/Users/zijing/projects/trippilot-evidence/6c-1/notice-fix/02-after.png)
+- [Real timeline after cancelling another edit](/Users/zijing/projects/trippilot-evidence/6c-1/notice-fix/03-timeline.png)
+- [Sanitized receipt and screenshot hashes](/Users/zijing/projects/trippilot-evidence/6c-1/notice-fix/receipt.json)
+
+No backend/database/schema/dependency/key/environment/model/proxy/CORS changes. All five original Python cache SHA256 values still match this fix's starting record and are excluded from the fix commit. Fetched `origin/main` before closeout; perform only the authorized ordinary fix commit/push and stop.
 
 ## Milestone 6C-1 Unified Formal Planning Workflow (2026-10-12)
 

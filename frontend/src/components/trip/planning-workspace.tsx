@@ -27,8 +27,8 @@ export type WorkspaceEdit = { read: () => WorkspaceInputs; invalidate: () => voi
 
 // Shared real workflow, independent from TripPlan and its Mock/map example.
 // Initial inputs are installed atomically by lazy hook initialization, never effects.
-export default function PlanningWorkspace({ request, initial, origin = "new", onEdit, onDirty, children }: {
-  request: TripRequest; initial?: WorkspaceInputs; origin?: "new" | "history" | "demo"; onEdit: (context: WorkspaceEdit) => void; onDirty?: () => void; children?: ReactNode;
+export default function PlanningWorkspace({ request, initial, origin = "new", requirementsEdited = false, onEdit, onDirty, children }: {
+  request: TripRequest; initial?: WorkspaceInputs; origin?: "new" | "history" | "demo"; requirementsEdited?: boolean; onEdit: (context: WorkspaceEdit) => void; onDirty?: () => void; children?: ReactNode;
 }) {
   const [costInputs, setCostInputs] = useState(() => structuredClone(initial?.costs ?? emptyCostInputs()));
   const costRef = useRef(costInputs), alive = useRef(true), result = useRef<HTMLDivElement>(null);
@@ -67,6 +67,10 @@ export default function PlanningWorkspace({ request, initial, origin = "new", on
     section.scrollIntoView({ block: "start", behavior: "smooth" });
   };
   return <div ref={result} tabIndex={-1} aria-label="旅行结果" className="scroll-mt-6 outline-none">
+    {/* Derive guidance from the same version-guarded state as the official draft. */}
+    {requirementsEdited && schedule.state.status !== "success" && <p role="status" aria-label="需求修改后的草案状态" className="mb-5 rounded-xl bg-white p-4 text-sm leading-6">
+      {schedule.state.status === "loading" ? "需求已应用，正在生成新的正式草案。" : "需求已应用，当前尚无有效正式草案；请主动重新生成。"}
+    </p>}
     <div className="mb-6 flex flex-wrap items-center justify-between gap-4">
       <p role="status" className="text-sm font-medium text-[#315f51]">{schedule.state.status === "success" ? `已有有效正式草案${schedule.state.response?.status === "complete" ? "" : "（请核对部分／未安排原因）"}，可核对费用并保存${origin === "history" ? "为新记录" : ""}。` : schedule.state.status === "loading" ? "正在生成正式草案…" : "旅行需求已确认，当前尚无有效正式草案。"}</p>
       <div className="flex flex-wrap gap-3">
