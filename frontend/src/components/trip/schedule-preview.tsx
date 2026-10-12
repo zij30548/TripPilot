@@ -1,7 +1,8 @@
 "use client";
 
-import { useState } from "react";
 import type { useSchedulePreview } from "@/lib/use-schedule-preview";
+import { useScheduleMap, type FormalMapContext } from "@/lib/use-schedule-map";
+import SchedulePlaceMap from "./schedule-place-map";
 import { scheduleClock, type ScheduleResponse } from "@/types/schedule";
 import type { Place } from "@/types/place";
 import type { TripRequest } from "@/types/trip";
@@ -75,10 +76,10 @@ function StaySettings({ places, optional = false, preview }: { places: Place[]; 
   </fieldset>;
 }
 
-export function ScheduleResult({ response }: { response: ScheduleResponse }) {
-  const [selectedDate, setSelectedDate] = useState<string | null>(null);
+export function ScheduleResult({ response, mapContext }: { response: ScheduleResponse; mapContext?: FormalMapContext }) {
+  const map = useScheduleMap(response, mapContext);
   const request = response.request, required = request.must_visit_places, optionalPlaces = request.optional_places ?? [], transportMode = request.transport_mode;
-  const activeDay = response?.days.find((day) => day.date === selectedDate) ?? response?.days[0];
+  const activeDay = response.days.find((day) => day.date === map.date) ?? response.days[0];
   const places = new Map([request.accommodation_place, ...required, ...optionalPlaces].filter((place) => place != null).map((place) => [place.id, place]));
   const name = (id: string | null) => id === null ? "" : places.get(id)?.name ?? "已确认地点";
   const edges = new Map(response?.edges.map((edge) => [edge.id, edge]) ?? []);
@@ -98,21 +99,30 @@ export function ScheduleResult({ response }: { response: ScheduleResponse }) {
       <p className="mt-1 text-sm text-[#315f51]">必去已安排 {requiredCount}/{required.length} 个 · 可选已安排 {optionalCount}/{optionalPlaces.length} 个。可选未排入不影响已验证的必去安排。</p>
       <p className="mt-1 text-xs leading-5 text-[#68726c]">生成时间：<time dateTime={response.generated_at}>{timestamp(response.generated_at)}</time>。这是本次规则与{transportMode === "walking" ? "步行" : "公交／地铁参考方案"}估算下的草案，不保证未来日期营业、预约或实际可执行。同一请求、同一方式下，可选补充不改变必去时间；切换方式重新生成后，必去时刻可能变化。</p>
       <div role="group" aria-label="选择草案日期" className="mt-4 flex flex-wrap gap-2">
-        {response.days.map((day, index) => <button key={day.date} type="button" aria-pressed={activeDay?.date === day.date} onClick={() => setSelectedDate(day.date)}
+        {response.days.map((day, index) => <button key={day.date} type="button" aria-pressed={activeDay?.date === day.date} onClick={() => map.selectDate(day.date)}
           className={`min-h-11 max-w-full rounded-xl border px-3 py-2 text-sm ${activeDay?.date === day.date ? "border-[#315f51] bg-[#edf3ef] text-[#18392f]" : "border-[#18201d]/15 text-[#56605c]"}`}>草案第 {index + 1} 天 · {day.date}</button>)}
       </div>
+      {mapContext && <SchedulePlaceMap map={map} />}
       {activeDay && <section aria-label={`${activeDay.date} 行程草案`} className="mt-4 rounded-xl bg-[#f7f8f4] p-4">
         <h3 className="font-semibold text-[#18392f]">{activeDay.date}</h3>
         {activeDay.items.length === 0 ? <p className="mt-3 text-sm text-[#68726c]">尚未安排景点；没有为这天空造交通或午餐。</p>
           : <ol aria-label="草案时间线" className="mt-4 space-y-3">{activeDay.items.map((item, index) => {
             const edge = item.edge_id ? edges.get(item.edge_id) : undefined;
-            return <li key={`${index}-${item.kind}`} className="rounded-xl border border-[#18201d]/10 bg-white p-3">
+            const visit = map.data.visits.find(v => v.itemIndex === index);
+            const selected = !!mapContext && map.selection?.target === "visit" && map.selection.itemIndex === index;
+            return <li key={`${index}-${item.kind}`} ref={element => { if (element) map.cards.current.set(index, element); else map.cards.current.delete(index); }}
+              tabIndex={mapContext && visit ? -1 : undefined} data-map-selected={selected}
+              className={`rounded-xl border border-[#18201d]/10 bg-white p-3 ${selected ? "ring-2 ring-[#bd4c35]" : ""}`}>
               <div className="flex flex-wrap items-center justify-between gap-2 text-sm">
                 <span className="font-semibold text-[#315f51]">{item.start_time}—{item.end_time} · {itemLabels[item.kind]}</span>
                 <span className="text-xs text-[#68726c]">{item.duration_minutes} 分钟</span>
               </div>
               <p className="mt-2 break-words text-sm font-medium">{itemTitle(item)}</p>
               {item.kind === "visit" && <><span className={`mt-2 inline-block rounded-full px-2 py-1 text-xs font-semibold ${optionalIds.has(item.place_id ?? "") ? "bg-amber-50 text-[#835718]" : "bg-[#edf3ef] text-[#315f51]"}`}>{optionalIds.has(item.place_id ?? "") ? "可选地点" : "必去地点"}</span><p className="mt-1 text-xs text-[#68726c]">停留来源：{item.duration_source === "user" ? "你修改的规划设置" : "默认规划设置，可修改"}；非高德游玩时长。</p></>}
+              {mapContext && visit && <div className="mt-2 text-xs text-[#56605c]">
+                <p>地点 {visit.number} · {visit.place?.address || "暂未提供地址"} · 来源：高德地点快照</p>
+                <button type="button" onClick={() => map.locateVisit(index)} className="mt-1 min-h-11 rounded-lg border border-[#315f51]/30 px-3 text-sm font-medium text-[#315f51]">在地图查看地点 {visit.number}：{name(item.place_id)}</button>
+              </div>}
               {item.kind === "lunch" && <p className="mt-1 text-xs text-[#68726c]">只占用设定时间，不含餐厅路线、费用或营业保证。</p>}
               {edge && <EdgeDetails edge={edge} />}
             </li>;
@@ -149,11 +159,12 @@ export function ScheduleResult({ response }: { response: ScheduleResponse }) {
     </div>;
 }
 
-export default function SchedulePreview({ request, preview, restored = false }: { request: TripRequest; preview: ScheduleController; restored?: boolean }) {
+export default function SchedulePreview({ request, preview, restored = false, enablePlaceMap = false }: { request: TripRequest; preview: ScheduleController; restored?: boolean; enablePlaceMap?: boolean }) {
   const { lunch, state, validationMessage, canQuery, optionalPlaces, candidateLoading, transportMode } = preview;
   const required = request.must_visit_places ?? [];
   const response = state.response;
   const loading = state.status === "loading";
+  const version = preview.readVersion();
   return <section aria-label="行程草案" className="mt-6 min-w-0 rounded-3xl border-2 border-[#315f51]/30 bg-white p-5 sm:p-8">
     <h2 className="text-xl font-semibold text-[#18392f]">行程草案 · {transportMode === "walking" ? "步行" : "公交／地铁参考"}</h2>
     <p className="mt-2 text-sm leading-6 text-[#56605c]">先按原顺序安排全部必去地点，再尝试在每日尾部加入最多 1 个可选地点，并校验当日返回住宿。支持上海 1～3 天、最多 6 个必去地点和本次前 3 个有效可选地点；至少需要 1 个必去或可选地点。每日 1 个可选名额是本轮产品规则，不代表最优安排。</p>
@@ -213,7 +224,7 @@ export default function SchedulePreview({ request, preview, restored = false }: 
       {state.status === "failed" && <p role="alert">{state.message ?? "草案生成失败，请主动重试。"}</p>}
     </div>
 
-    {response && <ScheduleResult response={response} />}
+    {response && <ScheduleResult key={version} response={response} mapContext={enablePlaceMap ? { isCurrent: () => preview.readVersion() === version } : undefined} />}
     <p className="mt-5 rounded-xl bg-amber-50 p-3 text-xs leading-6 text-[#835718]">营业时间、预约要求、门票、餐费及其他真实费用均未知，预算尚未核实。午餐未选择餐厅，绕行尚未计入。费用与天气请按需独立核对，不作为排程承诺。</p>
   </section>;
 }

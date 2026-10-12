@@ -84,7 +84,7 @@ export default function PlanningWorkspace({ request, initial, origin = "new", re
     <CandidatePreparation request={request} pool={candidates} restored={origin === "history"} />
     </WorkflowSection>
     <WorkflowSection step="draft" title="生成与查看草案">
-    <SchedulePreview request={request} preview={schedule} restored={origin === "history"} />
+    <SchedulePreview request={request} preview={schedule} restored={origin === "history"} enablePlaceMap={origin !== "demo"} />
     </WorkflowSection>
     <WorkflowSection step="review" title="核对、调整与保存">
     <p className="text-sm leading-6">费用仅作核对，不影响排程或采用资格。天气检查和 AI 调整可跳过，已有有效草案即可保存；调整预览须明确采用才改变正式行程。</p>

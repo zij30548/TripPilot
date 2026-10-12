@@ -38,6 +38,8 @@
 
 ## Current
 
+- **6C-2 formal schedule place maps are implemented and accepted**, based on verified pushed `main` **`7864476d0695ac3c24b1b54ea451a3507c87c706`** (6C-1 notice follow-up). This **11-file frontend/document delivery** adds explicitly opened, date-synchronized real AMap place markers to current official drafts only. Frontend **1,041 tests / 51 files**, lint, typecheck, Webpack production build and diff checks pass. Actual production Chrome verified formal maps, both directions of selection, two populated dates and an empty third date, rule invalidation/regeneration, preview/cancel/adoption, history-copy generation, 400px/keyboard/collapse and independent `/demo` real map/route regression. Seventeen individually inspected screenshots and a sanitized receipt are in stable `6c-2` evidence below. **0 Qwen calls**, no backend/database/configuration/dependency changes. Five original cache contents remain unchanged and excluded. Ordinary stage-only commit/push follows final manifest/security/remote checks; stop at 6C-2. Earlier entries retain historical status and limitations.
+
 - **6C-1 notice lifecycle follow-up is implemented and accepted** on `7148b5957a910b61b2cd85575f29c5684a865725`. Five delivery files separate persistent input-change notices from regeneration guidance derived from the current version-guarded draft state. Frontend **1,023 / 49 files**, lint, typecheck and Webpack build passed. Real Chrome verified confirm people change → new walking success removes the obsolete prompt while fee cleanup remains → cancel preserves work, at 400px. Three inspected screenshots and sanitized receipt: `trippilot-evidence/6c-1/notice-fix/`. **0 Qwen calls**, no database/backend/configuration change; five original caches match baseline hashes. Ordinary fix-only commit/push follows final checks; stop after this fix. Earlier entries below retain historical results.
 
 - Milestone **6C-1 unified formal planning entry is implemented and accepted**, based on verified pushed `main` **`1a25cff0b6809699bcd8572560eeddab00974784`** (6B-2). This **26-file frontend/document delivery** moves the default homepage directly from confirmed TripRequest to the shared editable PlanningWorkspace; `/demo` preserves the explicit legacy Mock/map integration example. Final frontend **1,020 tests / 49 files**, lint, typecheck, Webpack production build and diff checks pass. Actual production Chrome passed new → real required-only/optional walking drafts → costs → preview/cancel/adopt → save → new-tab history copy → regenerate/another save, plus 400px/keyboard and independent real map/Marker regression. Twenty individually opened screenshots and sanitized counts are in stable `6c-1` evidence below. **0 Qwen calls**, cumulative **20/20** unchanged. Ordinary stage-only commit/push follows final manifest/security/remote checks; five original cache contents remain untouched and excluded. Earlier Current/Next entries remain historical records.
@@ -82,12 +84,86 @@
 
 ## Next
 
+- **Current instruction: close out 6C-2 only with an ordinary commit/push after checks, then stop.** The prior stop-after-notice-fix instruction below is superseded by explicit 6C-2 authorization. No formal road polylines, automatic planning, new model allowance, persistence of map state or next stage is included.
+
 - **Current instruction: close out only the 6C-1 notice lifecycle fix with ordinary commit/push, then stop.** Do not begin 6C-2 or spend Qwen calls. Earlier stopping points below are historical.
 
 - **Current instruction: stop after ordinary 6C-1 commit/push.** No next stage, new Qwen allowance, formal-draft map, autosave, schema/dependency/configuration change or optimization is included. The earlier stage stopping points below are historical and superseded by explicit 6C-1 authorization.
 - **Current instruction: stop after ordinary 6B-2 commit/push.** Do not start a subsequent stage. The earlier 6B-1 stopping point below is retained as history and was superseded by the explicit 6B-2 authorization. No new Qwen allowance, archive update/delete, autosave, persistence of working copies or multi-user access is introduced.
 - Close out only this **6B-1** delivery with an ordinary stage-only commit/push after remote and staged-content checks. Stop afterward; do not start history editing (6B-2). No further Qwen call is authorized by the exhausted **20 / 20** allowance. Physical-phone/touch, dedicated live subway/transfer-operation samples, broader real upstream fault acceptance, six-required-plus-three-optional live full-load acceptance and the Turbopack limitation remain separate; historical evidence is retained
 - Review existing dependency security advisories as a separate, approved maintenance task before deployment
+
+## Milestone 6C-2 Formal Schedule Place Maps (2026-10-12–13)
+
+### Baseline and data boundary
+
+- Actual project `/Users/zijing/projects/trippilot`, `main`; starting HEAD and freshly fetched `origin/main` both **`7864476d0695ac3c24b1b54ea451a3507c87c706`**, 0 ahead/behind. Read root/frontend instructions, current context/progress, installed Next.js client/page documentation and the existing map/schedule controllers. No temporary project, reset or unrelated overwrite.
+- `scheduleMapData(response, date)` projects only the selected day's actual `visit` items, in timeline order, resolving snapshots from **that response's request**. No candidate pool, unarranged requirement, other date, old Mock activity or unadopted adjustment enters the map. Same-name/different-ID places remain separate. IDs deduplicate accommodation/return and visits; a shared home/visit marker reads e.g. `住·1`, and retains both home and timeline entrances. Wait/lunch blocks create no destination.
+- Accommodation has its own description and marker. A date without visits has **zero markers**, including no accommodation marker, and an explicit empty message. Invalid or missing coordinates are reported without substituting zero coordinates or mutating the response/timeline/save inputs. Partial schedules show their actual arranged portion only.
+- Formal maps are **places only** in both walking and transit modes; existing transit geometry is not passed to `PlaceMap`. No polylines, route optimization, new routing request, fabricated connectors or claims that visit order is a road route. Existing AMap loader, fixed Shanghai center lookup, attribution and restricted proxy are reused unchanged. Official JS API reference consulted: [AMap 2.0 map reference](https://a.amap.com/jsapi/static/doc/20230922/index.html).
+
+### Interaction, lifecycle and compatibility
+
+- `PlanningWorkspace` explicitly enables maps for new and historical-copy workspaces, not `demo`. `ScheduleResult` defaults to no map; read-only archives and both sides of an adjustment retain that default. A historical result is not installed as new official success; only explicit fresh generation enables its formal map.
+- One date state controls timeline and map. The official schedule controller's monotonic version keys the result, **not `generated_at`**: new generation/adoption resets to the first requested date, clears selection, disposes the old map, and starts collapsed until explicitly opened. Rules/candidates/mode/requirements invalidation removes the old result immediately.
+- “查看当天地图” or a visit's keyboard-accessible location button lazily creates the instance. Timeline → marker selects/centers it, including repeated same-place clicks. Marker → timeline focuses/scrolls/highlights the matching visit by ID/item index; accommodation markers focus the home explanation instead. “查看当天全部地点” fits current home/visits without a business query.
+- Day epochs and live official-version checks reject retained old callbacks, including date ABA and invalidation before unmount. `PlaceMap` guards async initialization, checks current place-array identity and listener lifetime, and detaches events/markers and destroys the instance on cleanup. Labels use text content, not external HTML.
+- Collapse keeps the same map instance and all workspace controllers mounted. SDK container resizing was actually checked at 400px after reopen (canvas/container both262px, page400px); no custom observer or replacement map was needed. Memoized projections keep markers/view stable under fee edits, weather updates and ordinary re-renders. Map failure stays local, with an explicit reload-map button; no automatic retry.
+- Adjustment loading/completion/cancel leaves the official map unchanged. Adoption alone advances official version and exposes the new map. Map presentation never mutates costs, candidates, weather checks, explanation, preview, archive schema or frozen save operation. The **6C-1 notice follow-up remains intact**, with its tests retained.
+
+### Checks actually executed
+
+- Targeted projection/map/shared walking/transit/search tests: **39 passed** before the final additional transit composition case. Final full `cd frontend && npm test -- --reporter=dot`: **1,041 passed / 51 files**. New coverage includes current-day order/filtering, home dual identity, same-name IDs, empty/partial dates, malformed coordinates, walking/transit places-only projection, repeat location, date and official-version isolation, late initialization, cleanup/retry, stable collapse/re-render, actual workspace preview/cancel/adoption, and uncertain save retry retaining its original operation/content through map presentation changes.
+- `cd frontend && npm run lint`: passed. `npm run typecheck`: passed. `npm run build -- --webpack`: passed (production routes `/`, `/demo`, `/plan/from/[id]` unchanged). `git diff --check` and final staged checks: passed. Final added transit test did not change production source; browser acceptance used the current production source build.
+- Backend source and contracts unchanged: no mechanical full backend-suite rerun. Existing temporary-database Python→TypeScript saved-trip checks ran within the frontend suite, preserving old v1 compatibility. Existing Starlette TestClient deprecation warnings remain; no dependency change. Original five Python caches retain their baseline SHA256 contents.
+- Real SDK failures, invalid coordinates, same-ID home/visit, stale callbacks/races, uncertain saves and transit-specific formal-map composition are **controlled tests**, not claims of deliberately induced live upstream faults. No real Qwen invocation; inherited cumulative20/20 remains exhausted.
+
+### Actual production Chrome acceptance
+
+- Chrome **155.0.8059.39**, production Webpack build. Reused backend PID42730; restarted only verified project frontend PID50120 to load this build. Dates crossed Shanghai midnight during this round, recorded as Oct12–13 rather than backdating evidence.
+- From the formal homepage: real POI searches confirmed **静安寺** (`B00154BDE9`, 南京西路1686号), **武康大楼** (`B00155ITJ1`, 淮海中路1850号), **上海博物馆(人民广场馆)** (`B001535BBC`, 人民大道201号). Request: Oct13–15,2 travelers,budget4000,09:00–18:00,摄影. Confirmation made no `/trips/plan` or automatic business query.
+- With both stays180/user, explicit walking generation arranged 武康 onOct13,13:00–16:00/return16:36; museum onOct14,13:00–16:00/return16:43; Oct15 was empty. Actual roads, place labels, official attribution, `住` and `1` markers were visible. Switching toOct14 replaced the visit marker/cleared selection; Oct15 removed all markers and disabled fit-all, without inventing activities.
+- Timeline → 武康 marker was red and centered (measured0px horizontal/vertical offset). Dragging away and repeating the location action returned it to0px/0px. Clicking the actual visible marker focused/highlighted the visit card; home marker targeted the accommodation description. Initial automated clicks immediately after fit animations did not select and were **not counted as passes**; subsequent foreground/settled visible-marker clicks and inspected replacement screenshots confirmed the successful selection. No application change was needed to obtain it.
+- Changing stay cleared map/timeline synchronously with business count **4→4**. After both stays60, explicit candidates and new walking generation produced day-one numbers1武康/2博物馆/3延中广场公园, with other optionals on later dates. Fee input20, weather query and adjustment preview retained the **same map DOM and marker DOM**. Expanded original/preview timelines created no additional maps. Cancel kept the original map and state, **8→8** local business calls.
+- A second explicit preview excluded 延中广场公园; adoption kept local request count **9→9**, disposed old map, and the reopened official map showed1武康/2博物馆/3辅德里. Other-fee input remained20. Weather used real returned data: Oct13多云/阴,Oct14阴/阴,Oct15阴/小雨, reportedOct12 23:33:08 and queriedOct13 00:01:18 Shanghai. The targeted Oct13 adjustment was **manual, not a claimed rain-driven substitution**.
+- At400px, page scrollWidth400. Keyboard Enter opened/collapsed/reopened the same instance, invoked fit-all and centered museum marker2. Canvas/container dimensions matched and the complete map/attribution remained visible. This is desktop Chrome narrow viewport, not physical-phone/touch acceptance.
+- Read-only archive `8bf1ada8099744c9b2937d098603da8b` had no formal map/button. Opening its new-tab copy made **one GET detail only**, no map or automatic generation. Explicit new walking generation then enabled a real home/武康/辅德里 map. Original snapshot dates and source times stayed visible; no archive save/update/delete operation was performed in this round.
+- A fresh `/demo` on this production build retained explicit Mock submission, real bindings to静安寺/武康, the real walking polyline, activity→marker and marker→activity selection. This evidence establishes legacy compatibility **separately**, not as proof of the formal map. Its map operations kept local business calls **5→5**.
+- All observed local business requests returned200. Formal tab: POI GET3, candidates POST1, schedule POST4 (2 ordinary+2 adjustment previews), weather POST1, history list GET1, history detail GET1 = **11**. Copy: initial detail GET1, explicit schedule POST1 = **2**. Demo: POI GET3, Mock plan POST1, single walking POST1 = **5**. Map interaction spans did not add these business requests. Performance-resource observations separately recorded formal/copy/demo Shanghai-proxy entries4/2/2 and AMap-host resources62/14/18; these include SDK/basemap resources and are **not individual upstream HTTP-attempt accounting** or a claim of no network traffic.
+- Formal console: **0 errors / 3 warnings**; copy and demo each0 errors/1 warning in tool-generated logs. No raw URLs/headers/logs were retained as deliverable evidence; only counts. Tool-created console files were removed after safe summarization, not committed.
+
+### Stable evidence and remaining limits
+
+All **17 screenshots** below were opened and visually inspected, including replacement captures after successful marker selection. Directory outside Git: `/Users/zijing/projects/trippilot-evidence/6c-2/`.
+
+| Evidence | Actual observation |
+| --- | --- |
+| [01-formal-day-one.png](/Users/zijing/projects/trippilot-evidence/6c-2/01-formal-day-one.png), [02-card-to-marker.png](/Users/zijing/projects/trippilot-evidence/6c-2/02-card-to-marker.png), [03-marker-to-card.png](/Users/zijing/projects/trippilot-evidence/6c-2/03-marker-to-card.png) | Official basemap, centered/highlighted visit1, reverse focused visit card |
+| [04-day-two.png](/Users/zijing/projects/trippilot-evidence/6c-2/04-day-two.png), [05-empty-day.png](/Users/zijing/projects/trippilot-evidence/6c-2/05-empty-day.png) | Different date's actual museum, then zero markers on empty date |
+| [06-rule-invalidates.png](/Users/zijing/projects/trippilot-evidence/6c-2/06-rule-invalidates.png), [07-new-draft-numbering.png](/Users/zijing/projects/trippilot-evidence/6c-2/07-new-draft-numbering.png) | Old map removed; new actual visit order1–3 |
+| [08-preview.png](/Users/zijing/projects/trippilot-evidence/6c-2/08-preview.png), [09-cancel-keeps-map.png](/Users/zijing/projects/trippilot-evidence/6c-2/09-cancel-keeps-map.png), [10-adopted-map.png](/Users/zijing/projects/trippilot-evidence/6c-2/10-adopted-map.png) | Real preview, cancel retains 延中, adoption changes to辅德里 |
+| [11-mobile-reopened.png](/Users/zijing/projects/trippilot-evidence/6c-2/11-mobile-reopened.png), [12-mobile-keyboard-location.png](/Users/zijing/projects/trippilot-evidence/6c-2/12-mobile-keyboard-location.png), [17-mobile-viewport.png](/Users/zijing/projects/trippilot-evidence/6c-2/17-mobile-viewport.png) | Resized same instance, keyboard museum location, full400px viewport |
+| [13-history-copy-before.png](/Users/zijing/projects/trippilot-evidence/6c-2/13-history-copy-before.png), [14-history-copy-new-map.png](/Users/zijing/projects/trippilot-evidence/6c-2/14-history-copy-new-map.png) | Historical input-only source, then newly generated official map |
+| [15-demo-route.png](/Users/zijing/projects/trippilot-evidence/6c-2/15-demo-route.png), [16-demo-marker-card.png](/Users/zijing/projects/trippilot-evidence/6c-2/16-demo-marker-card.png) | Independent legacy real polyline and reverse marker selection |
+| [receipt.json](/Users/zijing/projects/trippilot-evidence/6c-2/receipt.json) | Sanitized checkpoints/counts and controlled-vs-real boundary |
+
+No formal road lines or saved map state. Live formal transit, same-home/visit and malformed-coordinate/error cases were not separately manufactured for screenshots; mode parity and adverse cases use controlled tests. Physical-phone/touch, real subway/transfer-specialty samples, broader real failures, full-load routing limits and the existing Turbopack limitation remain unverified/historical. Existing query deadlines/cleanup, request-local throttling, stale data, source-time and non-optimized scheduling restrictions remain unchanged. No model/configuration/keys/proxy/CORS/backend/database/dependency changes or next-stage work.
+
+### Delivery manifest (11 files)
+
+1. `frontend/src/lib/schedule-map.ts`
+2. `frontend/src/lib/schedule-map.test.ts`
+3. `frontend/src/lib/use-schedule-map.ts`
+4. `frontend/src/components/trip/schedule-place-map.tsx`
+5. `frontend/src/components/trip/schedule-place-map.test.tsx`
+6. `frontend/src/components/trip/schedule-preview.tsx`
+7. `frontend/src/components/trip/planning-workspace.tsx`
+8. `frontend/src/components/places/place-map.tsx`
+9. `frontend/src/components/trip/formal-planning.integration.test.tsx`
+10. `docs/DEMO_6C1.md`
+11. `docs/PROGRESS.md`
+
+Only these files are eligible for explicit stage-only staging/ordinary commit/push after manifest, cache-hash, sensitive-information, whitespace and remote checks. Evidence remains outside Git; original caches, environment files, database/sidecars and unrelated changes are excluded. Stop at6C-2.
 
 ## 6C-1 Follow-up: Regeneration Notice Lifecycle (2026-10-12)
 

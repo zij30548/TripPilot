@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import { getShanghaiCenter, loadAMap, type AMapSDK } from "@/lib/amap-loader";
 import { hasValidCoordinates, type Place } from "@/types/place";
 import type { WalkingRouteResponse } from "@/types/route";
@@ -11,7 +11,7 @@ type MarkerEntry = { marker: AMap.Marker; element: HTMLDivElement; onClick: () =
 
 export default function PlaceMap({ places, selectedPlaceId, selectionVersion = 0, onSelect,
   fitAllLabel = "查看全部搜索结果", footnote = "编号对应搜索候选地点，不代表行程顺序或路线。",
-  walkingRoute, transitRoute, routeSelectionVersion = 0 }: {
+  walkingRoute, transitRoute, routeSelectionVersion = 0, markerLabels, isActive }: {
   places: Place[];
   selectedPlaceId: string | null;
   selectionVersion?: number;
@@ -21,6 +21,8 @@ export default function PlaceMap({ places, selectedPlaceId, selectionVersion = 0
   walkingRoute?: WalkingRouteResponse | null;
   transitRoute?: TransitRouteResponse | null;
   routeSelectionVersion?: number;
+  markerLabels?: Readonly<Record<string, string>>;
+  isActive?: () => boolean;
 }) {
   const container = useRef<HTMLDivElement>(null);
   const map = useRef<AMap.Map | null>(null);
@@ -28,6 +30,9 @@ export default function PlaceMap({ places, selectedPlaceId, selectionVersion = 0
   const markers = useRef(new Map<string, MarkerEntry>());
   const routeLines = useRef<AMap.Polyline[]>([]);
   const onSelectRef = useRef(onSelect);
+  const activeRef = useRef(isActive);
+  const placesRef = useRef(places);
+  const [attempt, setAttempt] = useState(0);
   const [mapStatus, setMapStatus] = useState<MapStatus>({ status: "loading" });
   const invalidCount = places.filter((place) => !hasValidCoordinates(place)).length;
   // Render only one mode, even if a caller accidentally provides both results.
@@ -41,9 +46,11 @@ export default function PlaceMap({ places, selectedPlaceId, selectionVersion = 0
   ));
   const hasTransitGeometry = validTransit && transit.legs.some((leg) => leg.geometry.length > 0);
 
-  useEffect(() => {
+  useLayoutEffect(() => {
     onSelectRef.current = onSelect;
-  }, [onSelect]);
+    activeRef.current = isActive;
+    placesRef.current = places;
+  }, [onSelect, isActive, places]);
 
   useEffect(() => {
     const controller = new AbortController();
@@ -56,9 +63,9 @@ export default function PlaceMap({ places, selectedPlaceId, selectionVersion = 0
     async function initialize() {
       try {
         const amap = await loadAMap();
-        if (controller.signal.aborted) return;
+        if (controller.signal.aborted || activeRef.current?.() === false) return;
         const center = await getShanghaiCenter(amap, controller.signal);
-        if (controller.signal.aborted || !container.current) return;
+        if (controller.signal.aborted || activeRef.current?.() === false || !container.current) return;
         // Passing a verified center prevents the SDK from using IP location.
         map.current = new amap.Map(container.current, { center, zoom: 11, viewMode: "2D" });
         sdk.current = amap;
@@ -86,7 +93,7 @@ export default function PlaceMap({ places, selectedPlaceId, selectionVersion = 0
       map.current = null;
       sdk.current = null;
     };
-  }, []);
+  }, [attempt]);
 
   useEffect(() => {
     if (mapStatus.status !== "ready" || !map.current || !sdk.current) return;
@@ -98,26 +105,31 @@ export default function PlaceMap({ places, selectedPlaceId, selectionVersion = 0
     });
     markerEntries.clear();
 
+    let current = true;
     places.forEach((place, index) => {
       if (!hasValidCoordinates(place)) return;
       const element = document.createElement("div");
-      element.textContent = String(index + 1);
+      element.textContent = markerLabels?.[place.id] ?? String(index + 1);
       element.style.cssText = "display:grid;place-items:center;width:30px;height:30px;border-radius:50%;border:2px solid white;background:#315f51;color:white;font:600 13px sans-serif;box-shadow:0 2px 6px #0004;cursor:pointer";
       const marker = new sdk.current!.Marker({ position: [place.longitude, place.latitude], title: place.name, content: element, anchor: "center", map: currentMap });
-      const onClick = () => onSelectRef.current(place.id);
+      // Retained SDK callbacks must not act on a replaced day/draft, including ABA.
+      const onClick = () => {
+        if (current && placesRef.current === places && activeRef.current?.() !== false) onSelectRef.current(place.id);
+      };
       marker.on("click", onClick);
       markerEntries.set(place.id, { marker, element, onClick });
     });
     if (markerEntries.size > 0) currentMap.setFitView(Array.from(markerEntries.values(), ({ marker }) => marker), false, [40, 40, 40, 40], 16);
 
     return () => {
+      current = false;
       markerEntries.forEach(({ marker, onClick }) => {
         marker.off("click", onClick);
         marker.setMap(null);
       });
       markerEntries.clear();
     };
-  }, [places, mapStatus.status]);
+  }, [places, markerLabels, mapStatus.status]);
 
   useEffect(() => {
     if (mapStatus.status !== "ready") return;
@@ -209,7 +221,11 @@ export default function PlaceMap({ places, selectedPlaceId, selectionVersion = 0
       <div className="relative">
         <div ref={container} aria-label="上海地点地图" className="h-80 w-full sm:h-96" />
         {mapStatus.status !== "ready" && <div className="absolute inset-0 grid place-items-center bg-[#f3f2ec] px-5 text-center text-sm leading-6 text-[#56605c]">
-          {mapStatus.status === "loading" ? <p role="status">正在加载上海地图…</p> : <p role="alert">{mapStatus.message}</p>}
+          {mapStatus.status === "loading" ? <p role="status">正在加载上海地图…</p> : <div><p role="alert">{mapStatus.message}</p>
+            <button type="button" className="mt-3 min-h-11 rounded-lg border border-[#315f51]/30 bg-white px-4 text-[#315f51]" onClick={() => {
+              if (activeRef.current?.() === false) return;
+              setMapStatus({ status: "loading" }); setAttempt(value => value + 1);
+            }}>重试加载地图</button></div>}
         </div>}
       </div>
       {invalidCount > 0 && <p role="alert" className="border-t border-[#18201d]/10 px-3 py-2 text-xs leading-5 text-[#a63d2d]">{invalidCount} 个地点坐标无效，未在地图上显示。</p>}

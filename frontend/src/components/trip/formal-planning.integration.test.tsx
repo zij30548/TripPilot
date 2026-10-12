@@ -7,8 +7,22 @@ import { adjustmentResponse } from "@/lib/schedule-adjustment.test-fixtures";
 import { candidateResponse, deferred, forecast, now, required, tripRequest } from "@/lib/weather-schedule-check.test-fixtures";
 import type { SaveOperation } from "@/lib/saved-trips";
 import type { ScheduleResponse } from "@/types/schedule";
+import type { AMapSDK } from "@/lib/amap-loader";
 
 const api = vi.hoisted(() => ({ search: vi.fn(), plan: vi.fn(), schedule: vi.fn(), candidates: vi.fn(), weather: vi.fn(), save: vi.fn(), model: vi.fn(), intent: vi.fn() }));
+const loader = vi.hoisted(() => ({ loadAMap: vi.fn(), getShanghaiCenter: vi.fn() }));
+vi.mock("@/lib/amap-loader", () => loader);
+const maps: TestMap[] = [], markers: TestMarker[] = [];
+class TestMap {
+  setFitView = vi.fn(); setZoomAndCenter = vi.fn(); destroy = vi.fn();
+  constructor() { maps.push(this); }
+}
+class TestMarker {
+  handler = () => {};
+  on = (_: string, handler: () => void) => { this.handler = handler; };
+  off = vi.fn(); setMap = vi.fn(); setzIndex = vi.fn();
+  constructor(readonly options: { title: string; content: HTMLElement }) { markers.push(this); }
+}
 vi.mock("@/lib/api", async original => ({ ...await original<typeof import("@/lib/api")>(), planTrip: api.plan }));
 vi.mock("@/lib/places-api", () => ({ searchPlaces: api.search }));
 vi.mock("@/lib/schedule-api", async original => ({ ...await original<typeof import("@/lib/schedule-api")>(), querySchedulePreview: api.schedule }));
@@ -27,6 +41,8 @@ const timeline = () => screen.getAllByRole("list", { name: "草案时间线" })[
 function open(request = tripRequest()) { return render(<EditablePlanningSession sessionId="new-controlled-session" initial={newWorkspaceInputs(request)} origin={{ kind: "new" }} />); }
 beforeEach(() => {
   vi.resetAllMocks(); vi.useFakeTimers({ toFake: ["Date"] }); vi.setSystemTime(now);
+  maps.length = 0; markers.length = 0;
+  loader.loadAMap.mockResolvedValue({ Map: TestMap, Marker: TestMarker } as unknown as AMapSDK); loader.getShanghaiCenter.mockResolvedValue([121, 31]);
   api.schedule.mockImplementation(async r => adjustmentResponse(r)); api.candidates.mockResolvedValue(candidateResponse()); api.weather.mockResolvedValue(forecast());
   api.search.mockResolvedValue([tripRequest().accommodation_place, required]);
   api.save.mockImplementation(async (o: SaveOperation) => ({ id: "c".repeat(32), name: o.name, saved_at: "2026-10-12T00:00:00Z", snapshot: o.snapshot }));
@@ -117,6 +133,7 @@ describe("6C-1 formal homepage and stable presentation (controlled services)", (
   });
   it("collapse/navigation preserves draft, fee input, uncertain frozen save content and operation ID", async () => {
     open(); await click("生成行程草案"); const before = timeline();
+    await click("查看当天地图"); await click("收起当天地图");
     fireEvent.change(official().getByRole("textbox", { name: /全程其他/ }), { target: { value: "12.30" } });
     api.save.mockRejectedValueOnce(new Error("结果未确认")); await click("保存当前正式草案");
     const frozen = structuredClone(api.save.mock.calls[0][0]); const requests = counts();
@@ -126,6 +143,7 @@ describe("6C-1 formal homepage and stable presentation (controlled services)", (
     fireEvent.change(official().getByRole("textbox", { name: /全程其他/ }), { target: { value: "99" } });
     await click("重试保存冻结快照"); expect(api.save.mock.calls[1][0]).toEqual(frozen);
     await click("2 · 生成与查看草案"); expect(timeline()).toBe(before);
+    await click("查看当天地图"); expect(maps).toHaveLength(1); expect(markers).toHaveLength(2);
   });
   it("optional-only inputs require explicit candidates; navigation cannot trigger retrieval", async () => {
     open({ ...tripRequest(), must_visit: [], must_visit_places: [] });
@@ -153,5 +171,29 @@ describe("6C-1 formal homepage and stable presentation (controlled services)", (
     expect(section("review").open).toBe(true); await click("取消预览"); expect(timeline()).toBe(before); expect(counts()).toEqual(requests);
     await click("预览排除该地点后的草案"); const readyCounts = counts(); await click("采用此方案"); expect(counts()).toEqual(readyCounts);
     expect(timeline()).not.toBe(before); expect(official().getByRole("heading", { name: "正式草案费用与预算" })).toBeTruthy(); expect(api.model).not.toHaveBeenCalled();
+  });
+  it("official maps are independent of costs/weather/unadopted previews; adopting replaces the map without route/SDK queries", async () => {
+    open(); await click("获取候选地点"); await click("生成行程草案"); await click("查看当天地图");
+    expect(markers).toHaveLength(3); const original = markers.slice(), requests = counts();
+    await click("在地图查看地点 1：同名地点"); await click("查看当天全部地点");
+    fireEvent.change(official().getByRole("textbox", { name: /全程其他/ }), { target: { value: "20" } });
+    expect(counts()).toEqual(requests); expect(markers).toHaveLength(3); expect(loader.loadAMap).toHaveBeenCalledOnce();
+    await click("查询天气"); await click("检查天气对行程的影响"); await click("预览排除该地点后的草案");
+    expect(markers).toHaveLength(3); expect(maps).toHaveLength(1); expect(screen.getAllByRole("button", { name: "收起当天地图" })).toHaveLength(1);
+    await click("取消预览"); expect(markers).toHaveLength(3); expect(maps[0].destroy).not.toHaveBeenCalled();
+    await click("预览排除该地点后的草案"); const beforeAdopt = counts(); await click("采用此方案");
+    expect(counts()).toEqual(beforeAdopt); expect(maps[0].destroy).toHaveBeenCalledOnce();
+    expect(screen.queryByLabelText("上海地点地图")).toBeNull();
+    await click("查看当天地图"); expect(maps).toHaveLength(2); expect(markers.slice(3).map(m => m.options.title)).toContain("测试可选2");
+    act(() => original[2].handler()); expect(document.querySelector('[data-map-selected="true"]')).toBeNull();
+    expect(fetch).not.toHaveBeenCalled();
+  });
+  it("rules synchronously invalidate the official map and a new generation with the same timestamp cannot inherit its selection", async () => {
+    open(); await click("生成行程草案"); await click("在地图查看地点 1：同名地点");
+    const old = markers[1].handler; change("停留分钟：同名地点", "75");
+    expect(screen.queryByRole("region", { name: "正式草案当天地点地图" })).toBeNull(); expect(maps[0].destroy).toHaveBeenCalledOnce();
+    act(old); await click("生成行程草案"); expect(screen.queryByLabelText("上海地点地图")).toBeNull();
+    await click("查看当天地图"); act(old); expect(document.querySelector('[data-map-selected="true"]')).toBeNull();
+    expect(maps).toHaveLength(2); expect(api.schedule).toHaveBeenCalledTimes(2); expect(api.model).not.toHaveBeenCalled();
   });
 });
