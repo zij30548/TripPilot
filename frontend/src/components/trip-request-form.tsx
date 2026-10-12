@@ -94,7 +94,7 @@ type PickerSession = {
 const placeButtonClass = "min-h-10 rounded-lg border border-[#315f51]/30 bg-white px-3 py-2 text-xs font-semibold text-[#315f51] disabled:opacity-50";
 
 type FormProps = { onSuccess: (plan: TripPlan) => void; initialRequest?: never; onConfirm?: never; onCancel?: never }
-  | { initialRequest: TripRequest; onConfirm: (request: TripRequest) => void; onCancel: () => void; onSuccess?: never };
+  | { initialRequest?: TripRequest; onConfirm: (request: TripRequest) => void; onCancel?: () => void; onSuccess?: never };
 export default function TripRequestForm({ onSuccess, initialRequest, onConfirm, onCancel }: FormProps) {
   const [form, setForm] = useState<FormState>(() => initialRequest ? {
     startDate: initialRequest.start_date, endDate: initialRequest.end_date, totalBudget: String(initialRequest.budget),
@@ -219,7 +219,8 @@ export default function TripRequestForm({ onSuccess, initialRequest, onConfirm, 
     if (onConfirm) {
       if (!validEditedRequirements(tripRequest)) { setPlaceError("请检查预算、人数、地点与时间后再确认需求。"); return; }
       closePicker();
-      onConfirm(structuredClone(tripRequest)); // Local confirmation only; never POST /trips/plan.
+      submitting.current = true;
+      try { onConfirm(structuredClone(tripRequest)); } finally { submitting.current = false; }
       return;
     }
     closePicker();
@@ -580,7 +581,7 @@ export default function TripRequestForm({ onSuccess, initialRequest, onConfirm, 
             disabled={isLoading}
             type="submit"
           >
-            {isLoading ? "正在获取行程…" : onConfirm ? "确认需求修改" : "生成我的行程"}
+            {isLoading ? "正在获取行程…" : onConfirm ? initialRequest ? "确认需求修改" : "确认需求，开始规划" : "生成我的行程"}
             <span
               aria-hidden="true"
               className="transition-transform group-hover:translate-x-1"
@@ -592,7 +593,7 @@ export default function TripRequestForm({ onSuccess, initialRequest, onConfirm, 
             {onConfirm ? "这里只应用需求，不查询或生成行程。确认后请主动生成新草案。" : "当前返回固定上海两日 Mock 示例，暂不按你的需求调整行程。"}
           </p>
           {onCancel ? <button type="button" onClick={() => { if (!alive.current) return; closePicker(); onCancel(); }} className="mt-4 min-h-11 w-full rounded-xl border px-4 py-2">取消需求修改</button>
-            : <p className="mt-1 text-center text-xs leading-5 text-[#8a8f8c]">已确认地点在返回修改需求时保留，刷新页面后清空。尚未用于安排当前 Mock 行程，也不会自动绑定活动。</p>}
+            : <p className="mt-1 text-center text-xs leading-5 text-[#8a8f8c]">{onConfirm ? "尚未生成草案。确认需求不会自动查询交通、候选或天气；刷新会清空未保存的工作。预算用于费用核对，节奏暂不参与排程。" : "已确认地点在返回修改需求时保留，刷新页面后清空。尚未用于安排当前 Mock 行程，也不会自动绑定活动。"}</p>}
         </div>
       </form>
     </section>

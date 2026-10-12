@@ -158,14 +158,14 @@ export default function SchedulePreview({ request, preview, restored = false }: 
     <h2 className="text-xl font-semibold text-[#18392f]">行程草案 · {transportMode === "walking" ? "步行" : "公交／地铁参考"}</h2>
     <p className="mt-2 text-sm leading-6 text-[#56605c]">先按原顺序安排全部必去地点，再尝试在每日尾部加入最多 1 个可选地点，并校验当日返回住宿。支持上海 1～3 天、最多 6 个必去地点和本次前 3 个有效可选地点；至少需要 1 个必去或可选地点。每日 1 个可选名额是本轮产品规则，不代表最优安排。</p>
     <p className="mt-2 text-sm leading-6 text-[#315f51]">旅行日期：{request.start_date} 至 {request.end_date}；每日窗口：{scheduleClock(request.daily_start_time)}—{scheduleClock(request.daily_end_time)}。修改日期或每日窗口请返回修改旅行需求。</p>
-    <p className="mt-2 text-xs leading-5 text-[#68726c]">修改交通方式、规则、停留时间，或获取、排除、恢复候选都会立即清除旧草案，但不会自动生成。{restored ? "本副本带入历史设置，确认需求修改后保留仍相关的停留与午餐；不兼容的午餐需你修正。刷新会丢失编辑并重新从原存档创建，历史结果不充当新正式草案。" : "返回修改需求、重新生成或刷新页面后，草案与本区设置清空，交通方式恢复步行；不改写旧 Mock 活动、绑定或地图路线。"}</p>
+    <p className="mt-2 text-xs leading-5 text-[#68726c]">修改交通方式、规则、停留时间，或获取、排除、恢复候选都会立即清除旧草案，但不会自动生成。{restored ? "本副本带入历史设置，确认需求修改后保留仍相关的停留与午餐；不兼容的午餐需你修正。刷新会丢失编辑并重新从原存档创建，历史结果不充当新正式草案。" : "取消需求编辑保留当前工作；确认修改后请重新生成，保留仍相关的设置，不兼容的午餐需你修正。刷新清空未保存的工作。"}</p>
     <fieldset className="mt-5 min-w-0 rounded-xl border border-[#315f51]/20 p-4">
       <legend className="px-1 text-sm font-semibold text-[#18392f]">草案交通方式</legend>
       <div className="flex flex-wrap gap-2">
         {([['walking', '步行'], ['transit', '公交／地铁']] as const).map(([mode, label]) => <button type="button" key={mode} aria-pressed={transportMode === mode}
           onClick={() => preview.setTransportMode(mode)} className={`min-h-11 rounded-xl border px-4 py-2 text-sm ${transportMode === mode ? "border-[#315f51] bg-[#edf3ef] text-[#18392f]" : "border-[#18201d]/15 text-[#56605c]"}`}>{label}</button>)}
       </div>
-      <p className="mt-2 text-xs leading-5 text-[#68726c]">整份草案仅使用所选方式；切换只清除旧草案，点击生成才查询。不自动比较或改用其他方式，不影响下方旧地图的交通方式。</p>
+      <p className="mt-2 text-xs leading-5 text-[#68726c]">整份草案仅使用所选方式；切换只清除旧草案，点击生成才查询。不自动比较或改用其他方式，不影响独立示例地图的交通方式。</p>
       {transportMode === "transit" && <p className="mt-2 text-xs leading-5 text-[#835718]">{transitNotice}</p>}
     </fieldset>
 
@@ -214,6 +214,6 @@ export default function SchedulePreview({ request, preview, restored = false }: 
     </div>
 
     {response && <ScheduleResult response={response} />}
-    <p className="mt-5 rounded-xl bg-amber-50 p-3 text-xs leading-6 text-[#835718]">营业时间、预约要求、门票、餐费及其他真实费用均未知，预算尚未核实。午餐未选择餐厅，绕行尚未计入。下方旧 Mock 的预算、天气、活动与交通示例不适用于这份草案。</p>
+    <p className="mt-5 rounded-xl bg-amber-50 p-3 text-xs leading-6 text-[#835718]">营业时间、预约要求、门票、餐费及其他真实费用均未知，预算尚未核实。午餐未选择餐厅，绕行尚未计入。费用与天气请按需独立核对，不作为排程承诺。</p>
   </section>;
 }

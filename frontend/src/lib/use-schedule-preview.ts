@@ -4,7 +4,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { querySchedulePreview, ScheduleError } from "@/lib/schedule-api";
 import type { CandidatePoolSnapshot } from "@/lib/use-candidate-pool";
 import { isScheduleResponse, type ScheduleResponse } from "@/types/schedule";
-import { buildRequest, eligibleOptional, validateScheduleInput, withOptionalDefaults, type ScheduleSettings } from "@/lib/schedule-input";
+import { buildRequest, defaultScheduleSettings, eligibleOptional, validateScheduleInput, withOptionalDefaults, type ScheduleSettings } from "@/lib/schedule-input";
 import { prepareAdjustmentInput, adoptionIssue, type ScheduleCapture, type PreparedAdjustment } from "@/lib/schedule-adjustment";
 import type { CandidateExclusion } from "@/lib/use-candidate-pool";
 import type { TripRequest } from "@/types/trip";
@@ -16,11 +16,7 @@ const idle = (): SchedulePreviewState => ({ status: "idle", response: null, mess
 
 export type ScheduleInitialization = { settings: ScheduleSettings; candidates: CandidatePoolSnapshot };
 export function useSchedulePreview(request: TripRequest, onInvalidate?: () => void, initial?: ScheduleInitialization) {
-  const [settings, setSettings] = useState<ScheduleSettings>(() => structuredClone(initial?.settings ?? {
-    transportMode: "walking",
-    stays: Object.fromEntries((request.must_visit_places ?? []).map((place) => [place.id, { value: "60", source: "default" }])),
-    lunch: { enabled: true, start: "12:00", end: "13:00" },
-  }));
+  const [settings, setSettings] = useState<ScheduleSettings>(() => structuredClone(initial?.settings ?? defaultScheduleSettings(request)));
   const alive = useRef(true);
   const settingsRef = useRef(settings);
   const [candidateInput, setCandidateInput] = useState<CandidatePoolSnapshot>(() => structuredClone(initial?.candidates ?? emptyCandidateSnapshot()));

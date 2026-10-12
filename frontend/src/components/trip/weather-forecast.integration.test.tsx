@@ -77,11 +77,11 @@ beforeEach(() => {
 });
 
 describe("weather isolation in existing trip results", () => {
-  it("uses confirmed request dates, is ordered before candidates and never follows the old date selector", async () => {
+  it("uses confirmed request dates in the independent review section and never follows the old date selector", async () => {
     render(<TripPlanResult plan={makePlan()} onEdit={vi.fn()} />);
     const region = screen.getByRole("region", { name: "上海逐日天气预报" });
-    expect(region.previousElementSibling).toBe(screen.getByRole("region", { name: "已确认需求地点" }));
-    expect(region.nextElementSibling).toBe(screen.getByRole("region", { name: "候选地点准备" }));
+    expect(region.closest("[data-step]")?.getAttribute("data-step")).toBe("review");
+    expect(screen.getByRole("region", { name: "候选地点准备" }).closest("[data-step]")?.getAttribute("data-step")).toBe("prepare");
     expect(panel().getAllByRole("article")).toHaveLength(3);
     fireEvent.click(screen.getByRole("button", { name: /Day 2/ }));
     fireEvent.click(within(screen.getByRole("group", { name: "草案交通方式" })).getByRole("button", { name: "公交／地铁" }));

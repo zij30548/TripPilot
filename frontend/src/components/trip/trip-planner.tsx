@@ -1,31 +1,21 @@
 "use client";
-
 import { useRef, useState, type ReactNode } from "react";
 import TripRequestForm from "@/components/trip-request-form";
-import TripPlanResult from "@/components/trip-plan-result";
-import type { TripPlan } from "@/types/trip";
+import { newWorkspaceInputs, type WorkspaceInputs } from "@/lib/restore-trip";
+import type { TripRequest } from "@/types/trip";
+import EditablePlanningSession from "./editable-planning-session";
 
 export default function TripPlanner({ children }: { children: ReactNode }) {
-  const [plan, setPlan] = useState<TripPlan | null>(null);
-  const formRegion = useRef<HTMLDivElement>(null);
-
-  function editRequest() {
-    setPlan(null);
-    requestAnimationFrame(() => {
-      formRegion.current?.querySelector<HTMLInputElement>("input")?.focus();
-    });
-  }
-
-  return (
-    <div id="top" className="pb-12 pt-8 sm:pt-12 lg:pb-20">
-      {/* Keep the form mounted so returning from results preserves every input. */}
-      <div hidden={plan !== null} ref={formRegion}>
-        <div className="grid gap-10 lg:grid-cols-[minmax(0,0.8fr)_minmax(0,1.2fr)] lg:gap-12">
-          {children}
-          <TripRequestForm onSuccess={setPlan} />
-        </div>
-      </div>
-      {plan && <TripPlanResult plan={plan} onEdit={editRequest} />}
-    </div>
-  );
+  const [session, setSession] = useState<{ id: string; inputs: WorkspaceInputs } | null>(null);
+  const confirmed = useRef(false);
+  const confirm = (request: TripRequest) => {
+    if (confirmed.current) return;
+    const inputs = newWorkspaceInputs(request);
+    confirmed.current = true;
+    setSession({ id: crypto.randomUUID(), inputs });
+  };
+  return <div id="top" className="pb-12 pt-8 sm:pt-12 lg:pb-20">
+    {session ? <EditablePlanningSession key={session.id} sessionId={session.id} initial={session.inputs} origin={{ kind: "new" }} />
+      : <div className="grid gap-10 lg:grid-cols-[minmax(0,0.8fr)_minmax(0,1.2fr)] lg:gap-12">{children}<TripRequestForm onConfirm={confirm} /></div>}
+  </div>;
 }

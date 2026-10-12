@@ -5,10 +5,15 @@ import { emptyCostInputs, parseCostInput, type CostInputs, type UserCost } from 
 import { scheduleClock, scheduleDates, scheduleMinutes } from "@/types/schedule";
 import { isConfirmedPlace, type Place } from "@/types/place";
 import type { TripRequest } from "@/types/trip";
-import type { ScheduleSettings } from "./schedule-input";
+import { defaultScheduleSettings, type ScheduleSettings } from "./schedule-input";
 
 export type WorkspaceInputs = { request: TripRequest; settings: ScheduleSettings; candidates: CandidatePoolSnapshot; costs: CostInputs };
 export type RestoredTrip = { sessionId: string; source: SavedDetail; inputs: WorkspaceInputs };
+
+export function newWorkspaceInputs(request: TripRequest): WorkspaceInputs {
+  if (!validEditedRequirements(request)) throw new Error("请先确认有效的旅行需求与住宿参考点。");
+  return structuredClone({ request, settings: defaultScheduleSettings(request), candidates: emptyCandidateSnapshot(), costs: emptyCostInputs() });
+}
 
 // No response/success state in working inputs. Source is an independent read-only reference.
 export function restoreSavedTrip(value: unknown, sessionId: string): RestoredTrip {
@@ -48,7 +53,7 @@ export function applyEditedRequirements(current: WorkspaceInputs, request: TripR
     accommodation: homeChanged ? "" : current.costs.accommodation, other: current.costs.other,
   };
   const notices = ["需求已应用，旧正式草案及相关解读、检查和预览已清除；请主动重新生成。"];
-  if (resetCandidates) notices.push("住宿、必去或兴趣已变化，可选清单及本副本排除选择已清空，请主动重新获取候选。");
+  if (resetCandidates) notices.push("住宿、必去或兴趣已变化，可选清单及本次排除选择已清空，请主动重新获取候选。");
   if (resetCosts) notices.push("日期或人数已变化，全部用户费用估算已清空；没有自动缩放或搬移旧餐饮费。");
   else if (homeChanged) notices.push("住宿参考点已变化，住宿估算已清空；其他仍相关的原估算保留。");
   return { inputs: structuredClone({ request, settings: { ...current.settings, stays }, candidates, costs }), notices };

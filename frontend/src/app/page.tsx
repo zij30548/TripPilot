@@ -5,17 +5,17 @@ const planningSteps = [
   {
     number: "01",
     title: "告诉我们你的边界",
-    description: "日期、预算与每天可用时间。",
+    description: "确认日期、住宿参考点与必去地点。",
   },
   {
     number: "02",
-    title: "选择喜欢的旅行方式",
-    description: "节奏与兴趣，决定行程的呼吸感。",
+    title: "主动生成真实草案",
+    description: "真实交通估时与规则排程；可按兴趣准备候选。",
   },
   {
     number: "03",
-    title: "补充你的必去清单",
-    description: "保留期待，也避开不感兴趣的地方。",
+    title: "核对、调整与保存",
+    description: "费用、天气和 AI 按需核对，历史可创建独立副本。",
   },
 ];
 
@@ -52,15 +52,15 @@ export default function Home() {
               把想去的上海，变成一份真正适合你的行程。
             </h1>
             <p className="mt-6 max-w-xl text-base leading-7 text-[#56605c] sm:text-lg sm:leading-8">
-              从你的时间、预算和兴趣出发，让每一天既有重点，也留有余地。
-              当前版本专注于上海 1～3 日游。
+              确认地点，主动查询真实交通，再按时间窗口生成上海 1～3 日草案。
+              必去按输入顺序安排，可选每天最多补充一个。预算用于核对，旅行节奏暂不参与排程；AI 只按需解读或理解受限调整，不负责生成整份行程。
             </p>
 
             <div className="mt-9 grid max-w-xl grid-cols-3 overflow-hidden rounded-2xl border border-[#18201d]/10 bg-white/55">
               {[
                 ["1～3 天", "行程长度"],
                 ["上海", "当前城市"],
-                ["个性化", "规划方式"],
+                ["规则排程", "规划方式"],
               ].map(([value, label], index) => (
                 <div
                   key={label}
@@ -96,6 +96,7 @@ export default function Home() {
           </section>
 
         </TripPlanner>
+        <footer className="border-t border-[#18201d]/10 py-5 text-sm text-[#56605c]"><a href="/demo" target="_blank" rel="noopener noreferrer" className="inline-block min-h-11 underline">旧版 Mock／地图联调示例（独立页面）</a></footer>
       </div>
     </main>
   );

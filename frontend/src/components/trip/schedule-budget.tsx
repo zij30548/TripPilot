@@ -14,7 +14,7 @@ export default function ScheduleBudget({ response, request, inputs, onEdit, read
   return <section aria-label="正式草案费用与预算" className="mt-6 min-w-0 rounded-3xl border border-[#315f51]/25 bg-[#f4f8f5] p-5 sm:p-8">
     <h2 className="text-xl font-semibold text-[#18392f]">{readOnly ? "历史快照费用与预算 · 只读" : "正式草案费用与预算"}</h2>
     {readOnly && <p className="mt-2 text-sm">仅按存档中的原参考票价与用户估算重新计算。未重新报价，保存时间不代表费用查询时间。</p>}
-    <p className="mt-2 text-sm leading-6 text-[#56605c]">人民币 · 全部旅客 · 全程总预算。{readOnly ? "仅核对这份历史快照，不使用 Mock 费用；本地核算不会改变当前工作草案。" : "仅核对当前正式草案，不使用下方 Mock 费用；本地核算不会改变排程、候选或调整预览。"}</p>
+    <p className="mt-2 text-sm leading-6 text-[#56605c]">人民币 · 全部旅客 · 全程总预算。{readOnly ? "仅核对这份历史快照，不使用 Mock 费用；本地核算不会改变当前工作草案。" : "仅核对当前正式草案，不使用 Mock 费用；本地核算不会改变排程、候选或调整预览。"}</p>
     {costs.status === "unavailable" ? <p role="status" className="mt-4 text-sm text-[#68726c]">{costs.message}</p> : <>
       <p className="mt-3 text-sm">草案生成时间：<time dateTime={costs.generatedAt}>{timestamp(costs.generatedAt)}</time> · {response!.request.transport_mode === "walking" ? "步行" : "公交／地铁参考"}</p>
       <p className="mt-1 text-sm">核算范围：{costs.dates[0]}—{costs.dates.at(-1)}，{costs.travelers} 位旅客；当前已安排地点、实际交通，以及全程餐饮、住宿与其他用户估算。</p>
@@ -31,7 +31,7 @@ export default function ScheduleBudget({ response, request, inputs, onEdit, read
       </section>
       <section aria-label="用户费用估算" className="mt-5">
         <h3 className="font-semibold text-[#18392f]">你的费用估算</h3>
-        <p className="mt-2 text-xs leading-6 text-[#56605c]">以下均为用户估算，单位：元，全部旅客合计，不再乘人数。空白表示未知，明确填 0 才计零，不代表已核实免费。{readOnly ? "这里保留的是保存时的原估算，不是新日期报价；历史记录只读，刷新不会清空或改写存档。" : "同 ID 的原估算在本次结果内保留，不是新日期报价；新地点默认未知，移出当前草案的地点不计费。返回修改需求或刷新页面后清空。"}</p>
+        <p className="mt-2 text-xs leading-6 text-[#56605c]">以下均为用户估算，单位：元，全部旅客合计，不再乘人数。空白表示未知，明确填 0 才计零，不代表已核实免费。{readOnly ? "这里保留的是保存时的原估算，不是新日期报价；历史记录只读，刷新不会清空或改写存档。" : "同 ID 的原估算在本次结果内保留，不是新日期报价；新地点默认未知，移出当前草案的地点不计费。取消需求修改不会清空；确认日期或人数变化会清空全部估算，其他变化只保留相关项。刷新会丢失未保存的工作。"}</p>
         <div className="mt-3 grid gap-3 sm:grid-cols-2">{costs.user.map((row) => <CostEstimateInput key={row.key} row={row} onChange={onEdit} readOnly={readOnly} />)}</div>
       </section>
       <section aria-label="预算核对汇总" aria-live="polite" className="mt-5 rounded-xl border border-[#315f51]/25 bg-white p-4 text-sm leading-6">

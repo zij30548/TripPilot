@@ -2,7 +2,8 @@ import { act, fireEvent, render, screen, waitFor, within } from "@testing-librar
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import TripRequestForm from "@/components/trip-request-form";
-import TripPlanner from "@/components/trip/trip-planner";
+// Explicit legacy-flow regression; the formal homepage is tested separately.
+import TripPlanner from "@/components/trip/demo-planner";
 import type { AMapSDK } from "@/lib/amap-loader";
 import type { Place } from "@/types/place";
 import type { TripPlan, TripRequest } from "@/types/trip";

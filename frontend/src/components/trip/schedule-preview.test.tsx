@@ -2,7 +2,7 @@ import { act, fireEvent, render, screen, waitFor, within } from "@testing-librar
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import TripPlanResult from "@/components/trip-plan-result";
-import TripPlanner from "./trip-planner";
+import TripPlanner from "./demo-planner";
 import type { AMapSDK } from "@/lib/amap-loader";
 import { ScheduleError } from "@/lib/schedule-api";
 import type { Place } from "@/types/place";

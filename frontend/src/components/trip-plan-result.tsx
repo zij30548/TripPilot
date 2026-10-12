@@ -174,5 +174,5 @@ function MockTripExample({ plan }: { plan: TripPlan }) {
 }
 
 export default function TripPlanResult({ plan, onEdit }: { plan: TripPlan; onEdit: () => void }) {
-  return <PlanningWorkspace request={plan.request} onEdit={onEdit}><MockTripExample plan={plan} /></PlanningWorkspace>;
+  return <PlanningWorkspace request={plan.request} origin="demo" onEdit={onEdit}><MockTripExample plan={plan} /></PlanningWorkspace>;
 }

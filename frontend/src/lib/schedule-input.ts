@@ -7,6 +7,12 @@ import { candidateItems } from "./candidate-pool-state";
 export type StayDraft = { value: string; source: "default" | "user" };
 export type ScheduleSettings = { transportMode: "walking" | "transit"; stays: Record<string, StayDraft>; lunch: { enabled: boolean; start: string; end: string } };
 
+export function defaultScheduleSettings(request: TripRequest): ScheduleSettings {
+  return { transportMode: "walking",
+    stays: Object.fromEntries((request.must_visit_places ?? []).map(place => [place.id, { value: "60", source: "default" }])),
+    lunch: { enabled: true, start: "12:00", end: "13:00" } };
+}
+
 export function eligibleOptional(request: TripRequest, candidates: CandidatePoolSnapshot): Place[] {
   const excluded = new Set([request.accommodation_place?.id, ...(request.must_visit_places ?? []).map((place) => place.id), ...candidates.excludedIds]);
   const selected: Place[] = [];

@@ -40,7 +40,7 @@ export default function CandidatePreparation({ request, pool, restored = false }
       </button>
     </div>
     <p className="mt-3 text-xs leading-5 text-[#68726c]">关键词命中仅说明检索来源，不代表最佳推荐、精准匹配或满足预算。未排除的有效可选地点将按清单顺序取前 3 个，供下方行程草案主动试排；获取候选本身不会生成草案、绑定活动或修改旧 Mock 行程。</p>
-    <p className="mt-1 text-xs leading-5 text-[#68726c]">{restored ? "本副本的排除选择按 ID 保留；确认修改住宿、必去或兴趣后清空候选与排除选择。原存档没有保存更早的排除记录，新检索可能再次返回曾排除的地点。刷新会丢失本副本编辑，重新从原存档开始。" : "切换日期仍保留本清单；返回修改需求、重新生成或刷新后清空候选准备和排除决定，已提交的必去要求不受排除操作影响。"}</p>
+    <p className="mt-1 text-xs leading-5 text-[#68726c]">{restored ? "本副本的排除选择按 ID 保留；确认修改住宿、必去或兴趣后清空候选与排除选择。原存档没有保存更早的排除记录，新检索可能再次返回曾排除的地点。刷新会丢失本副本编辑，重新从原存档开始。" : "切换展示仍保留本清单；取消需求编辑不改变当前工作，确认住宿、必去或兴趣变化后清空候选与排除选择。刷新会丢失未保存的工作；必去不能在候选区排除。"}</p>
     {state.history && <p className="mt-3 rounded-xl bg-amber-50 p-3 text-sm leading-6">来自历史存档，未重新检索：仅恢复“{state.history.name}”当次排程输入的 {state.history.places.length} 个可选地点及原顺序，不是完整候选池。原来未排入不代表用户已排除；保存时间不是检索时间。</p>}
     {request.avoid_places.length > 0 && <div className="mt-4 rounded-xl border border-amber-200 bg-amber-50 p-3 text-sm leading-6 text-[#6c521e]">
       <p className="break-words">你填写的不想去的地点：{request.avoid_places.join("、")}</p>
