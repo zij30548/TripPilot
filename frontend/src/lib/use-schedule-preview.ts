@@ -9,9 +9,10 @@ import { prepareAdjustmentInput, adoptionIssue, type ScheduleCapture, type Prepa
 import type { CandidateExclusion } from "@/lib/use-candidate-pool";
 import type { TripRequest } from "@/types/trip";
 import { emptyCandidateSnapshot } from "./candidate-pool-state";
+import { unpackSchedule, type DrawingState } from "./schedule-drawing";
 
 export type { StayDraft, ScheduleSettings } from "@/lib/schedule-input";
-export type SchedulePreviewState = { status: "idle" | "loading" | "success" | "failed"; response: ScheduleResponse | null; message: string | null };
+export type SchedulePreviewState = { status: "idle" | "loading" | "success" | "failed"; response: ScheduleResponse | null; message: string | null; drawing?: DrawingState };
 const idle = (): SchedulePreviewState => ({ status: "idle", response: null, message: null });
 
 export type ScheduleInitialization = { settings: ScheduleSettings; candidates: CandidatePoolSnapshot };
@@ -76,9 +77,9 @@ export function useSchedulePreview(request: TripRequest, onInvalidate?: () => vo
     cancel(); const generation = version.current; const active = new AbortController(); controller.current = active; pending.current = true;
     publish({ status: "loading", response: null, message: null });
     try {
-      const response = await querySchedulePreview(body, active.signal);
+      const { schedule: response, drawing } = unpackSchedule(await querySchedulePreview(body, active.signal, true));
       if (version.current !== generation || active.signal.aborted) return false;
-      publish({ status: "success", response, message: null }); return true;
+      publish({ status: "success", response, drawing, message: null }); return true;
     } catch (error) {
       if (version.current !== generation || active.signal.aborted) return false;
       publish({ status: "failed", response: null, message: error instanceof ScheduleError ? error.message : "生成行程草案失败，请主动重试。" }); return false;
@@ -92,21 +93,21 @@ export function useSchedulePreview(request: TripRequest, onInvalidate?: () => vo
     const input = buildRequest(request, settingsRef.current, eligibleOptional(request, candidateRef.current).slice(0, 3));
     const current = stateRef.current;
     if (pending.current || candidateRef.current.loading || current.status !== "success" || !input || !isScheduleResponse(current.response, input)) return null;
-    return structuredClone({ version: version.current, original: current.response, request, settings: settingsRef.current, candidates: candidateRef.current });
+    return structuredClone({ version: version.current, original: current.response, drawing: current.drawing, request, settings: settingsRef.current, candidates: candidateRef.current });
   };
-  const adoptAdjustment = (base: ScheduleCapture, targetId: string, exclusion: CandidateExclusion, proposed: PreparedAdjustment, response: ScheduleResponse): boolean => {
+  const adoptAdjustment = (base: ScheduleCapture, targetId: string, exclusion: CandidateExclusion, proposed: PreparedAdjustment, response: ScheduleResponse, drawing?: DrawingState): boolean => {
     if (!alive.current || version.current !== base.version || pending.current || !exclusion.isCurrent()) return false;
     const prepared = prepareAdjustmentInput(base, targetId, exclusion.snapshot);
     if (!prepared.value || JSON.stringify(prepared.value.request) !== JSON.stringify(proposed.request) ||
         adoptionIssue(base, targetId, prepared.value.request, response)) return false;
     // Every check/clone precedes the commit. No await/effect, no network, and no
     // response-only replacement leaving stale settingsRef/candidateRef behind.
-    const next = structuredClone(prepared.value), accepted = structuredClone(response);
+    const next = structuredClone(prepared.value), accepted = structuredClone(response), acceptedDrawing = structuredClone(drawing);
     if (!exclusion.commit()) return false; // publishes the normal synchronous invalidation
     cancel();
     candidateRef.current = next.candidates; settingsRef.current = next.settings;
     setCandidateInput(next.candidates); setSettings(next.settings);
-    publish({ status: "success", response: accepted, message: null });
+    publish({ status: "success", response: accepted, drawing: acceptedDrawing, message: null });
     return true;
   };
   const eligible = eligibleOptional(request, candidateInput);

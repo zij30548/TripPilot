@@ -5,7 +5,7 @@ import { buildRequest, eligibleOptional, validateScheduleInput, withOptionalDefa
 import { scheduledVisits } from "./weather-schedule-check";
 import { candidateItems } from "./candidate-pool-state";
 
-export type ScheduleCapture = { version: number; original: ScheduleResponse; request: TripRequest; settings: ScheduleSettings; candidates: CandidatePoolSnapshot };
+export type ScheduleCapture = { version: number; original: ScheduleResponse; request: TripRequest; settings: ScheduleSettings; candidates: CandidatePoolSnapshot; drawing?: import("./schedule-drawing").DrawingState };
 export type PreparedAdjustment = { request: ScheduleRequest; settings: ScheduleSettings; candidates: CandidatePoolSnapshot };
 const snapshotKey = (value: unknown) => JSON.stringify(value, (_key, item) => item instanceof Set ? [...item].sort()
   : item && typeof item === "object" && !Array.isArray(item) ? Object.fromEntries(Object.entries(item).sort(([a], [b]) => a.localeCompare(b))) : item);

@@ -8,7 +8,8 @@ from app.integrations.amap import AmapError, AmapTimeoutError
 from app.integrations.amap_walking import AmapWalkingClient, INVALID_DATA
 from app.integrations.amap_transit import AmapTransitClient, INVALID_DATA as INVALID_TRANSIT_DATA
 from app.schemas.place import ConfirmedPlace
-from app.schemas.route import RouteEndpoint, WalkingRouteRequest
+from app.schemas.route import RouteEndpoint, WalkingRouteRequest, WalkingRoute
+from app.services.schedule_drawing import within_edge_limit
 from app.schemas.schedule import ScheduleDay, ScheduleEdge, ScheduleRequest, TransportMode
 from app.schemas.transit import TransitRouteRequest
 
@@ -80,6 +81,7 @@ class ScheduleRouteCollector:
         self.indices: dict[EdgeKey, int] = {}
         self.resolved: dict[int, ScheduleEdge] = {}
         self.started: set[int] = set()
+        self.walking_drawings: dict[str, WalkingRoute | None] = {}
 
     @property
     def results(self) -> list[ScheduleEdge]:
@@ -124,6 +126,9 @@ class ScheduleRouteCollector:
                 if result.status != "ok" or result.route is None:
                     return self.failed(index, "data_error", "交通路线数据无法用于排程。")
                 route = result.route
+                if self.transport_mode == "walking" and route is not None:
+                    # Capture the exact normalized result, not another routing request.
+                    self.walking_drawings[f"e{index}"] = route if within_edge_limit(route) else None
                 return ScheduleEdge(id=f"e{index}", origin=origin, destination=destination, status="ok",
                                     transport_mode=self.transport_mode,
                                     duration_seconds=route.duration_seconds,

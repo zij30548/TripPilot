@@ -8,11 +8,18 @@ import { candidateResponse, deferred, forecast, now, required, tripRequest } fro
 import type { SaveOperation } from "@/lib/saved-trips";
 import type { ScheduleResponse } from "@/types/schedule";
 import type { AMapSDK } from "@/lib/amap-loader";
+import { drawingFixture } from "@/lib/schedule-drawing.test-fixtures";
+import { validateDrawing } from "@/lib/schedule-drawing";
 
 const api = vi.hoisted(() => ({ search: vi.fn(), plan: vi.fn(), schedule: vi.fn(), candidates: vi.fn(), weather: vi.fn(), save: vi.fn(), model: vi.fn(), intent: vi.fn() }));
 const loader = vi.hoisted(() => ({ loadAMap: vi.fn(), getShanghaiCenter: vi.fn() }));
 vi.mock("@/lib/amap-loader", () => loader);
 const maps: TestMap[] = [], markers: TestMarker[] = [];
+const lines: TestLine[] = [];
+class TestLine {
+  setMap = vi.fn();
+  constructor(readonly options: { path: number[][][] }) { lines.push(this); }
+}
 class TestMap {
   setFitView = vi.fn(); setZoomAndCenter = vi.fn(); destroy = vi.fn();
   constructor() { maps.push(this); }
@@ -41,8 +48,8 @@ const timeline = () => screen.getAllByRole("list", { name: "草案时间线" })[
 function open(request = tripRequest()) { return render(<EditablePlanningSession sessionId="new-controlled-session" initial={newWorkspaceInputs(request)} origin={{ kind: "new" }} />); }
 beforeEach(() => {
   vi.resetAllMocks(); vi.useFakeTimers({ toFake: ["Date"] }); vi.setSystemTime(now);
-  maps.length = 0; markers.length = 0;
-  loader.loadAMap.mockResolvedValue({ Map: TestMap, Marker: TestMarker } as unknown as AMapSDK); loader.getShanghaiCenter.mockResolvedValue([121, 31]);
+  maps.length = 0; markers.length = 0; lines.length = 0;
+  loader.loadAMap.mockResolvedValue({ Map: TestMap, Marker: TestMarker, Polyline: TestLine } as unknown as AMapSDK); loader.getShanghaiCenter.mockResolvedValue([121, 31]);
   api.schedule.mockImplementation(async r => adjustmentResponse(r)); api.candidates.mockResolvedValue(candidateResponse()); api.weather.mockResolvedValue(forecast());
   api.search.mockResolvedValue([tripRequest().accommodation_place, required]);
   api.save.mockImplementation(async (o: SaveOperation) => ({ id: "c".repeat(32), name: o.name, saved_at: "2026-10-12T00:00:00Z", snapshot: o.snapshot }));
@@ -173,7 +180,10 @@ describe("6C-1 formal homepage and stable presentation (controlled services)", (
     expect(timeline()).not.toBe(before); expect(official().getByRole("heading", { name: "正式草案费用与预算" })).toBeTruthy(); expect(api.model).not.toHaveBeenCalled();
   });
   it("official maps are independent of costs/weather/unadopted previews; adopting replaces the map without route/SDK queries", async () => {
+    api.schedule.mockImplementation(async r => { const schedule = adjustmentResponse(r); return { schedule, drawing: validateDrawing(drawingFixture(schedule), schedule) }; });
     open(); await click("获取候选地点"); await click("生成行程草案"); await click("查看当天地图");
+    await act(async () => fireEvent.click(screen.getAllByRole("button", { name: /^查看这段路线：/ })[1]));
+    expect(lines).toHaveLength(1); const oldLine = lines[0];
     expect(markers).toHaveLength(3); const original = markers.slice(), requests = counts();
     await click("在地图查看地点 1：同名地点"); await click("查看当天全部地点");
     fireEvent.change(official().getByRole("textbox", { name: /全程其他/ }), { target: { value: "20" } });
@@ -181,10 +191,14 @@ describe("6C-1 formal homepage and stable presentation (controlled services)", (
     await click("查询天气"); await click("检查天气对行程的影响"); await click("预览排除该地点后的草案");
     expect(markers).toHaveLength(3); expect(maps).toHaveLength(1); expect(screen.getAllByRole("button", { name: "收起当天地图" })).toHaveLength(1);
     await click("取消预览"); expect(markers).toHaveLength(3); expect(maps[0].destroy).not.toHaveBeenCalled();
+    expect(lines).toHaveLength(1); expect(oldLine.setMap).not.toHaveBeenCalledWith(null);
     await click("预览排除该地点后的草案"); const beforeAdopt = counts(); await click("采用此方案");
     expect(counts()).toEqual(beforeAdopt); expect(maps[0].destroy).toHaveBeenCalledOnce();
     expect(screen.queryByLabelText("上海地点地图")).toBeNull();
+    expect(oldLine.setMap).toHaveBeenCalledWith(null); expect(screen.queryByLabelText("当前交通路线")).toBeNull();
     await click("查看当天地图"); expect(maps).toHaveLength(2); expect(markers.slice(3).map(m => m.options.title)).toContain("测试可选2");
+    await act(async () => fireEvent.click(screen.getAllByRole("button", { name: /^查看这段路线：/ })[1]));
+    expect(lines).toHaveLength(2); expect(lines[1].options.path).not.toEqual(oldLine.options.path);
     act(() => original[2].handler()); expect(document.querySelector('[data-map-selected="true"]')).toBeNull();
     expect(fetch).not.toHaveBeenCalled();
   });

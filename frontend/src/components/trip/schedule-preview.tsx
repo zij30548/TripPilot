@@ -6,6 +6,7 @@ import SchedulePlaceMap from "./schedule-place-map";
 import { scheduleClock, type ScheduleResponse } from "@/types/schedule";
 import type { Place } from "@/types/place";
 import type { TripRequest } from "@/types/trip";
+import type { DrawingState } from "@/lib/schedule-drawing";
 
 type ScheduleController = ReturnType<typeof useSchedulePreview>;
 type ScheduleItem = ScheduleResponse["days"][number]["items"][number];
@@ -44,7 +45,7 @@ function EdgeDetails({ edge }: { edge: ScheduleEdge }) {
           {leg.instruction && <p>{leg.instruction}</p>}
           <p>该步距离：{leg.distance_meters === null ? "未知" : `${leg.distance_meters} 米`}；该步预计耗时：{leg.duration_seconds === null ? "未知" : `${leg.duration_seconds} 秒`}（仅作说明，不重复计时）。</p>
         </li>)}</ol>
-        {!route.geometry_complete && <p className="mt-2">部分地图几何未提供；不影响已通过校验的文字参考方案，本区不绘制草案路线地图。</p>}
+        {!route.geometry_complete && <p className="mt-2">部分地图几何未提供；不影响已通过校验的文字参考方案，不能据此声称已经绘制完整路线。</p>}
       </details>
     </>}
     {edge.status === "same_place" && <>
@@ -76,8 +77,8 @@ function StaySettings({ places, optional = false, preview }: { places: Place[]; 
   </fieldset>;
 }
 
-export function ScheduleResult({ response, mapContext }: { response: ScheduleResponse; mapContext?: FormalMapContext }) {
-  const map = useScheduleMap(response, mapContext);
+export function ScheduleResult({ response, mapContext, drawing }: { response: ScheduleResponse; mapContext?: FormalMapContext; drawing?: DrawingState }) {
+  const map = useScheduleMap(response, mapContext, drawing);
   const request = response.request, required = request.must_visit_places, optionalPlaces = request.optional_places ?? [], transportMode = request.transport_mode;
   const activeDay = response.days.find((day) => day.date === map.date) ?? response.days[0];
   const places = new Map([request.accommodation_place, ...required, ...optionalPlaces].filter((place) => place != null).map((place) => [place.id, place]));
@@ -111,13 +112,14 @@ export function ScheduleResult({ response, mapContext }: { response: ScheduleRes
             const visit = map.data.visits.find(v => v.itemIndex === index);
             const selected = !!mapContext && map.selection?.target === "visit" && map.selection.itemIndex === index;
             return <li key={`${index}-${item.kind}`} ref={element => { if (element) map.cards.current.set(index, element); else map.cards.current.delete(index); }}
-              tabIndex={mapContext && visit ? -1 : undefined} data-map-selected={selected}
-              className={`rounded-xl border border-[#18201d]/10 bg-white p-3 ${selected ? "ring-2 ring-[#bd4c35]" : ""}`}>
+              tabIndex={mapContext && visit ? -1 : undefined} data-map-selected={selected} data-route-selected={!!mapContext && map.route?.itemIndex === index}
+              className={`rounded-xl border border-[#18201d]/10 bg-white p-3 ${selected || (mapContext && map.route?.itemIndex === index) ? "ring-2 ring-[#bd4c35]" : ""}`}>
               <div className="flex flex-wrap items-center justify-between gap-2 text-sm">
                 <span className="font-semibold text-[#315f51]">{item.start_time}—{item.end_time} · {itemLabels[item.kind]}</span>
                 <span className="text-xs text-[#68726c]">{item.duration_minutes} 分钟</span>
               </div>
               <p className="mt-2 break-words text-sm font-medium">{itemTitle(item)}</p>
+              {mapContext && edge && (item.kind === "walk" || item.kind === "transit") && <button type="button" onClick={() => map.selectRoute(index)} aria-label={`查看这段路线：${itemTitle(item)} ${item.start_time}`} className="mt-2 min-h-11 rounded-lg border border-[#315f51]/30 px-3 text-sm font-medium text-[#315f51]">查看这段路线</button>}
               {item.kind === "visit" && <><span className={`mt-2 inline-block rounded-full px-2 py-1 text-xs font-semibold ${optionalIds.has(item.place_id ?? "") ? "bg-amber-50 text-[#835718]" : "bg-[#edf3ef] text-[#315f51]"}`}>{optionalIds.has(item.place_id ?? "") ? "可选地点" : "必去地点"}</span><p className="mt-1 text-xs text-[#68726c]">停留来源：{item.duration_source === "user" ? "你修改的规划设置" : "默认规划设置，可修改"}；非高德游玩时长。</p></>}
               {mapContext && visit && <div className="mt-2 text-xs text-[#56605c]">
                 <p>地点 {visit.number} · {visit.place?.address || "暂未提供地址"} · 来源：高德地点快照</p>
@@ -224,7 +226,7 @@ export default function SchedulePreview({ request, preview, restored = false, en
       {state.status === "failed" && <p role="alert">{state.message ?? "草案生成失败，请主动重试。"}</p>}
     </div>
 
-    {response && <ScheduleResult key={version} response={response} mapContext={enablePlaceMap ? { isCurrent: () => preview.readVersion() === version } : undefined} />}
+    {response && <ScheduleResult key={version} response={response} drawing={preview.state.drawing} mapContext={enablePlaceMap ? { isCurrent: () => preview.readVersion() === version } : undefined} />}
     <p className="mt-5 rounded-xl bg-amber-50 p-3 text-xs leading-6 text-[#835718]">营业时间、预约要求、门票、餐费及其他真实费用均未知，预算尚未核实。午餐未选择餐厅，绕行尚未计入。费用与天气请按需独立核对，不作为排程承诺。</p>
   </section>;
 }

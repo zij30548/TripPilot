@@ -45,10 +45,16 @@ export function isSavedSnapshot(value: unknown): value is SavedSnapshot {
 }
 export function createSnapshot(requirements: TripRequest, schedule: ScheduleResponse, inputs: CostInputs): SavedSnapshot {
   // Only the validated official result and explicit white-listed requirement fields.
+  if (!isScheduleResponse(schedule, schedule.request)) throw new Error("当前正式草案未通过校验，未保存。");
+  // Live drawing delivery is separate; never serialize a controller or delivery.
+  // Keep transit_route inside edges exactly as v1 has always stored it.
+  const core = { status: schedule.status, generated_at: schedule.generated_at, request: schedule.request,
+    days: schedule.days, unscheduled: schedule.unscheduled, edges: schedule.edges,
+    rules: schedule.rules, unknowns: schedule.unknowns, optional_results: schedule.optional_results };
   const req = Object.fromEntries(reqKeys.map(k=>[k,requirements[k as keyof TripRequest]]));
   req.daily_start_time = `${scheduleClock(requirements.daily_start_time)}:00`;
   req.daily_end_time = `${scheduleClock(requirements.daily_end_time)}:00`;
-  const snapshot = { schema_version: ARCHIVE_VERSION, requirements:req, schedule,
+  const snapshot = { schema_version: ARCHIVE_VERSION, requirements:req, schedule: core,
     costs: { tickets: Object.fromEntries(schedule.days.flatMap(d=>d.items.filter(i=>i.kind==="visit").map(i=>[i.place_id!,Object.hasOwn(inputs.tickets,i.place_id!)?inputs.tickets[i.place_id!]:""]))),
       meals:Object.fromEntries(schedule.days.map(d=>[d.date,inputs.meals[d.date]??""])), accommodation:inputs.accommodation, other:inputs.other } };
   if (!isSavedSnapshot(snapshot) || new TextEncoder().encode(JSON.stringify(snapshot)).length>ARCHIVE_BYTES-256) throw new Error("当前快照不完整、不一致或超过存档大小限制，未保存。费用文本每项最多 256 字。");

@@ -1,11 +1,14 @@
 import { isScheduleRequest, isScheduleResponse, type ScheduleRequest, type ScheduleResponse } from "@/types/schedule";
+import { readScheduleDelivery, type ScheduleDelivery } from "./schedule-drawing";
 
 export class ScheduleError extends Error {
   constructor(public readonly kind: "timeout" | "error", message: string) {
     super(message); this.name = "ScheduleError";
   }
 }
-export async function querySchedulePreview(request: ScheduleRequest, signal?: AbortSignal): Promise<ScheduleResponse> {
+export function querySchedulePreview(request: ScheduleRequest, signal?: AbortSignal): Promise<ScheduleResponse>;
+export function querySchedulePreview(request: ScheduleRequest, signal: AbortSignal | undefined, drawing: true): Promise<ScheduleResponse | ScheduleDelivery>;
+export async function querySchedulePreview(request: ScheduleRequest, signal?: AbortSignal, drawing = false): Promise<ScheduleResponse | ScheduleDelivery> {
   if (!isScheduleRequest(request)) throw new ScheduleError("error", "请检查确认地点、日期、每日时间、停留分钟和午餐设置后再生成草案。");
   const submitted = structuredClone(request);
   if (signal?.aborted) throw new DOMException("草案生成已取消。", "AbortError");
@@ -13,7 +16,7 @@ export async function querySchedulePreview(request: ScheduleRequest, signal?: Ab
   signal?.addEventListener("abort", cancel, { once: true });
   const timer = setTimeout(() => { timedOut = true; controller.abort(); }, 25_000);
   try {
-    const response = await fetch("http://127.0.0.1:8000/trips/schedule-preview", {
+    const response = await fetch(`http://127.0.0.1:8000/trips/schedule-preview${drawing ? "?drawing=walking-v1" : ""}`, {
       method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(submitted), signal: controller.signal,
     });
     if (!response.ok) {
@@ -26,6 +29,11 @@ export async function querySchedulePreview(request: ScheduleRequest, signal?: Ab
     }
     const data: unknown = await response.json();
     if (controller.signal.aborted) throw new DOMException("草案生成已取消。", "AbortError");
+    if (drawing) {
+      const delivery = readScheduleDelivery(data, submitted);
+      if (!delivery) throw new ScheduleError("error", "行程草案数据不完整或时间不一致，未展示草案，请重试。");
+      return delivery;
+    }
     if (!isScheduleResponse(data, submitted)) throw new ScheduleError("error", "行程草案数据不完整或时间不一致，未展示草案，请重试。");
     return data;
   } catch (error) {

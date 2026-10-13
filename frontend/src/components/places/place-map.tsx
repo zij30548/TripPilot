@@ -11,12 +11,13 @@ type MarkerEntry = { marker: AMap.Marker; element: HTMLDivElement; onClick: () =
 
 export default function PlaceMap({ places, selectedPlaceId, selectionVersion = 0, onSelect,
   fitAllLabel = "查看全部搜索结果", footnote = "编号对应搜索候选地点，不代表行程顺序或路线。",
-  walkingRoute, transitRoute, routeSelectionVersion = 0, markerLabels, isActive }: {
+  walkingRoute, transitRoute, routeSelectionVersion = 0, markerLabels, isActive, fitRouteLabel }: {
   places: Place[];
   selectedPlaceId: string | null;
   selectionVersion?: number;
   onSelect: (id: string) => void;
   fitAllLabel?: string;
+  fitRouteLabel?: string;
   footnote?: string;
   walkingRoute?: WalkingRouteResponse | null;
   transitRoute?: TransitRouteResponse | null;
@@ -204,7 +205,7 @@ export default function PlaceMap({ places, selectedPlaceId, selectionVersion = 0
       {route && <div className="flex flex-wrap items-center justify-between gap-2 border-b border-[#18201d]/10 bg-blue-50 px-3 py-2">
         <p className="text-xs text-blue-800">蓝线：当前查询的高德步行路线 · 仅供参考</p>
         <button type="button" onClick={fitRoute} disabled={mapStatus.status !== "ready" || !validRoute}
-          className="min-h-10 rounded-lg border border-blue-300 bg-white px-3 py-2 text-xs font-medium text-blue-800 focus-visible:outline-2 focus-visible:outline-offset-2 disabled:cursor-not-allowed disabled:opacity-45">查看完整步行路线</button>
+          className="min-h-10 rounded-lg border border-blue-300 bg-white px-3 py-2 text-xs font-medium text-blue-800 focus-visible:outline-2 focus-visible:outline-offset-2 disabled:cursor-not-allowed disabled:opacity-45">{fitRouteLabel ?? "查看完整步行路线"}</button>
       </div>}
       {transit && <div className="space-y-2 border-b border-[#18201d]/10 bg-blue-50 px-3 py-2">
         <div aria-label="公交方案地图图例" className="flex flex-wrap gap-x-3 gap-y-1 text-xs">
@@ -215,7 +216,7 @@ export default function PlaceMap({ places, selectedPlaceId, selectionVersion = 0
         {!transit.geometry_complete && <p role="status" className="text-xs leading-5 text-[#8a4d18]">地图不完整：部分路段没有提供几何，仅展示已知部分；未用直线补齐。</p>}
         <button type="button" onClick={fitRoute} disabled={mapStatus.status !== "ready" || !hasTransitGeometry}
           className="min-h-10 rounded-lg border border-blue-300 bg-white px-3 py-2 text-xs font-medium text-blue-800 focus-visible:outline-2 focus-visible:outline-offset-2 disabled:cursor-not-allowed disabled:opacity-45">
-          {transit.geometry_complete ? "查看公交方案全貌" : "查看已知路段"}
+          {fitRouteLabel ?? (transit.geometry_complete ? "查看公交方案全貌" : "查看已知路段")}
         </button>
       </div>}
       <div className="relative">

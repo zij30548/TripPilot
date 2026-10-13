@@ -11,11 +11,12 @@ import type { useWeatherCheckRevision, useWeatherScheduleCheck } from "./use-wea
 import type { WeatherForecastResponse } from "@/types/weather";
 import type { WeatherScheduleReport } from "./weather-schedule-check";
 import { intentMessages, isIntentResponse, queryAdjustmentIntent } from "./adjustment-intent-api";
+import { unpackSchedule, type DrawingState } from "./schedule-drawing";
 
 type Context = { schedule: ReturnType<typeof useSchedulePreview>; candidates: ReturnType<typeof useCandidatePool>; weather: ReturnType<typeof useWeatherForecast>; check: ReturnType<typeof useWeatherScheduleCheck> };
 type Source = "weather" | "natural";
 type FrozenInput = { base: ScheduleCapture; proposed: PreparedAdjustment; targetId: string; targetName: string; weather: WeatherForecastResponse | null; report: WeatherScheduleReport | null; reportVersion: number; source: Source; requestId: string | null };
-type State = { id: number; status: "idle" | "parsing" | "clarify" | "unsupported" | "loading" | "ready" | "failed" | "expired"; source: Source | null; input: FrozenInput | null; response: ScheduleResponse | null; message: string | null };
+type State = { id: number; status: "idle" | "parsing" | "clarify" | "unsupported" | "loading" | "ready" | "failed" | "expired"; source: Source | null; input: FrozenInput | null; response: ScheduleResponse | null; message: string | null; drawing?: DrawingState };
 type Session = { id: number; input: FrozenInput; exclusion: CandidateExclusion; authorize: (id: string) => boolean; controller: AbortController };
 const idle = (id = 0, message: string | null = null): State => ({ id, status: "idle", source: null, input: null, response: null, message });
 
@@ -52,11 +53,11 @@ export function useScheduleAdjustment({ schedule, candidates, weather, check }: 
     publish({ id: session.id, source, status: "loading", input, response: null, message: null });
     const current = () => active.current === session && version.current === session.id && !session.controller.signal.aborted;
     try {
-      const response = await querySchedulePreview(input.proposed.request, session.controller.signal);
+      const { schedule: response, drawing } = unpackSchedule(await querySchedulePreview(input.proposed.request, session.controller.signal, true));
       if (!current()) return false;
       if (!session.authorize(targetId) || !exclusion.isCurrent()) { expire(); return false; }
       if (!isScheduleResponse(response, input.proposed.request)) throw new ScheduleError("error", "调整预览数据未通过完整校验，原方案保持不变。");
-      publish({ id: session.id, source, status: "ready", input, response: structuredClone(response), message: null });
+      publish({ id: session.id, source, status: "ready", input, response: structuredClone(response), drawing: structuredClone(drawing), message: null });
       return true;
     } catch (error) {
       if (!current()) return false;
@@ -120,7 +121,7 @@ export function useScheduleAdjustment({ schedule, candidates, weather, check }: 
     // Consume this identity BEFORE the ordinary candidate publish invalidates
     // the check. Everything below is one synchronous operation, never an effect.
     stop();
-    const accepted = schedule.adoptAdjustment(session.input.base, session.input.targetId, session.exclusion, session.input.proposed, state.response);
+    const accepted = schedule.adoptAdjustment(session.input.base, session.input.targetId, session.exclusion, session.input.proposed, state.response, state.drawing);
     if (!accepted) { publish({ ...state, status: "expired", message: "当前输入已变化，未采用此预览。" }); return false; }
     publish(idle(version.current, `已采用调整方案，并在全行程候选中排除“${session.input.targetName}”。请重新检查天气；可在候选区恢复该地点。`));
     return true;

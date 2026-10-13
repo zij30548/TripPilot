@@ -1,15 +1,23 @@
-import { act, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
+import { act, fireEvent, render, renderHook, screen, waitFor, within } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { ScheduleResult } from "./schedule-preview";
 import { deferred, home, optionals, required, schedule, scheduleRequest } from "@/lib/weather-schedule-check.test-fixtures";
 import { adjustmentResponse } from "@/lib/schedule-adjustment.test-fixtures";
 import type { AMapSDK } from "@/lib/amap-loader";
+import { drawingFixture } from "@/lib/schedule-drawing.test-fixtures";
+import { validateDrawing } from "@/lib/schedule-drawing";
+import { useScheduleMap } from "@/lib/use-schedule-map";
 
 const loader = vi.hoisted(() => ({ loadAMap: vi.fn(), getShanghaiCenter: vi.fn() }));
 vi.mock("@/lib/amap-loader", () => loader);
 // No SDK/network calls. These controls exercise the actual shared map component.
 const maps: FakeMap[] = [], markers: FakeMarker[] = [];
-const polyline = vi.fn();
+const lines: FakeLine[] = [];
+class FakeLine {
+  setMap = vi.fn();
+  constructor(readonly options: { path: number[][][]; strokeStyle: string; strokeColor: string }) { lines.push(this); }
+}
+const polyline = vi.fn(FakeLine);
 class FakeMap {
   setFitView = vi.fn(); setZoomAndCenter = vi.fn(); destroy = vi.fn();
   constructor() { maps.push(this); }
@@ -25,11 +33,72 @@ const context = { isCurrent: () => true };
 const click = async (name: string | RegExp) => act(async () => { fireEvent.click(screen.getByRole("button", { name })); });
 const selected = () => document.querySelector('[data-map-selected="true"]');
 beforeEach(() => {
-  maps.length = 0; markers.length = 0; polyline.mockClear();
+  maps.length = 0; markers.length = 0; lines.length = 0; polyline.mockClear();
   loader.loadAMap.mockReset().mockResolvedValue(sdk); loader.getShanghaiCenter.mockReset().mockResolvedValue([121, 31]);
 });
 
 describe("explicit formal map, timeline and shared SDK", () => {
+  it("retained route callbacks cannot survive date ABA, official invalidation or unmount", () => {
+    const response = schedule(); response.days.push({ date: "2026-10-11", items: [], return_time: null });
+    let current = true; const ctx = { isCurrent: () => current };
+    const drawing = validateDrawing(drawingFixture(response), response);
+    const hook = renderHook(() => useScheduleMap(response, ctx, drawing));
+    const oldSelect = hook.result.current.selectRoute;
+    act(() => oldSelect(0)); expect(hook.result.current.route?.itemIndex).toBe(0);
+    act(() => hook.result.current.selectDate("2026-10-11"));
+    act(() => hook.result.current.selectDate("2026-10-10"));
+    act(() => oldSelect(0)); expect(hook.result.current.route).toBeNull();
+    const latest = hook.result.current.selectRoute; current = false;
+    act(() => latest(0)); expect(hook.result.current.route).toBeNull();
+    hook.unmount(); current = true; act(() => latest(0)); expect(fetch).not.toHaveBeenCalled();
+  });
+  it("actual movement selection replaces only its line; places, fit-all, collapse and unrelated renders preserve geometry without requests", async () => {
+    const response = schedule(), attachment = drawingFixture(response), drawing = validateDrawing(attachment, response);
+    const view = render(<ScheduleResult response={response} drawing={drawing} mapContext={context} />);
+    const buttons = screen.getAllByRole("button", { name: /^查看这段路线：/ });
+    await act(async () => fireEvent.click(buttons[0])); expect(lines).toHaveLength(1);
+    expect(lines[0].options.path).toEqual(attachment.entries[0].route!.segments);
+    expect(document.querySelector('[data-route-selected="true"]')?.textContent).toContain("09:00");
+    await click("在地图查看地点 1：同名地点"); act(() => markers[2].handler());
+    await click("查看当天全部地点"); await click("查看这段路线全貌");
+    expect(lines).toHaveLength(1); expect(maps[0].setFitView).toHaveBeenLastCalledWith([lines[0]], false, [48, 48, 48, 48], 17);
+    await click("收起当天地图"); await click("查看当天地图"); view.rerender(<ScheduleResult response={response} drawing={drawing} mapContext={{ isCurrent: () => true }} />);
+    expect(lines).toHaveLength(1); expect(lines[0].setMap).not.toHaveBeenCalledWith(null);
+    await act(async () => fireEvent.click(buttons[1])); expect(lines).toHaveLength(2); expect(lines[0].setMap).toHaveBeenCalledWith(null);
+    expect(lines[1].options.path).toEqual(attachment.entries[1].route!.segments);
+    await click("清除路线"); expect(lines[1].setMap).toHaveBeenCalledWith(null); expect(document.querySelector('[data-route-selected="true"]')).toBeNull();
+    expect(fetch).not.toHaveBeenCalled();
+  });
+  it("a delayed map init uses the newly selected route; date change clears it before initialization", async () => {
+    const delayed = deferred<AMapSDK>(); loader.loadAMap.mockReturnValue(delayed.promise);
+    const response = schedule(), drawing = validateDrawing(drawingFixture(response), response);
+    response.days.push({ date: "2026-10-11", items: [], return_time: null });
+    render(<ScheduleResult response={response} drawing={drawing} mapContext={context} />);
+    const buttons = screen.getAllByRole("button", { name: /^查看这段路线：/ });
+    await act(async () => { fireEvent.click(buttons[0]); fireEvent.click(buttons[1]); });
+    await click(/草案第 2 天/); await act(async () => delayed.resolve(sdk));
+    expect(lines).toHaveLength(0); expect(screen.queryByLabelText("当前交通路线")).toBeNull();
+    await click(/草案第 1 天/); expect(lines).toHaveLength(0);
+  });
+  it("invalid/missing geometry preserves timeline and markers, and readonly never enables route controls", async () => {
+    const response = schedule(); const view = render(<ScheduleResult response={response} drawing={{ status: "invalid", attachment: null }} mapContext={context} />);
+    await act(async () => fireEvent.click(screen.getAllByRole("button", { name: /^查看这段路线：/ })[0]));
+    expect(screen.getByText(/步行绘图附件未通过/)).toBeTruthy(); expect(lines).toHaveLength(0); expect(markers).toHaveLength(3);
+    view.rerender(<ScheduleResult response={response} />);
+    expect(screen.queryByRole("button", { name: /^查看这段路线：/ })).toBeNull();
+  });
+  it("transit draws only provided independent walking and ride pieces, with partial/no-geometry messages", async () => {
+    const response = adjustmentResponse({ ...scheduleRequest(), transport_mode: "transit" });
+    const route = response.edges[0].transit_route!;
+    route.legs[0].geometry = [[[121, 31], [121.001, 31]]]; route.legs[0].geometry_complete = false;
+    route.geometry_complete = false;
+    render(<ScheduleResult response={response} mapContext={context} />);
+    await act(async () => fireEvent.click(screen.getAllByRole("button", { name: /^查看这段路线：/ })[0]));
+    expect(lines).toHaveLength(1); expect(lines[0].options.path).toEqual(route.legs[0].geometry);
+    expect(screen.getByText(/路线地图不完整/)).toBeTruthy(); expect(screen.getByLabelText("公交方案地图图例")).toBeTruthy();
+    await act(async () => fireEvent.click(screen.getAllByRole("button", { name: /^查看这段路线：/ })[1]));
+    expect(lines[0].setMap).toHaveBeenCalledWith(null); expect(screen.getByText(/本方案没有可绘制几何/)).toBeTruthy(); expect(fetch).not.toHaveBeenCalled();
+  });
   it("readonly history/comparison defaults never initialize maps; formal mode is also lazy", async () => {
     const response = schedule(); const view = render(<ScheduleResult response={response} />);
     expect(screen.queryByRole("button", { name: "查看当天地图" })).toBeNull(); expect(loader.loadAMap).not.toHaveBeenCalled();
