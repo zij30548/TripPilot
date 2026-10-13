@@ -1,0 +1,230 @@
+{
+  "schema_version": "knowledge-corpus-v1",
+  "corpus_version": "2026-10-13.1",
+  "venues": [
+    {
+      "id": "museum_people",
+      "name": "上海博物馆人民广场馆",
+      "aliases": [
+        "上博人广",
+        "人民广场馆"
+      ]
+    },
+    {
+      "id": "museum_east",
+      "name": "上海博物馆东馆",
+      "aliases": [
+        "上博东馆",
+        "浦东东馆"
+      ]
+    },
+    {
+      "id": "natural",
+      "name": "上海自然博物馆",
+      "aliases": [
+        "自博",
+        "自然馆"
+      ]
+    }
+  ],
+  "documents": [
+    {
+      "id": "museum-west",
+      "title": "上海博物馆人民广场馆｜开放信息与服务",
+      "venue_id": "museum_people",
+      "url": "https://www.shanghaimuseum.cn/mu/frontend/pg/service/visit-west",
+      "publisher": "上海博物馆",
+      "kind": "temporary",
+      "fetched_at": "2026-10-13T08:33:09Z",
+      "published_at": null,
+      "updated_at": null,
+      "effective_from": "2026-06-30",
+      "effective_until": null,
+      "content_version": "2026-10-13.1",
+      "applicability": "须知注明自2026-06-30实行；特展2026-07-09至2027-11-14。夜场另行公告。与2025免预约历史公告不同，不据检索排序判断现行入馆资格。",
+      "reuse_basis": "官方公开网页；仅必要短摘录和独立整理摘要并附原链接，未取得全文转载授权，不复制整站。",
+      "sections": [
+        {
+          "id": "entry",
+          "heading": "开放信息／参观须知",
+          "excerpt": "日场：9:00-17:00",
+          "summary": "整理摘要：人民广场馆日场9:00–17:00，15:00停止入场，周一通常闭馆，国定假日除外。美洲古代文明大展期间须预约购票并携带有效证件原件，从南门核验；夜场安排需另查官方公告。"
+        },
+        {
+          "id": "group",
+          "heading": "参观须知／团队",
+          "excerpt": "",
+          "summary": "整理摘要：20人及以上团队须至少提前7天（不含当天）电话预约，名额有限；材料、人数等需符合馆方要求，不能据此保证预约或入馆成功。"
+        },
+        {
+          "id": "family",
+          "heading": "服务项目／寄物",
+          "excerpt": "",
+          "summary": "整理摘要：南门寄存处可借轮椅和婴儿童车，需300元押金或有效证件，仅供馆内使用。此服务信息未标发布日期，不等于入馆票务承诺。"
+        },
+        {
+          "id": "photo",
+          "heading": "其他注意事项／摄影",
+          "excerpt": "",
+          "summary": "整理摘要：禁止闪光灯、自拍杆和支架类摄影器材；涉及合作展览版权协议时可能禁止拍摄展品，须遵守现场标志。"
+        }
+      ]
+    },
+    {
+      "id": "museum-east",
+      "title": "上海博物馆东馆｜开放信息与服务",
+      "venue_id": "museum_east",
+      "url": "https://www.shanghaimuseum.cn/mu/frontend/pg/service/visit-east",
+      "publisher": "上海博物馆",
+      "kind": "standing",
+      "fetched_at": "2026-10-13T08:33:09Z",
+      "published_at": null,
+      "updated_at": null,
+      "effective_from": "2024-09-15",
+      "effective_until": null,
+      "content_version": "2026-10-13.1",
+      "applicability": "须知注明2024-09-15起实行，页面未标最后更新时间；互动空间和收费特展不能套用普通散客规则。出发前核对官方最新说明。",
+      "reuse_basis": "官方公开网页；仅必要短摘录和独立整理摘要并附原链接，未取得全文转载授权，不复制整站。",
+      "sections": [
+        {
+          "id": "entry",
+          "heading": "开放信息／场馆入口",
+          "excerpt": "散客免预约",
+          "summary": "整理摘要：东馆10:00–18:00，17:00停止入场，周二闭馆（国定节假日除外）。普通散客持有效证件原件经B1东门安检刷证；免预约不包括数字馆、古代文明探索宫等需专项预约的互动空间，收费特展另看公告。"
+        },
+        {
+          "id": "experience",
+          "heading": "参观须知／专项预约",
+          "excerpt": "",
+          "summary": "整理摘要：数字馆、古代文明探索宫仍须提前预约，在东馆预约界面选择专项预约。不能将散客免预约理解为互动体验免预约。"
+        },
+        {
+          "id": "family",
+          "heading": "服务项目／便民服务",
+          "excerpt": "",
+          "summary": "整理摘要：东馆有母婴室、无障碍电梯；轮椅和婴儿童车租借需300元押金或有效证件，仅限馆内。1层可寄大件行李，B1自助寄物柜仅存小件。"
+        },
+        {
+          "id": "group",
+          "heading": "参观须知／团队入口",
+          "excerpt": "",
+          "summary": "整理摘要：20人及以上团队提前7天（不含当天）电话预约，限额管理，备齐规定材料后从1楼北门团队通道入馆；并非散客B1东门通道。"
+        }
+      ]
+    },
+    {
+      "id": "natural-visit",
+      "title": "上海自然博物馆｜参观咨询",
+      "venue_id": "natural",
+      "url": "https://www.snhm.org.cn/cgfw/cgzx.htm",
+      "publisher": "上海自然博物馆",
+      "kind": "standing",
+      "fetched_at": "2026-10-13T08:33:09Z",
+      "published_at": null,
+      "updated_at": null,
+      "effective_from": null,
+      "effective_until": null,
+      "content_version": "2026-10-13.1",
+      "applicability": "无明确发布、生效或更新时间；页面的化石挖掘概述写现场预约，细则写官网／微信预约，须向馆方确认；学校周二活动与周二闭馆说明的适用关系不明。",
+      "reuse_basis": "官方公开网页；仅必要短摘录和独立整理摘要并附原链接，未取得全文转载授权，不复制整站。",
+      "sections": [
+        {
+          "id": "entry",
+          "heading": "开放时间／参观须知",
+          "excerpt": "周二休馆，国定假日除外",
+          "summary": "整理摘要：开放9:00–17:00，16:00停止入馆，通常周二闭馆，国定假日除外；调整另行公告。参观须线上实名购票、携二代身份证原件接受安检和现场检票。"
+        },
+        {
+          "id": "child",
+          "heading": "票价目表／免费人群与陪同",
+          "excerpt": "",
+          "summary": "整理摘要：页面列1.3米（含）以下或6周岁（含）以下儿童为免票人群，需遵守证件要求；1.3米以下儿童应由亲友陪同。不能据此保证预约或其他项目免费。"
+        },
+        {
+          "id": "fossil",
+          "heading": "探索中心／化石挖掘预约",
+          "excerpt": "",
+          "summary": "整理摘要：细则写每天8:35通过官网或微信预约当天化石挖掘，限身高1.0–1.3米儿童，须现场测量，提前15分钟确认；教育活动不另收费但需购入馆票。概述却写现场预约，渠道差异需核实。"
+        },
+        {
+          "id": "services",
+          "heading": "游客服务中心／服务项目",
+          "excerpt": "",
+          "summary": "整理摘要：一楼游客服务中心提供轮椅、婴儿车、拐杖和针线等便民服务，以及失物招领、寻人广播、大件行李寄存。"
+        }
+      ]
+    },
+    {
+      "id": "natural-school",
+      "title": "上海自然博物馆｜团体预约",
+      "venue_id": "natural",
+      "url": "https://www.snhm.org.cn/cgfw/ttyy.htm",
+      "publisher": "上海自然博物馆",
+      "kind": "standing",
+      "fetched_at": "2026-10-13T08:33:09Z",
+      "published_at": null,
+      "updated_at": null,
+      "effective_from": null,
+      "effective_until": null,
+      "content_version": "2026-10-13.1",
+      "applicability": "页面未标日期，学校活动预约与普通团队入馆不能等同；周二至周五活动说明与参观页周二闭馆的适用关系需咨询。",
+      "reuse_basis": "官方公开网页；仅必要短摘录和独立整理摘要并附原链接，未取得全文转载授权，不复制整站。",
+      "sections": [
+        {
+          "id": "school",
+          "heading": "团体预约",
+          "excerpt": "仅针对的是学校团体",
+          "summary": "整理摘要：此页的团体预约对象为学校团体，列周二至周五，教师按年龄和课件选择；预约电话021-62620261或021-68622000转5038。未说明所有成人旅游团适用。"
+        }
+      ]
+    },
+    {
+      "id": "natural-education",
+      "title": "上海自然博物馆｜活动课程筛选",
+      "venue_id": "natural",
+      "url": "https://www.snhm.org.cn/jyhd/index.htm",
+      "publisher": "上海自然博物馆",
+      "kind": "catalog",
+      "fetched_at": "2026-10-13T08:33:09Z",
+      "published_at": null,
+      "updated_at": null,
+      "effective_from": null,
+      "effective_until": null,
+      "content_version": "2026-10-13.1",
+      "applicability": "仅收录页面的筛选分类；动态课程余量和具体场次未收录，不代表任何活动可预约。来源无发布日期。",
+      "reuse_basis": "官方公开网页；仅必要短摘录和独立整理摘要并附原链接，未取得全文转载授权，不复制整站。",
+      "sections": [
+        {
+          "id": "audience",
+          "heading": "活动课程／受众人群",
+          "excerpt": "亲子",
+          "summary": "整理摘要：课程页提供幼儿园、小学、初高中、亲子和成人等受众分类，活动类型含学习单、小小博物家、化石挖掘等。这些是目录分类，不是当日可预约课程清单。"
+        }
+      ]
+    },
+    {
+      "id": "people-2025",
+      "title": "人民广场馆2025年试行免预约公告（历史）",
+      "venue_id": "museum_people",
+      "url": "https://www.meet-in-shanghai.net/tc/news/the-peoples-square-pavilion-of-the-shanghai-museum-will-be-available-for-trial-visits-without-an-appointment-from-september-1-421453/",
+      "publisher": "上海市文化和旅游局官方旅游网站（来源：乐游上海；馆方公告）",
+      "kind": "historical",
+      "fetched_at": "2026-10-13T08:33:09Z",
+      "published_at": "2025-08-26",
+      "updated_at": null,
+      "effective_from": "2025-09-01",
+      "effective_until": null,
+      "content_version": "2026-10-13.1",
+      "applicability": "网页发布2025-08-26，内嵌馆方公告署名2025-08-25。历史试行说明，未写失效日；与2026特展须知有差异，不能直接用于当前入馆。",
+      "reuse_basis": "官方公开网页；仅必要短摘录和独立整理摘要并附原链接，未取得全文转载授权，不复制整站。",
+      "sections": [
+        {
+          "id": "booking",
+          "heading": "2025试行公告／散客与例外",
+          "excerpt": "試行散客免預約憑證入館參觀",
+          "summary": "整理摘要：2025公告称9月1日起试行散客凭证免预约，但国定假日、寒暑假及热门特展高峰仍需预约；当时列16:00停止入场。不同于2026特展须知的购票预约及15:00截止，请保留日期和例外。"
+        }
+      ]
+    }
+  ]
+}

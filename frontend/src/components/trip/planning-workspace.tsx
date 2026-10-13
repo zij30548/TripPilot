@@ -74,6 +74,7 @@ export default function PlanningWorkspace({ request, initial, origin = "new", re
     <div className="mb-6 flex flex-wrap items-center justify-between gap-4">
       <p role="status" className="text-sm font-medium text-[#315f51]">{schedule.state.status === "success" ? `已有有效正式草案${schedule.state.response?.status === "complete" ? "" : "（请核对部分／未安排原因）"}，可核对费用并保存${origin === "history" ? "为新记录" : ""}。` : schedule.state.status === "loading" ? "正在生成正式草案…" : "旅行需求已确认，当前尚无有效正式草案。"}</p>
       <div className="flex flex-wrap gap-3">
+        <a href="/knowledge" target="_blank" rel="noopener noreferrer" className="min-h-11 rounded-full border border-[#315f51] bg-white px-5 py-2 text-sm font-semibold text-[#315f51]">旅行资料查询（新标签页）</a>
         <button type="button" onClick={editRequest} className="min-h-11 rounded-full border border-[#315f51] bg-white px-5 py-2 text-sm font-semibold text-[#315f51]">修改旅行需求</button>
       </div>
     </div>

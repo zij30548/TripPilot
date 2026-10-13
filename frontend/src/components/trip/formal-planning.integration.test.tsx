@@ -57,6 +57,17 @@ beforeEach(() => {
 afterEach(() => vi.useRealTimers());
 
 describe("6C-1 formal homepage and stable presentation (controlled services)", () => {
+  it("independent retrieval entry opens a new tab without changing draft, costs or requests", async () => {
+    open(); await click("生成行程草案");
+    fireEvent.change(official().getByRole("textbox", { name: /全程其他/ }), { target: { value: "23" } });
+    const before = timeline(), calls = counts();
+    const link = screen.getByRole("link", { name: "旅行资料查询（新标签页）" });
+    expect(link.getAttribute("href")).toBe("/knowledge"); expect(link.getAttribute("target")).toBe("_blank");
+    expect(link.getAttribute("rel")).toContain("noopener");
+    // Browser navigation is accepted separately; the workspace has no click-side invalidation.
+    expect(timeline()).toBe(before); expect(counts()).toEqual(calls);
+    expect(official().getByRole("textbox", { name: /全程其他/ })).toHaveProperty("value", "23");
+  });
   it("starts with a truly blank form; explicit Place preview is not confirmation; local submit never loads Mock or automatic business data", async () => {
     render(<TripPlanner><p>新建说明</p></TripPlanner>);
     expect(screen.getByLabelText(/开始日期/)).toHaveProperty("value", "");

@@ -38,6 +38,8 @@
 
 ## Current
 
+- **6D-1 真实资料与本地检索已实现并完成本轮验收**。实际基线为已推送 `428f76ba01c9899d8558e23ac411ef0afd4380b4`，`main`，开始时远端同步；本轮19个交付文件。六份官方正文、三个馆区、十五个保留条件的片段；独立 `/knowledge` 页面与本地 `POST /knowledge/search`，不生成答案。后端334项、前端1,076项/53文件、lint、typecheck、Webpack和diff检查通过。真实生产Chrome完成三馆区、历史/冲突提示、无匹配、400px键盘，以及原草案/地图/费用保留；九张截图逐张检查。冻结验证资料Hit@3=14/14，但无资料误命中1/4，完整失败样例保留。**模型新增0次**，既有20/20不重置。五个缓存内容哈希不变。本轮按授权仅提交本阶段文件并普通push，完成后停在6D-1；下方历史记录不改写为本轮执行。
+
 - **6C-3 formal schedule route drawing is implemented and accepted**, based on verified pushed `main` **`c83a2f899c3819b6722f483400939b0952388a39`**. This **20-file** delivery carries bounded same-query walking geometry in an explicitly negotiated live attachment, keeps the strict schedule core / saved-trip-v1 unchanged, and adds one selected actual movement to the official map. Final frontend **1,063 tests / 52 files**, backend **323 tests**, lint, typecheck, Webpack build and diff checks pass. Actual production Chrome passed walking and complete **bus** drafts, selection/place linking, dates/empty day, invalidation/regeneration, preview/cancel/adoption, saves/history-copy regeneration, 400px/keyboard and `/demo` regression. Sixteen individually opened screenshots and a sanitized receipt are in stable `6c-3` evidence below. Real museum-related transit `data_error` remains recorded; no validation relaxation or fallback. **0 Qwen calls**. Five cache contents unchanged; ordinary stage-only commit/push follows final manifest/security/remote checks. Stop at 6C-3; historical entries below retain their original scope and limitations.
 
 - **6C-2 formal schedule place maps are implemented and accepted**, based on verified pushed `main` **`7864476d0695ac3c24b1b54ea451a3507c87c706`** (6C-1 notice follow-up). This **11-file frontend/document delivery** adds explicitly opened, date-synchronized real AMap place markers to current official drafts only. Frontend **1,041 tests / 51 files**, lint, typecheck, Webpack production build and diff checks pass. Actual production Chrome verified formal maps, both directions of selection, two populated dates and an empty third date, rule invalidation/regeneration, preview/cancel/adoption, history-copy generation, 400px/keyboard/collapse and independent `/demo` real map/route regression. Seventeen individually inspected screenshots and a sanitized receipt are in stable `6c-2` evidence below. **0 Qwen calls**, no backend/database/configuration/dependency changes. Five original cache contents remain unchanged and excluded. Ordinary stage-only commit/push follows final manifest/security/remote checks; stop at 6C-2. Earlier entries retain historical status and limitations.
@@ -86,6 +88,8 @@
 
 ## Next
 
+- **当前授权仅收口6D-1**：最终清单、敏感信息、缓存及远端检查后普通commit/push；不进入生成回答、语义检索、多Agent或自动规则调整。既有阶段停止点仅为历史记录，本次明确授权取代它们。
+
 - **Current authorization: ordinary 6C-3 commit/push after checks, then stop.** Explicit 6C-3 authorization supersedes the older 6C-2 stopping point. No next stage, full-day route stitching, route optimization, geometry backfill, new model quota or archive-schema migration.
 
 - **Current instruction: close out 6C-2 only with an ordinary commit/push after checks, then stop.** The prior stop-after-notice-fix instruction below is superseded by explicit 6C-2 authorization. No formal road polylines, automatic planning, new model allowance, persistence of map state or next stage is included.
@@ -96,6 +100,67 @@
 - **Current instruction: stop after ordinary 6B-2 commit/push.** Do not start a subsequent stage. The earlier 6B-1 stopping point below is retained as history and was superseded by the explicit 6B-2 authorization. No new Qwen allowance, archive update/delete, autosave, persistence of working copies or multi-user access is introduced.
 - Close out only this **6B-1** delivery with an ordinary stage-only commit/push after remote and staged-content checks. Stop afterward; do not start history editing (6B-2). No further Qwen call is authorized by the exhausted **20 / 20** allowance. Physical-phone/touch, dedicated live subway/transfer-operation samples, broader real upstream fault acceptance, six-required-plus-three-optional live full-load acceptance and the Turbopack limitation remain separate; historical evidence is retained
 - Review existing dependency security advisories as a separate, approved maintenance task before deployment
+
+## Milestone 6D-1 Travel Knowledge Retrieval (2026-10-13)
+
+### 基线、资料与实现
+
+- 实际项目 `/Users/zijing/projects/trippilot`，`main` HEAD及fetch后的origin/main均为`428f76ba01c9899d8558e23ac411ef0afd4380b4`。阅读根/前端说明、项目上下文与进度，以及已安装Next16的client/page文档。没有临时副本、reset、配置/依赖变更或业务数据库迁移。
+- [资料/索引/接口/评测说明](KNOWLEDGE_6D1.md)记录六个已读取官方正文URL、机构、馆区、时间、复用依据、分块和未来生成层契约。上博人民广场馆、东馆与自博，收录版本2026-10-13.1；五个页面日期缺失不推断，历史公告明确区分网页发布日与公告署名日。只存少量短摘录与标明整理的事实摘要，不保存整页HTML或图片，不主张全文转载授权。内容哈希针对已收录规范化对象，不是原站整页哈希。
+- 人民广场馆2025免预约公告与2026特展须知差异、自博化石挖掘预约渠道差异和周二学校活动适用不明均保留，不能用检索第一名裁决。东馆普通散客规则与专项预约条件在同一片段，不拆掉例外。每条结果显示馆区、章节、来源URL、机构、获取/发布/更新/生效/失效、适用提示以及可展开的版本和哈希。
+- 独立严格模型、路由及只读本地索引，无HTTP自调用。固定白名单资料ID/链接/馆区；问题2–160字、最多5条、请求体4KiB、接收截止5秒。语料上限128KiB，6–10资料、每份最多12主题块，摘要最多360字符；实际15块、51–102字符/摘要，总计1,101字符。额外字段、重复JSON键、非法日期、重复资料/章节、无效链接等安全拒绝。
+- 无新依赖的中文双字片段+显式别名/停用词+BM25（k1=1.2,b=0.75），先限定馆区，稳定分数/ID排序。只查本地，不自动访问来源；分数不是可信度、匹配不是答案。命令 `cd backend && .venv/bin/python -B -m app.services.knowledge` 重建内存索引并输出清单哈希；重复运行不新增条目。线上进程复用已验证索引，语料更新人工复核/升版本/重启，不做后台更新。
+- 正式工作区新标签链接 `/knowledge`，不调用或卸载工作区控制器。查询页必须明确选择馆区，点击/回车才搜索；AbortController+单调版本、同步输入ref隔离旧成功/错误/finally/取消回调。初始、编辑输入、切馆区不请求；旧结果立即清除。普通文本渲染，不执行来源中的HTML/指令；打开白名单来源是用户主动的新标签导航。
+
+### 评测与实际检查
+
+- 调参前写入36条逐条带出处依据的题目，18开发+18冻结验证；`backend/knowledge/evaluation.json` SHA256为`008baac983e2b223c2ff65f54c4429593b794a67e89adb84586ccf6a7f9604a5`。馆区/简称/亲子/条件/历史/冲突/无资料/受控指令均覆盖。验证集未删题、改标签或据分数调参。开发首轮泛词“所有”误命中，移入停用词后固定参数；验证后仅重跑复现和分组统计。
+- `--evaluate dev`：相关资料Hit@3 **14/14**（证据9/9、适用不足5/5）；首相关第1名13题、第2名1题；无资料误命中 **0/4**。`--evaluate validation`：Hit@3 **14/14**（证据8/8、适用不足6/6）；14题均第1；无资料误命中 **1/4**。跨馆区返回均0。逐题结果提交在`backend/knowledge/evaluation-report.json`，另复存证据目录。
+- **失败保留**：q32在人民广场馆问数字馆专项预约，命中了本馆区通用团队/历史预约文字，不能回答该问题；没有越过馆区过滤返回东馆。q17东馆散客入口正确片段第二，团队说明第一。实时活动余量、具体证件种类等只有相关文字，不代表证据充分。小型人工题集高Hit不是回答准确率或泛化证明，未做独立盲审。
+- 本轮命令：`cd backend && .venv/bin/python -B -m unittest discover -s tests -q` **334通过**；新增11项测试包含子场景。`cd frontend && npm test -- --reporter=dot` **1,076通过/53文件**，含实际Python输出→TypeScript严格解析及全部既有规划/存档回归。新增目标文件与正式工作区组合测试先跑 **27通过**。`npm run lint`、`npm run typecheck`、`npm run build -- --webpack`、`git diff --check`均通过。
+- 后端最终补充ID/URL/馆区关系校验及评测分组统计后再次跑完整334项，通过。前端生产源未在真实验收后改变。现有Starlette/httpx弃用警告保留，无升级依赖。故障、非法/超限数据、HTML指令、晚响应/ABA、取消/卸载与超时为**受控离线测试**，测试不访问真实官网/模型。数据库测试继续使用项目既有隔离方式，不改用户存档。
+
+### 真实生产Chrome验收
+
+- Chrome155.0.8059.39，本轮Webpack生产构建。仅重启已核实项目前端PID62147、后端62099，后端新PID64776以`-B --no-access-log`启动，数据库/环境/代理/CORS未改。保留所有已有标签页；在新标签读取既有存档`035c88fa73444480b3fe7adec5b184a8`并主动生成一次真实步行草案作为工作区背景，打开正式高德地图，填写其他用户估算26.50。无新增保存记录。
+- 从该有效草案点资料入口，新标签初始API请求0。东馆“数字馆还需要预约吗”显示专项预约、普通散客和团队入口三个同馆区片段；点击来源在新标签打开官网，对照10–18/17截止、B1入口、专项预约和条件。有效日期文字在官网折叠部分，初次innerText没找到，随后实际DOM原文核对2024-09-15；未把初次未找到当成通过。
+- 自博“化石挖掘是现场还是微信预约”：来源与整理区分，显示8:35、1.0–1.3米、15分钟及购入馆票条件，并明确渠道差异；原文新标签逐项核对。人民广场馆“2025免预约和2026特展购票不一样吗”：历史与阶段须知并列、日期/例外保留；官方旅游页核对2025-08-26发布、2025-08-25署名和寒暑假例外。不是用2026获取时间给历史公告续期。
+- 自博问迪士尼烟花，无匹配；东馆问化石挖掘身高也无匹配，没有拿自博资料替代。切换馆区后旧结果即清除。400×850 viewport与scrollWidth均400；问题回车提交、Tab至查询按钮再Enter均实际操作。窄屏母婴室/婴儿车资料完整可读。
+- 返回工作区：时间轴文本完全相同、同一地图DOM实例、相同Marker身份、视野截图一致，26.50估算保留。原工作区本地请求 **2→2**（初始存档GET1+主动排程POST1）；资料页 **POST /knowledge/search6次，均200**。检索没有新增POI、候选、路线、天气、模型或存档写入；**Qwen0次**，累计20/20不变。背景地图SDK/底图及主动打开官方来源的网页网络流量单独对待，不声称完全无网络；浏览器计数不是高德上游逐次尝试数。
+- 资料页console0error/0warning，工作区0error/1warning；六次检索期间runtime error0。未导出原始敏感网络日志，只保留路径/状态/次数；工具生成的本轮原始console文件在脱敏统计后移除，不入提交。
+
+### 证据、限制与精确清单
+
+稳定目录 [`/Users/zijing/projects/trippilot-evidence/6d-1/`](/Users/zijing/projects/trippilot-evidence/6d-1/)；[脱敏验收记录](/Users/zijing/projects/trippilot-evidence/6d-1/acceptance.md)与[逐题评测](/Users/zijing/projects/trippilot-evidence/6d-1/evaluation-report.json)。九张保存成功且逐张打开检查的截图：
+
+- [01原工作区](/Users/zijing/projects/trippilot-evidence/6d-1/01-workspace-before.png)、[02东馆查询](/Users/zijing/projects/trippilot-evidence/6d-1/02-east-query.png)、[03自博差异](/Users/zijing/projects/trippilot-evidence/6d-1/03-natural-conflicting-source.png)、[04历史公告](/Users/zijing/projects/trippilot-evidence/6d-1/04-people-historical.png)、[05无匹配](/Users/zijing/projects/trippilot-evidence/6d-1/05-no-match.png)。
+- [06馆区隔离400px](/Users/zijing/projects/trippilot-evidence/6d-1/06-campus-isolation-400.png)、[07窄屏键盘](/Users/zijing/projects/trippilot-evidence/6d-1/07-narrow-keyboard.png)、[08返回后地图](/Users/zijing/projects/trippilot-evidence/6d-1/08-workspace-after.png)、[09费用保留](/Users/zijing/projects/trippilot-evidence/6d-1/09-costs-retained.png)。
+
+本轮称为**真实官方资料＋本地检索**，不是千问或完整RAG生成验收。已知词法误命中、简称覆盖有限、适用时间/来源差异待馆方确认；没有在线余量、自动来源更新或事实裁决。实体手机/触摸、真实取消竞态及服务故障未专项实测；公交/预览采用/保存写入未新做浏览器专项，保留完整受控回归和历史记录。既有transit data_error、真实地铁/换乘、满载、Turbopack等限制不删除。
+
+精确19个交付文件，逐项暂存；五个Python缓存、数据库、环境、截图不提交：
+
+1. `backend/main.py`
+2. `backend/app/api/knowledge.py`
+3. `backend/app/schemas/knowledge.py`
+4. `backend/app/services/knowledge.py`
+5. `backend/knowledge/corpus.json`
+6. `backend/knowledge/evaluation.json`
+7. `backend/knowledge/evaluation-report.json`
+8. `backend/tests/test_knowledge.py`
+9. `frontend/src/app/knowledge/page.tsx`
+10. `frontend/src/components/knowledge-search.tsx`
+11. `frontend/src/components/trip/planning-workspace.tsx`
+12. `frontend/src/components/trip/formal-planning.integration.test.tsx`
+13. `frontend/src/lib/knowledge.ts`
+14. `frontend/src/lib/knowledge-api.ts`
+15. `frontend/src/lib/use-knowledge-search.ts`
+16. `frontend/src/lib/knowledge.test.tsx`
+17. `docs/KNOWLEDGE_6D1.md`
+18. `docs/DEMO_6C1.md`
+19. `docs/PROGRESS.md`
+
+缓存SHA256（前后相同）：config=`d4d90c2bea80ef17e6729c033c4ad8af924ac618142758757c038c832db0bd52`；integrations/amap=`d77d81953b6ead02b85a08df7456e1503d2f15e516ea074940709ceb13d71d16`；logging_filters=`5937c3e813e51505c58f328754070d1d7f31211ea346cc65ed1a343f994f5f01`；api/amap_proxy=`6785dcf6667107b7a028e43d927978398b9e2c191c9b2471d8be23e4da141ef2`；integrations/amap_proxy=`0d5169da65ad7056e4b911b85285ad96e7a43a789a6e26ba6529dfa053f8252e`。
 
 ## Milestone 6C-3 Formal Schedule Movement Routes (2026-10-13)
 
