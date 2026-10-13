@@ -1,12 +1,13 @@
 """Offline real-corpus tests; controlled malformed data is never imported as a source."""
 import copy
+import hashlib
 import json
 import unittest
 from unittest.mock import patch
 from fastapi.testclient import TestClient
 from pydantic import ValidationError
 from app.schemas.knowledge import Corpus, KnowledgeRequest, KnowledgeResponse
-from app.services.knowledge import DATA, KnowledgeIndex, build_index, evaluate, tokens
+from app.services.knowledge import DATA, KnowledgeIndex, build_index, evaluate, fingerprint, tokens
 from main import app
 
 
@@ -65,6 +66,52 @@ class KnowledgeTests(unittest.TestCase):
         self.assertEqual(hits[0].source.kind, "historical")
         self.assertIn("不能直接", hits[0].source.applicability)
         self.assertIn("须向馆方确认", self.query("natural", "化石挖掘").matches[0].source.applicability)
+
+    def test_single_source_summaries_do_not_borrow_later_or_other_page_facts(self) -> None:
+        documents = {d.id: d for d in self.index.corpus.documents}
+        historical = documents["people-2025"]
+        text = historical.sections[0].summary + historical.applicability
+        for supported in ["16:00", "国定假日", "寒暑假", "热门特展", "不能直接用于当前入馆"]:
+            self.assertIn(supported, text)
+        for borrowed in ["2026", "15:00", "购票"]:
+            self.assertNotIn(borrowed, text)
+        current = documents["museum-west"]
+        self.assertIn("15:00", current.sections[0].summary)
+        self.assertIn("预约购票", current.sections[0].summary)
+        self.assertIn("2026-06-30", current.applicability)
+        self.assertNotIn("2025", current.applicability)
+        school = documents["natural-school"]
+        self.assertIn("周二至周五", school.sections[0].summary)
+        self.assertNotIn("周二闭馆", school.applicability)
+        # The consultation page itself contains both clauses; keep its uncertainty.
+        self.assertIn("周二闭馆", documents["natural-visit"].applicability)
+
+    def test_editorial_revision_preserves_acquisition_and_unchanged_documents(self) -> None:
+        unchanged = {
+            "museum-east": "65832e92482820c99b843d2e3bbf10fd77478cbebdff61c6f62cd2e8e315d0b8",
+            "natural-visit": "b6bfd566484897e2ed1ebeabe7866d7148911d4788d4b8ec5f30f5e8b7d1db90",
+            "natural-education": "0ba3de76e9323b7a951fcbbe8e1c84b1c26f3034ec0a6c2f6f953e36dadaa063",
+        }
+        self.assertEqual(self.index.corpus.corpus_version, "2026-10-14.1")
+        for doc in self.index.corpus.documents:
+            self.assertEqual(doc.fetched_at.isoformat(), "2026-10-13T08:33:09+00:00")
+            self.assertEqual(doc.content_version, "2026-10-13.1" if doc.id in unchanged else "2026-10-14.1")
+            if doc.id in unchanged:
+                self.assertEqual(fingerprint(doc.model_dump(mode="json")), unchanged[doc.id])
+        for i in [0, 1]:
+            raw = copy.deepcopy(self.raw)
+            raw["documents"][i]["content_version"] = "2026-10-13.1" if i == 0 else "2026-10-14.1"
+            self.invalid(raw)
+
+    def test_re_evaluation_preserves_frozen_questions_and_original_report(self) -> None:
+        annotations = json.loads((DATA / "evaluation.json").read_text())
+        annotations.pop("corpus_version")
+        self.assertEqual(fingerprint(annotations), "98b69d0c9273b7776506dd152251bb88505a8b8959ec3036f2f0bcda13e6f126")
+        self.assertEqual(hashlib.sha256((DATA / "evaluation-report.json").read_bytes()).hexdigest(),
+                         "6d65066ea9ddd313368929388fe1df617a2fe7652e04beaedea9e6c7604c76dc")
+        current = json.loads((DATA / "evaluation-report-2026-10-14.1.json").read_text())
+        for split in ["dev", "validation"]:
+            self.assertEqual(evaluate(self.index, split), current[split])
 
     def test_injection_is_only_text_and_no_network(self) -> None:
         raw = copy.deepcopy(self.raw)

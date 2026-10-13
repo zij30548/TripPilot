@@ -12,7 +12,7 @@ const responses = JSON.parse(execFileSync(resolve(backend, ".venv/bin/python"), 
 from app.services.knowledge import build_index
 from app.schemas.knowledge import KnowledgeRequest
 index=build_index()
-print(json.dumps([index.search(KnowledgeRequest(venue_id=v, question=q)).model_dump(mode="json") for v,q in [("museum_people","2025免预约"),("museum_east","数字馆预约"),("natural","化石挖掘"),("natural","迪士尼烟花")]],ensure_ascii=False))`], { cwd: backend, encoding: "utf8" })) as KnowledgeResponse[];
+print(json.dumps([index.search(KnowledgeRequest(venue_id=v, question=q)).model_dump(mode="json") for v,q in [("museum_people","2025免预约"),("museum_east","数字馆预约"),("natural","化石挖掘"),("natural","迪士尼烟花"),("museum_people","2026特展购票"),("natural","学校团体预约")]],ensure_ascii=False))`], { cwd: backend, encoding: "utf8" })) as KnowledgeResponse[];
 const fixture = (index = 0) => structuredClone(responses[index]);
 const response = (data: unknown, ok = true) => ({ ok, text: async () => JSON.stringify(data) }) as Response;
 const defer = () => { let resolve!: (v: Response) => void, reject!: (v: unknown) => void; const promise = new Promise<Response>((a, b) => { resolve = a; reject = b; }); return { promise, resolve, reject }; };
@@ -39,6 +39,15 @@ describe("actual Python → TypeScript local knowledge contract", () => {
   it("strict inputs require explicit campus and bounds", () => {
     const r = fixture().request;
     for (const patch of [{ venue_id: "上博" }, { question: "a" }, { question: "字".repeat(161) }, { limit: 6 }, { limit: true }, { url: "https://evil" }]) expect(isKnowledgeRequest({ ...r, ...patch })).toBe(false);
+  });
+  it("accepts reviewed per-source revisions, not arbitrary old or new versions", () => {
+    for (const [index, wrongVersion] of [[0, "2026-10-13.1"], [1, "2026-10-14.1"]] as const) {
+      const r = fixture(index);
+      r.matches[0].source.content_version = wrongVersion;
+      expect(isKnowledgeResponse(r, r.request)).toBe(false);
+    }
+    expect(fixture(1).corpus_version).toBe("2026-10-14.1");
+    expect(fixture(1).matches[0].source.content_version).toBe("2026-10-13.1");
   });
 });
 
@@ -70,6 +79,25 @@ describe("local request boundaries", () => {
 
 function input(h: ReturnType<typeof useKnowledgeSearch>, r: KnowledgeRequest) { h.update({ venue_id: r.venue_id, question: r.question }); }
 describe("input/request version isolation and explicit interaction", () => {
+  it("renders the 2025 cutoff and 2026 rule only with their respective source links", async () => {
+    render(<KnowledgeSearch />);
+    fireEvent.change(screen.getByLabelText("场馆／馆区"), { target: { value: "museum_people" } });
+    for (const [index, id, supported, absent] of [[0, "people-2025/booking", "16:00", "15:00"], [4, "museum-west/entry", "15:00", "16:00"]] as const) {
+      const data = fixture(index), match = data.matches.find(m => m.chunk_id === id)!;
+      fireEvent.change(screen.getByLabelText("想查询的问题"), { target: { value: data.request.question } });
+      fetcher.mockResolvedValueOnce(response(data));
+      await act(async () => fireEvent.submit(screen.getByRole("button", { name: "查询资料" }).closest("form")!));
+      const card = screen.getByText(match.section.summary).closest("li")!;
+      expect(card.textContent).toContain(supported); expect(card.textContent).not.toContain(absent);
+      expect(card.querySelector("a")?.getAttribute("href")).toBe(match.source.url);
+      expect(match.source.fetched_at).toBe("2026-10-13T08:33:09Z");
+      if (index === 0) {
+        expect(card.textContent).toContain("不能直接用于当前入馆");
+        expect(match.section.summary).not.toContain("2026");
+      }
+    }
+    expect(fetcher).toHaveBeenCalledTimes(2);
+  });
   it("initial/edits make no queries, duplicate clicks are ignored; input change clears results", async () => {
     const { result } = renderHook(useKnowledgeSearch); const d = defer(); fetcher.mockReturnValueOnce(d.promise);
     act(() => input(result.current, fixture().request)); expect(fetcher).not.toHaveBeenCalled();

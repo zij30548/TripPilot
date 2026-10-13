@@ -11,7 +11,7 @@ export default function KnowledgeSearch() {
     <h1 className="mt-3 text-3xl font-semibold">旅行资料查询</h1>
     <p className="mt-4 leading-7">这是资料检索，不是 AI 问答。只查已收录的官方资料，不在线搜索网站，也不改变您的行程。</p>
     <details className="mt-4 rounded-xl bg-white p-4"><summary className="cursor-pointer font-semibold">收录范围与使用提示</summary>
-      <p className="mt-3 leading-7">目前收录上博人民广场馆、东馆及上海自然博物馆的 6 份官方资料，整理为 15 个主题片段。版本：2026-10-13.1。请明确选择馆区，“上博”不会自动指向某一馆区。</p>
+      <p className="mt-3 leading-7">目前收录上博人民广场馆、东馆及上海自然博物馆的 6 份官方资料，整理为 15 个主题片段。版本：2026-10-14.1。请明确选择馆区，“上博”不会自动指向某一馆区。</p>
       <p className="mt-2 leading-7">包含参观、团队预约和亲子服务；不含实时余票或完整活动安排。获取时间不是发布时间。历史公告、无更新日期及来源差异均需核实，相关文字不等于当前适用或可入馆保证。</p>
     </details>
     <form className="mt-7 grid gap-4 rounded-2xl border border-[#315f51]/20 p-5" onSubmit={e => { e.preventDefault(); void query(); }}>

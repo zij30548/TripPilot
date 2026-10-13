@@ -21,6 +21,10 @@ SOURCE_VENUES = {"museum-west": "museum_people", "museum-east": "museum_east",
 SOURCE_PATHS = {"museum-west": "/mu/frontend/pg/service/visit-west", "museum-east": "/mu/frontend/pg/service/visit-east",
                 "natural-visit": "/cgfw/cgzx.htm", "natural-school": "/cgfw/ttyy.htm", "natural-education": "/jyhd/index.htm",
                 "people-2025": "/tc/news/the-peoples-square-pavilion-of-the-shanghai-museum-will-be-available-for-trial-visits-without-an-appointment-from-september-1-421453/"}
+# Reviewed per-document revisions: an editorial correction is not a new fetch.
+SOURCE_VERSIONS = {"museum-west": "2026-10-14.1", "museum-east": "2026-10-13.1",
+                   "natural-visit": "2026-10-13.1", "natural-school": "2026-10-14.1",
+                   "natural-education": "2026-10-13.1", "people-2025": "2026-10-14.1"}
 
 
 class Strict(BaseModel):
@@ -65,7 +69,7 @@ class Source(Strict):
     updated_at: date | None
     effective_from: date | None
     effective_until: date | None
-    content_version: Literal["2026-10-13.1"]
+    content_version: Literal["2026-10-13.1", "2026-10-14.1"]
     applicability: Text
     reuse_basis: Text
 
@@ -80,6 +84,8 @@ class Source(Strict):
     def chronology(self) -> "Source":
         if SOURCE_VENUES.get(self.id) != self.venue_id or SOURCE_PATHS.get(self.id) != urlsplit(self.url).path:
             raise ValueError("Source/campus identity mismatch")
+        if SOURCE_VERSIONS.get(self.id) != self.content_version:
+            raise ValueError("Source revision mismatch")
         if self.fetched_at.utcoffset().total_seconds() != 0:
             raise ValueError("Acquisition time must be UTC")
         if self.effective_from and self.effective_until and self.effective_until < self.effective_from:
@@ -97,7 +103,7 @@ class Document(Source):
 
 class Corpus(Strict):
     schema_version: Literal["knowledge-corpus-v1"]
-    corpus_version: Literal["2026-10-13.1"]
+    corpus_version: Literal["2026-10-14.1"]
     venues: list[Venue] = Field(min_length=3, max_length=3)
     documents: list[Document] = Field(min_length=6, max_length=10)
 
@@ -126,7 +132,7 @@ class Match(Strict):
 
 class KnowledgeResponse(Strict):
     schema_version: Literal["knowledge-search-v1"] = "knowledge-search-v1"
-    corpus_version: Literal["2026-10-13.1"]
+    corpus_version: Literal["2026-10-14.1"]
     corpus_hash: Annotated[str, StringConstraints(pattern=r"^[0-9a-f]{64}$")]
     document_count: int = Field(ge=6, le=10)
     chunk_count: int = Field(ge=6, le=120)

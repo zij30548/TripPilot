@@ -38,6 +38,8 @@
 
 ## Current
 
+- **6D-1 来源归属补修已完成检查与真实 Chrome 复核（2026-10-14）**。实际基线 `1a529bb0ac64c8712fff62bac0750f00b2438436`，`main` 与 fetch 后的 `origin/main` 同步。只修单来源摘要/适用说明、资料版本契约与回归；语料升为 `2026-10-14.1`，不改检索算法或题目标签。后端337项、前端1,078项、lint、typecheck、Webpack通过；五张补修截图已逐张打开。按授权仅提交下列10文件并普通push后停止，不进入6D-2。原五个缓存和已存在未跟踪 `.playwright-mcp/` 日志保留且不暂存；以下阶段原记录仍是历史验收，不改写。
+
 - **6D-1 真实资料与本地检索已实现并完成本轮验收**。实际基线为已推送 `428f76ba01c9899d8558e23ac411ef0afd4380b4`，`main`，开始时远端同步；本轮19个交付文件。六份官方正文、三个馆区、十五个保留条件的片段；独立 `/knowledge` 页面与本地 `POST /knowledge/search`，不生成答案。后端334项、前端1,076项/53文件、lint、typecheck、Webpack和diff检查通过。真实生产Chrome完成三馆区、历史/冲突提示、无匹配、400px键盘，以及原草案/地图/费用保留；九张截图逐张检查。冻结验证资料Hit@3=14/14，但无资料误命中1/4，完整失败样例保留。**模型新增0次**，既有20/20不重置。五个缓存内容哈希不变。本轮按授权仅提交本阶段文件并普通push，完成后停在6D-1；下方历史记录不改写为本轮执行。
 
 - **6C-3 formal schedule route drawing is implemented and accepted**, based on verified pushed `main` **`c83a2f899c3819b6722f483400939b0952388a39`**. This **20-file** delivery carries bounded same-query walking geometry in an explicitly negotiated live attachment, keeps the strict schedule core / saved-trip-v1 unchanged, and adds one selected actual movement to the official map. Final frontend **1,063 tests / 52 files**, backend **323 tests**, lint, typecheck, Webpack build and diff checks pass. Actual production Chrome passed walking and complete **bus** drafts, selection/place linking, dates/empty day, invalidation/regeneration, preview/cancel/adoption, saves/history-copy regeneration, 400px/keyboard and `/demo` regression. Sixteen individually opened screenshots and a sanitized receipt are in stable `6c-3` evidence below. Real museum-related transit `data_error` remains recorded; no validation relaxation or fallback. **0 Qwen calls**. Five cache contents unchanged; ordinary stage-only commit/push follows final manifest/security/remote checks. Stop at 6C-3; historical entries below retain their original scope and limitations.
@@ -88,6 +90,8 @@
 
 ## Next
 
+- **当前只收口6D-1来源归属补修**，普通commit/push后停止；不进入6D-2。以下较早授权保留为历史记录。
+
 - **当前授权仅收口6D-1**：最终清单、敏感信息、缓存及远端检查后普通commit/push；不进入生成回答、语义检索、多Agent或自动规则调整。既有阶段停止点仅为历史记录，本次明确授权取代它们。
 
 - **Current authorization: ordinary 6C-3 commit/push after checks, then stop.** Explicit 6C-3 authorization supersedes the older 6C-2 stopping point. No next stage, full-day route stitching, route optimization, geometry backfill, new model quota or archive-schema migration.
@@ -100,6 +104,45 @@
 - **Current instruction: stop after ordinary 6B-2 commit/push.** Do not start a subsequent stage. The earlier 6B-1 stopping point below is retained as history and was superseded by the explicit 6B-2 authorization. No new Qwen allowance, archive update/delete, autosave, persistence of working copies or multi-user access is introduced.
 - Close out only this **6B-1** delivery with an ordinary stage-only commit/push after remote and staged-content checks. Stop afterward; do not start history editing (6B-2). No further Qwen call is authorized by the exhausted **20 / 20** allowance. Physical-phone/touch, dedicated live subway/transfer-operation samples, broader real upstream fault acceptance, six-required-plus-three-optional live full-load acceptance and the Turbopack limitation remain separate; historical evidence is retained
 - Review existing dependency security advisories as a separate, approved maintenance task before deployment
+
+## 6D-1 来源归属补修 (2026-10-14)
+
+### 范围、版本和冻结记录
+
+- 在实际项目检查根/前端指令、上下文/进度和已安装Next客户端文档。起始HEAD为已推送的 `1a529bb0ac64c8712fff62bac0750f00b2438436`；起始未提交内容仅原五个缓存（两个tracked修改、三个untracked）及 `.playwright-mcp/` 两份已有浏览器日志。没有reset、临时副本、数据库内容操作、模型或高德调用；检索实现/参数、API结构、代理、配置及其他产品源码不变。
+- `people-2025/booking` 只保留自身2025公告支持的散客试行、预约例外与当时16:00停止入场；删除误归在该来源下的2026购票及15:00信息。对应的新规则仍在 `museum-west/entry`。历史警告保留，不根据缺失失效日期认定今天仍有效。
+- 审核15个摘要、6条适用说明及六个官方正文。`museum-west`、`people-2025` 的适用说明移除跨来源比较；`natural-school` 不再借用参观咨询页的周二闭馆信息。自博参观咨询的预约渠道/周二差异均在其自身页面，仍保留。其他三个资料对象逐字节语义不变。知识库说明中保留的2025/2026具体对照明确同时列出双方链接，不归为单源事实。
+- 整批语料 `2026-10-14.1`；仅上述三份修订资料升内容版本，另三份保持 `2026-10-13.1` 和原哈希。Python/TypeScript均严格核对资料ID对应内容版本，未知/错配仍拒绝。整批新哈希 `eef3a7ec3c112f66d9e6c0619f8db1d3dbf87c7b95462f0eebf7cdee5a98d562`；旧哈希及各资料哈希仍可追溯。
+- 本轮是编辑归属补修，不是重新导入资料快照。全部原 `fetched_at=2026-10-13T08:33:09Z` 及来源日期保持不变；本次浏览器复核另记2026-10-14，不拿摘要修改时间刷新获取/发布时间。
+- `evaluation.json` **仅改顶层corpus_version**，其余题目、分组、期望、依据、冻结说明与基线完全一致；去除此字段后的规范化哈希仍为 `98b69d0c9273b7776506dd152251bb88505a8b8959ec3036f2f0bcda13e6f126`。原 `evaluation-report.json` 完全未改，SHA256 `6d65066ea9ddd313368929388fe1df617a2fe7652e04beaedea9e6c7604c76dc`。新逐题重评独立存为 `backend/knowledge/evaluation-report-2026-10-14.1.json`。
+- 重评：开发Hit@3 **14/14**（证据9/9、适用不足5/5），首相关第1名12题、第2名2题，无资料误命中 **0/4**；验证Hit@3 **14/14**（8/8、6/6），14题均第1，无资料误命中 **1/4**；两组跨馆区返回均0。q01正确新须知由第1降到第2、历史公告第1；q17仍第2，q32误命中未删除。未因排名回退修改题目/算法或重新混入错误事实，也不称为独立新验证集。
+
+### 本轮实际检查与浏览器证据
+
+- `cd backend && .venv/bin/python -B -m app.services.knowledge`：索引校验/重建成功，6资料/15片段；调用同一 `evaluate(index, split)` 分别重评dev/validation并保存新报告。
+- `cd backend && .venv/bin/python -B -m unittest tests.test_knowledge -q`：**14通过**；`... -m unittest discover -s tests -q`：**337通过**。新增回归保护来源归属、每资料版本、原获取时间、未改资料哈希、旧评测与冻结标注。既有httpx弃用警告不在本轮升级处理；故障日志来自受控测试，不是真实上游故障。
+- `cd frontend && npm test -- --reporter=dot src/lib/knowledge.test.tsx src/components/trip/formal-planning.integration.test.tsx`：**29通过**，包含实际Python输出→TS严格校验及渲染卡片/链接归属；`npm test -- --reporter=dot`：**1,078通过/53文件**。初次新增测试使用未安装的Chai matcher失败，改为原生DOM属性断言后目标与全量均通过；未添加测试依赖或放宽业务校验。
+- `npm run lint`、`npm run typecheck`、`npm run build -- --webpack`、`git diff --check` 均通过。仅重启已确认项目PID64836/64776以加载新版生产资产和内存索引；新后端 `-B --no-access-log` 启动正常。
+- **真实Chrome155.0.8059.39＋官方资料＋本地检索**：新标签打开生产 `/knowledge`，初始0业务请求。查询“2025免预约”后，历史卡片仅显示16:00/当时例外，历史提醒、原获取时间、2025发布和新整理版本正确；从卡片打开官方原文新标签，核对16:00及寒暑假例外。
+- 查询“2026特展购票”，新须知片段有15:00、购票及2026生效信息，链接打开馆方2026须知，实读核对；历史和新卡片各自引用自身来源，不再由历史摘要承载新规则。**该查询仍先返回相关历史卡片、新须知第二**，作为词法排序限制保留，不能据第一条判定现行规则。
+- “学校团体预约”用回车提交，400px卡片不再混入另一页闭馆规则，原学校对象/周二至周五及咨询提示保留，链接对应团体预约页。视口和scrollWidth均400。资料页console及runtime error均0；本轮 **POST /knowledge/search 3次，均200**，无其他本地业务请求。原文链接属于主动外部网页访问，不称完全无网络。**模型0次**，20/20不变；不导出原始敏感网络日志。
+- 稳定目录 [`source-attribution-fix/`](/Users/zijing/projects/trippilot-evidence/6d-1/source-attribution-fix/)，[脱敏记录](/Users/zijing/projects/trippilot-evidence/6d-1/source-attribution-fix/acceptance.md)。五张截图均保存并逐张打开检查：[历史查询](/Users/zijing/projects/trippilot-evidence/6d-1/source-attribution-fix/01-history-query.png)、[2025原文](/Users/zijing/projects/trippilot-evidence/6d-1/source-attribution-fix/02-history-official.png)、[新资料查询](/Users/zijing/projects/trippilot-evidence/6d-1/source-attribution-fix/03-current-query.png)、[2026原文](/Users/zijing/projects/trippilot-evidence/6d-1/source-attribution-fix/04-current-official.png)、[团体说明400px](/Users/zijing/projects/trippilot-evidence/6d-1/source-attribution-fix/05-school-card-400.png)。原版九张证据及评测不覆盖、不删除；原版历史卡片截图包含本次修正前的归属错误，不再作为修正后正确性证据。
+- 本次真实验收仅针对归属补修，不把先前地图/草案/费用、实体手机或故障验收记成本轮执行。检索排序/无资料误命中及历史适用性限制、其他阶段全部既有限制继续保留。
+
+### 精确10个补修交付文件与收口
+
+1. `backend/app/schemas/knowledge.py`
+2. `backend/knowledge/corpus.json`
+3. `backend/knowledge/evaluation.json`
+4. `backend/knowledge/evaluation-report-2026-10-14.1.json`（新增；旧报告不改）
+5. `backend/tests/test_knowledge.py`
+6. `frontend/src/components/knowledge-search.tsx`
+7. `frontend/src/lib/knowledge.ts`
+8. `frontend/src/lib/knowledge.test.tsx`
+9. `docs/KNOWLEDGE_6D1.md`
+10. `docs/PROGRESS.md`
+
+逐项暂存上述文件，正常提交/推送后停止。五个原缓存前后SHA256均与下方6D-1记录一致；不暂存缓存、未跟踪 `.playwright-mcp/` 日志、环境、数据库或外部证据。浏览器日志目录有起始两份及本轮打开原站时工具产生的两份console日志，均未作为交付证据或暂存。工作区这些内容继续保留。本轮不进入6D-2，也不新增模型额度。
 
 ## Milestone 6D-1 Travel Knowledge Retrieval (2026-10-13)
 

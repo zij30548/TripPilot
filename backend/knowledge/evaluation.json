@@ -1,6 +1,6 @@
 {
   "version": "knowledge-eval-v1",
-  "corpus_version": "2026-10-13.1",
+  "corpus_version": "2026-10-14.1",
   "frozen_before_retrieval_implementation": "2026-10-13",
   "policy": "固定人工分组：18开发、18冻结验证；基于已逐条读取的六份官方正文。limited只评相关资料定位，不宣称能回答当前适用性。指令查询是真实语料上的受控问题，不是官网原文。不得据验证集调参或删除失败。",
   "cases": [
