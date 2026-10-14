@@ -1,0 +1,52 @@
+{
+  "version": "plus-gap-questions-v1",
+  "scope": "四题先于候选提示修改冻结；同语料问题族定向验证，不是泛化评测",
+  "order": ["a04", "g02", "g03", "a05"],
+  "repetitions": 2,
+  "cases": [
+    {
+      "id": "a04",
+      "venue_id": "museum_people",
+      "question": "比较2025免预约公告和2026特展须知：预约要求和停止入场时间有什么不同？",
+      "status": ["answered"],
+      "missing": [],
+      "evidence": ["people-2025/booking", "museum-west/entry"],
+      "required": ["2025试行免预约与假日寒暑假热门特展高峰例外", "2025为16:00", "2026特展预约购票及15:00", "分别对应各自来源", "历史不保证今天适用"],
+      "forbidden": ["2025来源证明15:00或2026购票", "按排名裁决现行规则"],
+      "review_note": "沿用原题和全部原预期；行前核实提醒不是问题缺口。两份来源的历史适用说明由完整来源展示，不需要模型创造missing。"
+    },
+    {
+      "id": "g02",
+      "venue_id": "museum_people",
+      "question": "请分别转述人民广场馆2025免预约公告、2026特展须知对预约及停止入场时刻的规定，不需要判断今天采用哪份规定。",
+      "status": ["answered"],
+      "missing": [],
+      "evidence": ["people-2025/booking", "museum-west/entry"],
+      "required": ["2025年9月1日起试行散客凭证免预约及国定假日、寒暑假、热门特展高峰例外", "2025当时16:00停止入场", "另一资料特展期间预约购票及15:00停止入场", "分别归属两份来源，不认定当前适用规则"],
+      "forbidden": ["历史不同自动标为未解决冲突", "把明确不要求的现行判定当作缺失", "把2026具体规则归到2025公告", "断言今天可直接按历史免预约入馆"],
+      "review_note": "所有内容均由同一语料的booking和entry完整摘要支持；不额外要求资料未提供的优惠、年龄边界或精确失效日。"
+    },
+    {
+      "id": "g03",
+      "venue_id": "museum_people",
+      "question": "比较人民广场馆2025免预约公告和2026特展须知的预约要求、停止入场时间，并判断我今天去应按哪条规则办理。",
+      "status": ["partial"],
+      "missing": ["current_applicability"],
+      "evidence": ["people-2025/booking", "museum-west/entry"],
+      "required": ["分别保留2025免预约的条件例外、16:00及特展预约购票、15:00", "比较部分可答，明确今天到底按哪份办理尚不能确认", "当前缺口不得吞掉已有比较依据"],
+      "forbidden": ["以新年份或排名自动裁决今天的规则", "把全部问题标为无资料", "把历史差异本身标为conflicting_materials", "忽略当前判断而全部answered"],
+      "review_note": "资料提供各自规定，但无对本次实际出行当日适用性的独立确认；不把获取时间或新年份当成该确认。"
+    },
+    {
+      "id": "a05",
+      "venue_id": "natural",
+      "question": "化石挖掘到底现场还是网上预约，有什么参加条件和费用？",
+      "status": ["partial"],
+      "missing": ["conflicting_materials"],
+      "evidence": ["natural-visit/fossil"],
+      "required": ["概述现场与细则官网微信渠道冲突", "不选定一条渠道", "1.0–1.3米与现场测量", "提前15分钟确认", "教育活动不另收费但须购入馆票"],
+      "forbidden": ["确定只可现场", "确定只可网上", "完全免费无需入馆票"],
+      "review_note": "沿用原题和全部原预期；入馆票、儿童条件可作相关背景，不把其他团体/课程目录作为预约渠道证据。不能为了修复历史题清空此真冲突。"
+    }
+  ]
+}

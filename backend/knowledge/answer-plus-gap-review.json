@@ -1,0 +1,59 @@
+{
+  "version": "plus-gap-review-v1",
+  "reviewer": "本轮开发助手，逐条对照冻结输入、原始JSON与完整投影；无第二评分模型，非独立人类盲评",
+  "candidate": "knowledge-evidence-selection-v3-plus-question-gaps",
+  "frozen_sha256": "a4b1f05def73ddce6df33fde310ef592e91cfef138518d91056ad9a3d73013c8",
+  "ledger_sha256": "ceb466356aa7c22334179436e91c34e82691048c34191ad8280d7a57086551fc",
+  "dimensions": ["relevance", "coverage", "conditions_sources", "missing", "status", "references_structure"],
+  "reviews": [
+    {
+      "attempt": 1, "case": "a04", "repetition": 1, "pass": true,
+      "checks": {"relevance": true, "coverage": true, "conditions_sources": true, "missing": true, "status": true, "references_structure": true},
+      "evidence": ["people-2025/booking", "museum-west/entry"], "missing": [], "status": "answered",
+      "reason": "两份历史语境分别呈现；2025免预约及假日/寒暑假/热门特展高峰例外、16:00，与特展预约购票、15:00均保留。来源归属正确，未多加当前适用性缺口。来源仍展示行前核实提醒。"
+    },
+    {
+      "attempt": 2, "case": "g02", "repetition": 1, "pass": true,
+      "checks": {"relevance": true, "coverage": true, "conditions_sources": true, "missing": true, "status": true, "references_structure": true},
+      "evidence": ["people-2025/booking", "museum-west/entry"], "missing": [], "status": "answered",
+      "reason": "分别转述两份预约及停止入场规定，保留来源和全部例外；没有把用户明确不要求的今日判定当作缺口。"
+    },
+    {
+      "attempt": 3, "case": "g03", "repetition": 1, "pass": true,
+      "checks": {"relevance": true, "coverage": true, "conditions_sources": true, "missing": true, "status": true, "references_structure": true},
+      "evidence": ["people-2025/booking", "museum-west/entry"], "missing": ["current_applicability"], "status": "partial",
+      "reason": "有依据的历史比较完整保留，今日实际适用判断单列缺口；没有用年份或排序裁决，也没有把整个问题判无资料。"
+    },
+    {
+      "attempt": 4, "case": "a05", "repetition": 1, "pass": true,
+      "checks": {"relevance": true, "coverage": true, "conditions_sources": true, "missing": true, "status": true, "references_structure": true},
+      "evidence": ["natural-visit/fossil", "natural-visit/entry", "natural-visit/child"], "missing": ["conflicting_materials"], "status": "partial",
+      "reason": "现场/官网微信真实渠道冲突保留；1.0–1.3米及现场测量、提前15分钟、活动不另收费但需入馆票完整。入馆票和儿童费用背景相关；整块还含开放时间等旁支，存在阅读负担，但未用无关资料替代渠道答案。"
+    },
+    {
+      "attempt": 5, "case": "a04", "repetition": 2, "pass": false,
+      "checks": {"relevance": true, "coverage": true, "conditions_sources": true, "missing": false, "status": false, "references_structure": true},
+      "evidence": ["people-2025/booking", "museum-west/entry"], "missing": ["current_applicability"], "status": "partial",
+      "reason": "证据及比较内容完整，但原题没有要求今天采用哪份规则。多加current_applicability、把应为answered的回答标为partial。来源的通用核实提醒不能据此成为真实未答事项。原样保留失败，不后处理删除missing。"
+    },
+    {
+      "attempt": 6, "case": "g02", "repetition": 2, "pass": true,
+      "checks": {"relevance": true, "coverage": true, "conditions_sources": true, "missing": true, "status": true, "references_structure": true},
+      "evidence": ["people-2025/booking", "museum-west/entry"], "missing": [], "status": "answered",
+      "reason": "两份来源分别给出完整规则，当前适用判断并非所问；未额外增加缺口，原条件和时间均保留。"
+    },
+    {
+      "attempt": 7, "case": "g03", "repetition": 2, "pass": true,
+      "checks": {"relevance": true, "coverage": true, "conditions_sources": true, "missing": true, "status": true, "references_structure": true},
+      "evidence": ["people-2025/booking", "museum-west/entry"], "missing": ["current_applicability"], "status": "partial",
+      "reason": "历史比较有据部分和用户追加的今日适用缺口分开；保留事实且不越权裁决，partial对应真实未答事项。"
+    },
+    {
+      "attempt": 8, "case": "a05", "repetition": 2, "pass": true,
+      "checks": {"relevance": true, "coverage": true, "conditions_sources": true, "missing": true, "status": true, "references_structure": true},
+      "evidence": ["natural-visit/fossil", "natural-visit/entry", "natural-visit/child"], "missing": ["conflicting_materials"], "status": "partial",
+      "reason": "真实渠道冲突没有被新规则清掉，儿童参加条件、测量/提前确认和两层费用含义完整；票务背景存在与第1轮相同的整块阅读负担。"
+    }
+  ],
+  "decision": "7/8；a04仍1/2失败，候选未通过本轮全部标准。停止调参和调用，不替换正式问答，不宣布6D-2收口。"
+}
