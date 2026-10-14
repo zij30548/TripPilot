@@ -38,6 +38,8 @@
 
 ## Current
 
+- **6D-2真实A/B配对试验完成，回答质量验收仍未完成（2026-10-14）**。实际基线`a5fcde23594bf034d559fa8e7d0766f4c4ea0bd1`。新明确授权**20/20**用尽：A/B各10次，另a08/a09两臂4个本地操作；重试0，未启动正式工作区或额外模型接口。冻结协议/代码/输入发送前后哈希一致。原12题同批评审A**6/12**、B**10/12**（仅模型题4/10、8/10）；均过5、仅A1、仅B5、均失败1。B的a04原文锚点结构失败、a06缺失类别仍不合格；暂缓质量收口与正式替换，不宣称泛化。工具相关**46项测试通过**，差异检查通过。原20/20、补修16/16及全部历史证据/标签保留，五个缓存不变。仅7文件普通commit/push；详见[配对报告](KNOWLEDGE_6D2_AB_REPORT.md)、[冻结协议](KNOWLEDGE_6D2_AB_PROTOCOL.md)、`backend/knowledge/answer-ab-evaluation-report.json`，稳定证据`trippilot-evidence/6d-2/ab-trial/`。
+
 - **6D-2 离线诊断完成，回答质量验收仍未完成（2026-10-14）**。实际基线`66580490f1e15da4a4223b00fc89c2118c4ae445`，main与fetch后的origin/main一致；未回退至196e52f。核对原12题、最终10次真实发送payload哈希、保存的模型JSON及12条最终响应；历史6通过/5失败/1待核原样保留，不与首轮跨版本9/2/1比较成升降。新增只读离线证据选择原型及对照准备，不改正式问答、语料或检索。相关**53项测试通过**；本轮模型/外部业务调用**0**，原20/20及补修16/16均不重置。对照建议另行授权最多20次，当前没有可用新额度。详情见[诊断报告](KNOWLEDGE_6D2_DIAGNOSIS.md)及下方5文件清单。按授权仅普通提交/推送本轮准备成果，**不标记质量通过，不进入下一阶段**；下列历史验收原样保留。
 
 - **6D-2补修完成本轮实现和验证，但回答质量验收未完成（2026-10-14）**。实际基线`d4e8c519da7ede2260f06b24c7abb10435ea218c`。证据片段/文档背景分离、摘要无损分句、回答/缺失/状态约束及严格正文引用拒绝已实现；未改语料、BM25或正式行程。新增独立额度**16/16**，首轮20次及旧证据全部哈希未变。最终固定fix-v3完整12题（10上游+2本地0），**6通过、5失败、1待核**，非独立泛化。冲突题通过；历史仍漏普通免预约，摄影漏版权例外，误命中/实时名额误标partial，儿童陪同边界错，越权题missing待核。不能用定向通过拼成最终成功。后端367、前端1,112/54、lint/typecheck/Webpack/健康/diff通过；Chrome五题含失败、400px/键盘/官方链接、正式工作区四区域前后hash一致已核验。按授权只提交本轮17文件并普通push；**不收口、不进入下一阶段、停止真实调用**。详见`docs/KNOWLEDGE_6D2_FIX.md`、`backend/knowledge/answer-fix-evaluation-report.json`及稳定`trippilot-evidence/6d-2/fix/`。下列首轮记录仍按原状态保留。
@@ -96,6 +98,8 @@
 
 ## Next
 
+- **本轮停在6D-2真实配对报告**。新授权20次已全部用尽，旧20+16也不恢复；不追加调用、不把B接入正式接口或页面、不进入下一阶段。方向更支持整块证据选择，但保留其锚点和missing失败，下一次修改/真实验证须另行授权。以下授权与停止点按各轮历史保留。
+
 - **当前停在6D-2对照方案准备完成处**：等待另行明确授权真实模型试验。旧20次与补修16次均已用尽；不能靠重启、新建台账或离线测试续用额度。正式自由概括流程保持原样，候选只在离线工具中；真实质量改善和候选上线均未验收。以下停止点为各轮历史记录。
 
 - **停在6D-2：真实调用已达20/20，不再请求模型。** 普通提交/推送本阶段代码和未完成验收记录；保留原五个缓存且不暂存，浏览器日志不提交。只有新明确授权后才能继续复核a04状态、a05冲突回答、a11日期范围及最终同版本全量12题；不改旧失败，不拿Mock替代真实验收。
@@ -114,6 +118,27 @@
 - **Current instruction: stop after ordinary 6B-2 commit/push.** Do not start a subsequent stage. The earlier 6B-1 stopping point below is retained as history and was superseded by the explicit 6B-2 authorization. No new Qwen allowance, archive update/delete, autosave, persistence of working copies or multi-user access is introduced.
 - Close out only this **6B-1** delivery with an ordinary stage-only commit/push after remote and staged-content checks. Stop afterward; do not start history editing (6B-2). No further Qwen call is authorized by the exhausted **20 / 20** allowance. Physical-phone/touch, dedicated live subway/transfer-operation samples, broader real upstream fault acceptance, six-required-plus-three-optional live full-load acceptance and the Turbopack limitation remain separate; historical evidence is retained
 - Review existing dependency security advisories as a separate, approved maintenance task before deployment
+
+## 6D-2 真实A/B配对 (2026-10-14)
+
+- 发送前冻结原12题与期望、同一模型/语料/检索/采样/预算，A为未改自由概括，B为既有整块选择＋程序投影。按题号顺序交替AB/BA，20次上游均经过持久预记工具，未调用其他接口补调。a10合法子问/missing与a12原边界口径先写定，未追溯改旧记录。
+- 计数复用QwenClient和CountedTransport/Ledger，新增题目/arm持久唯一性、操作锁、冻结hash核对；init不重建已有台账，已发失败/取消不退还，attempt无结果则暂停。受控测试验证恢复、并发重复、上限、落盘失败、结构失败继续及超时/取消/鉴权暂停。
+- 本轮结果：A6/12、B10/12；同过5、仅A1（a04）、仅B5（a03/a05/a10/a11/a12）、均失败1（a06）。各臂1次结构失败均留分母，未修补重试。required满足27/36与30/36，完整性9/12与10/12，相关性9/12与11/12，条件保真9/12与11/12，状态6/12与10/12，引用身份均11/12；这些维度分开，不把引用正确当业务正确。
+- 评阅先隐去arm标签，但输出形式可识别，且由参与实现的开发助手逐项核对，并非独立人类/完全盲评。a06 B的无事实/insufficient正确，但泛化missing仍未达到实时缺失说明要求。B全文投影没有证明选材或当前适用性；本批单次/题且已调试，不能证明稳定性/泛化，旧跨版本成绩单列。
+- 每臂10次模型操作：A输入/输出token11755/1186、平均2.013秒；B8538/959、平均1.458秒，均含结构失败。本批用量已知，4个本地操作用量为null，不混入模型均值。B有整块服务背景与阅读成本，不把较少token称为更易读或更便宜的已核实报价。
+- 实际检查：`cd backend`后`.venv/bin/python -B -m unittest tests.test_knowledge_ab_trial tests.test_knowledge_evidence_trial tests.test_knowledge_acceptance tests.test_knowledge_answer tests.test_knowledge_answer_fix tests.test_knowledge_fix_report -q` **46项通过**；CLI帮助、冻结清单/20attempt/24result审计与差异检查通过。首次23项组合也是本轮检查但不累加。未跑前端全量/build或新Chrome，未改正式服务，无新增依赖。旧弃用警告保留。
+- 稳定目录`/Users/zijing/projects/trippilot-evidence/6d-2/ab-trial/`包含frozen、calls、匿名评阅/映射、报告与receipt；只有公开资料的脱敏模型JSON，无Key/认证头/原始网络日志。旧47+42证据文件、原5缓存和原语料/评测哈希不变，数据库/密钥/代理/CORS未改。
+- 精确7文件：
+
+  1. `backend/tools/knowledge_ab_trial.py`
+  2. `backend/tests/test_knowledge_ab_trial.py`
+  3. `backend/knowledge/answer-ab-evaluation-report.json`
+  4. `docs/KNOWLEDGE_6D2_AB_PROTOCOL.md`
+  5. `docs/KNOWLEDGE_6D2_AB_REPORT.md`
+  6. `docs/KNOWLEDGE_6D2_DIAGNOSIS.md`
+  7. `docs/PROGRESS.md`
+
+- 普通提交/推送仅上述试验文件，缓存/日志/证据不入库。**比较完成，不代表回答质量验收通过；不替换正式问答，停止调用。** 逐题依据、各维度分子分母、成本及建议见[本轮报告](KNOWLEDGE_6D2_AB_REPORT.md)。
 
 ## 6D-2 离线诊断与对照准备 (2026-10-14)
 
