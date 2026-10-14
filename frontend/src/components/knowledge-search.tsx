@@ -1,15 +1,16 @@
 "use client";
 import { venues } from "@/lib/knowledge";
 import { useKnowledgeSearch } from "@/lib/use-knowledge-search";
+import KnowledgeAnswer from "./knowledge-answer";
 
 const kinds = { standing: "长期服务页面", temporary: "阶段性参观须知", historical: "历史公告", catalog: "课程目录" };
 const box = "w-full rounded-xl border border-[#315f51]/30 bg-white p-3";
 export default function KnowledgeSearch() {
-  const { input, state, update, query, cancel } = useKnowledgeSearch();
+  const { input, state, update, query, cancel, answer } = useKnowledgeSearch();
   return <main className="mx-auto max-w-4xl px-4 py-10 text-[#18392f] sm:px-8">
     <p className="text-sm font-semibold">TripPilot · 独立资料页</p>
     <h1 className="mt-3 text-3xl font-semibold">旅行资料查询</h1>
-    <p className="mt-4 leading-7">这是资料检索，不是 AI 问答。只查已收录的官方资料，不在线搜索网站，也不改变您的行程。</p>
+    <p className="mt-4 leading-7">先检索已收录的官方资料，再主动选择是否让 AI 依据资料回答。不在线搜索网站，也不改变您的行程。</p>
     <details className="mt-4 rounded-xl bg-white p-4"><summary className="cursor-pointer font-semibold">收录范围与使用提示</summary>
       <p className="mt-3 leading-7">目前收录上博人民广场馆、东馆及上海自然博物馆的 6 份官方资料，整理为 15 个主题片段。版本：2026-10-14.1。请明确选择馆区，“上博”不会自动指向某一馆区。</p>
       <p className="mt-2 leading-7">包含参观、团队预约和亲子服务；不含实时余票或完整活动安排。获取时间不是发布时间。历史公告、无更新日期及来源差异均需核实，相关文字不等于当前适用或可入馆保证。</p>
@@ -25,7 +26,8 @@ export default function KnowledgeSearch() {
       <h2 className="text-xl font-semibold">{state.response.venue.name} · 检索结果</h2>
       <p className="mt-2 break-words text-sm">本次问题：{state.response.request.question}</p>
       {state.response.status === "no_match" ? <p role="status" className="mt-5 rounded-xl bg-white p-5">未找到相关资料。可换一种表述，或到馆方官网核实；未命中不代表没有限制。</p> : <p className="mt-3 text-sm leading-6">以下仅为相关资料，不是问题答案。请同时核对适用对象、例外和日期；有相关文字仍可能不足以回答您的问题。</p>}
-      <ol className="mt-4 grid gap-5">{state.response.matches.map((m, i) => <li key={m.chunk_id} className="min-w-0 rounded-2xl border border-[#315f51]/20 bg-white p-5">
+      <KnowledgeAnswer answer={answer} />
+      <ol className="mt-4 grid gap-5">{state.response.matches.map((m, i) => <li key={m.chunk_id} id={`knowledge-${m.chunk_id.replace("/", "-")}`} tabIndex={-1} className="min-w-0 scroll-mt-5 rounded-2xl border border-[#315f51]/20 bg-white p-5">
         <p className="text-sm text-[#77522b]">{i + 1} · {kinds[m.source.kind]} · {state.response!.venue.name}</p>
         <h3 className="mt-2 text-lg font-semibold">{m.source.title}</h3><p className="mt-1 text-sm">章节：{m.section.heading}</p>
         <p className="mt-4 break-words leading-7">{m.section.summary}</p>

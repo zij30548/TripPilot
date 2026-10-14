@@ -38,6 +38,8 @@
 
 ## Current
 
+- **6D-2功能实现，回答质量验收未完成（2026-10-14）**。实际基线及fetch后origin/main为`196e52f73e5933690c2b13f94ffc274af2080556`。独立资料页新增主动千问回答、服务端重检索/版本绑定/引用映射、严格输出及取消隔离；不改正式行程、数据库、saved-trip-v1、语料或BM25。新增上游额度已**20/20**，停止真实调用。冻结12题跨版本最新记录9通过、2失败、1待复核，不是最终提示全量通过：历史状态仍误判、冲突题行内引用/缺失类别失败、摄影附加日期待核。最终行内引用拒绝补修仅Mock/离线重放，不能宣称已生成正确答案。后端354、前端1,110/54文件、lint/typecheck/Webpack、FastAPI健康和diff通过。按授权仅保存本阶段实现及阻塞记录并普通push，**不标记阶段完成，不进入下一阶段**。详情见`docs/KNOWLEDGE_6D2.md`、`backend/knowledge/answer-evaluation-report.json`、`/Users/zijing/projects/trippilot-evidence/6d-2/`。下方旧停止点为历史记录。
+
 - **6D-1 来源归属补修已完成检查与真实 Chrome 复核（2026-10-14）**。实际基线 `1a529bb0ac64c8712fff62bac0750f00b2438436`，`main` 与 fetch 后的 `origin/main` 同步。只修单来源摘要/适用说明、资料版本契约与回归；语料升为 `2026-10-14.1`，不改检索算法或题目标签。后端337项、前端1,078项、lint、typecheck、Webpack通过；五张补修截图已逐张打开。按授权仅提交下列10文件并普通push后停止，不进入6D-2。原五个缓存和已存在未跟踪 `.playwright-mcp/` 日志保留且不暂存；以下阶段原记录仍是历史验收，不改写。
 
 - **6D-1 真实资料与本地检索已实现并完成本轮验收**。实际基线为已推送 `428f76ba01c9899d8558e23ac411ef0afd4380b4`，`main`，开始时远端同步；本轮19个交付文件。六份官方正文、三个馆区、十五个保留条件的片段；独立 `/knowledge` 页面与本地 `POST /knowledge/search`，不生成答案。后端334项、前端1,076项/53文件、lint、typecheck、Webpack和diff检查通过。真实生产Chrome完成三馆区、历史/冲突提示、无匹配、400px键盘，以及原草案/地图/费用保留；九张截图逐张检查。冻结验证资料Hit@3=14/14，但无资料误命中1/4，完整失败样例保留。**模型新增0次**，既有20/20不重置。五个缓存内容哈希不变。本轮按授权仅提交本阶段文件并普通push，完成后停在6D-1；下方历史记录不改写为本轮执行。
@@ -89,6 +91,8 @@
 - POST /trips/schedule-preview accepts confirmed accommodation, up to six required and three distinct optional POIs, requested dates/daily window, separate stay/lunch settings and `transport_mode` (`walking` by default, or `transit`). Every edge and movement uses the selected mode, without comparison, mixing or fallback. Required visits retain their original-order, same-mode/same-batch baseline; only when they all fit (or none were requested) may one optional be appended to each day's fixed tail. Candidate/rule/mode changes synchronously invalidate the preview; old Mock plan/budget/weather, activity bindings and map routes remain independent
 
 ## Next
+
+- **停在6D-2：真实调用已达20/20，不再请求模型。** 普通提交/推送本阶段代码和未完成验收记录；保留原五个缓存且不暂存，浏览器日志不提交。只有新明确授权后才能继续复核a04状态、a05冲突回答、a11日期范围及最终同版本全量12题；不改旧失败，不拿Mock替代真实验收。
 
 - **当前只收口6D-1来源归属补修**，普通commit/push后停止；不进入6D-2。以下较早授权保留为历史记录。
 
