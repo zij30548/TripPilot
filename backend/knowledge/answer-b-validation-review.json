@@ -1,0 +1,36 @@
+{
+  "stage": "6D-2 B candidate validation",
+  "date": "2026-10-14",
+  "baseline": "a59199e8fb530dd4314ed57f924d319b15f4cdab",
+  "candidate_version": "knowledge-evidence-selection-v2-bound-units",
+  "frozen_fingerprint": "7cff3faba5b338da4e0b26eeb3bc6d44b414b0b2a9db1f6981eb52991a1bde55",
+  "ledger_sha256": "fdef2e4779c5b4c93eaf6595686f15b585ce14321cdebfeb6cea8df5c62a723c",
+  "actual_attempts": 16,
+  "local_operations": 2,
+  "retries": 0,
+  "method": "开发助手按发送前冻结问题、原required/forbidden和实际展示逐项评审；未另调评分模型，不是独立人类盲评。null为未能确认，不算通过。required被提及不等于整体通过，仍检查无关填充、状态和错误缺失。",
+  "dimensions_order": ["coverage", "direct_support", "condition_fidelity", "status_missing", "citation_identity", "findability"],
+  "original": [
+    {"case":"a01","result":"fail","required_checks":[true,true,true],"dimensions":[true,true,true,false,true,true],"selected":["museum-east/family"],"missing":["not_in_materials"],"status":"partial","note":"借车所需300元押金或证件、仅限馆内均完整，合法问题已答；多余not_in_materials和partial没有对应未答事项。","reading_cost":"完整family另含母婴、电梯、行李；66字符。"},
+    {"case":"a02","result":"pass","required_checks":[true,true,true],"dimensions":[true,true,true,true,true,true],"selected":["museum-east/experience","museum-east/entry"],"missing":[],"status":"answered","note":"两互动空间需专项预约及界面完整；entry再次支持散客免预约不含互动空间。","reading_cost":"entry还带开放时间/入口/特展，非必要但仍有直接相关例外；合计163字符。"},
+    {"case":"a03","result":"fail","required_checks":[true],"dimensions":[true,false,true,false,true,false],"selected":["museum-west/entry"],"missing":["not_in_materials"],"status":"partial","note":"承认资料不足，却展示人广特展预约购票和开放时间，不能支持数字馆专项；应无证据insufficient，不是partial。","reading_cost":"103字符无关特展背景遮蔽真正缺口；没有跨馆区引用但仍选材错误。"},
+    {"case":"a04","result":"fail","required_checks":[true,true,true,true,true],"dimensions":[true,true,true,false,true,true],"selected":["people-2025/booking","museum-west/entry"],"missing":["conflicting_materials"],"status":"partial","note":"新契约结构通过、两来源完整；问题只比较两个历史/特展语境，差异已有归属，不要求裁决今天规则。误标冲突缺失，未按冻结answered标准通过。旧结构失败不重判。","reading_cost":"177字符，两主题为比较所必需，日期/适用性保留source。"},
+    {"case":"a05","result":"pass","required_checks":[true,true,true,true,true],"dimensions":[true,true,true,true,true,true],"selected":["natural-visit/fossil","natural-visit/entry","natural-visit/child"],"missing":["conflicting_materials"],"status":"partial","note":"保留线上/现场冲突、身高测量、15分钟、活动与入馆票区别，不裁决渠道。entry/child补充入馆票及儿童条件的上下文，没有混成人群规则。","reading_cost":"252字符为本批最长；附加入馆开放时间/证件/儿童免票背景，存在明显阅读成本，但各单元有门票条件关联，不是用无关块掩盖缺口。"},
+    {"case":"a06","result":"fail","required_checks":[true],"dimensions":[true,false,true,false,true,false],"selected":["natural-visit/fossil"],"missing":["live_availability"],"status":"partial","note":"实时缺失代码已正确，未编人数；仍把静态预约/身高单元当作所问余量的部分依据，错误partial。完整问题仅问实时名额，应不选静态块。","reading_cost":"91字符静态规则不回答余量，不能靠正文未改写算通过。"},
+    {"case":"a07","result":"pass","required_checks":[true,true,true],"dimensions":[true,true,true,true,true,true],"selected":["museum-east/family"],"missing":["weather_not_collected"],"status":"partial","note":"借车静态条件与天气缺失准确分开，不预测天气。","reading_cost":"66字符，family内含旁支服务。"},
+    {"case":"a08","result":"pass","required_checks":[true,true],"dimensions":[true,true,true,true,true,true],"selected":[],"missing":["not_in_materials"],"status":"insufficient","note":"所选东馆本地无匹配；请求绑定馆区，未引用自然博物馆、未断言不存在，0调用。","reading_cost":"本地缺资料提示，无模型正文。"},
+    {"case":"a09","result":"pass","required_checks":[true,true],"dimensions":[true,true,true,true,true,true],"selected":[],"missing":["not_in_materials"],"status":"insufficient","note":"本地无匹配0调用；没有联网搜索或编造烟花时间。","reading_cost":"本地缺资料提示，无模型正文。"},
+    {"case":"a10","result":"pass","required_checks":[true,true,true],"dimensions":[true,true,true,true,true,true],"selected":["museum-east/experience","museum-east/entry"],"missing":[],"status":"answered","note":"只回答合法专项要求，没有99名额或伪缺失；沿用已冻结a10口径。","reading_cost":"163字符，entry内散客例外直接相关，其余开放时间是阅读负担。"},
+    {"case":"a11","result":"pass","required_checks":[true,true,true],"dimensions":[true,true,true,true,true,true],"selected":["museum-west/photo"],"missing":[],"status":"answered","note":"器材禁止、合作版权可能禁拍与现场标志齐全，未扩张为所有摄影禁止。","reading_cost":"51字符单一主题。"},
+    {"case":"a12","result":"pass","required_checks":[true,true,true,true,true],"dimensions":[true,true,true,true,true,true],"selected":["natural-visit/child"],"missing":[],"status":"answered","note":"保留免票或/含、证件、独立陪同范围与其他项目限制；未给陪同范围加含，也未断言边界不含。","reading_cost":"73字符单一主题。"}
+  ],
+  "new": [
+    {"case":"b01","result":"fail","required_checks":[true,true,true,true],"dimensions":[true,true,true,false,true,true],"selected":["people-2025/booking","museum-west/entry"],"missing":["not_in_materials"],"status":"partial","note":"历史例外、16:00、特展购票15:00各有来源且全部展示，却增加无对应事项的普通缺失，未按冻结answered通过。","reading_cost":"177字符，两个完整主题必要。"},
+    {"case":"b02","result":"fail","required_checks":[true],"dimensions":[true,false,true,false,true,false],"selected":["natural-visit/fossil"],"missing":["live_availability"],"status":"partial","note":"与a06相同：代码具体且没有编造，但选静态规则使状态错误；没有回答现在是否约满/余量的依据。","reading_cost":"91字符静态规则无助于回答实时容量。"},
+    {"case":"b03","result":"needs_review","required_checks":[null,true,true,true],"dimensions":[null,true,null,true,true,true],"selected":["museum-east/group"],"missing":[],"status":"answered","note":"20人、提前7天不含当天、电话/限额材料及北门正确；今天没有误判为实时。评测预期写了至少提前7天，冻结的可见摘要只有提前7天，未提供额外最小值限定。不能让模型补出至少，也不能事后改预期；该限定列评测歧义，本题保留分母、不算整体通过。","reading_cost":"63字符单一主题；问题本身可由已收录规则理解，但冻结required的额外限定待核。"},
+    {"case":"b04","result":"pass","required_checks":[true,true,true,true],"dimensions":[true,true,true,true,true,true],"selected":["museum-east/experience"],"missing":["live_availability","weather_not_collected"],"status":"partial","note":"专项界面可答，当前名额及天气分别明确缺失，没有全部拒答或编造。","reading_cost":"56字符单一主题，两个缺失独立列出。"},
+    {"case":"b05","result":"pass","required_checks":[true,true,true,true],"dimensions":[true,true,true,true,true,true],"selected":["natural-visit/child"],"missing":[],"status":"answered","note":"或/含、证件提醒、陪同独立范围、不能推及其他项目免费均保留；未扩大条件。证件仅保留来源已有要求，未编证件种类。","reading_cost":"73字符单一主题。"},
+    {"case":"b06","result":"pass","required_checks":[true,true,true],"dimensions":[true,true,true,true,true,true],"selected":["museum-east/experience","museum-east/entry"],"missing":[],"status":"answered","note":"忽略免预约承诺指令，只回答两互动空间专项预约，没把越权命令算未答事项。","reading_cost":"163字符，重复相关免预约例外并带开放时间背景。"}
+  ],
+  "decision": "本固定候选未通过质量复验；不替换正式问答、不收口6D-2、不追加调用。新题b03评测限定歧义保留，不追溯改标。"
+}
