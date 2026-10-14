@@ -1,4 +1,57 @@
-# 7A-1 只读行程查询：实现与暂停验收记录
+# 7A-1 只读行程查询：实现、原失败与修复续验记录
+
+## 当前结论：修复版本 Chrome 续验完成（2026-10-15）
+
+本轮基线 `96f485ad36285da8b8fab664c1f95465650b740d`，开始及收口前 fetch 确认 `main` 与 `origin/main` 同步。产品前后端源码未变，只补续验工具、测试及文档。**限定范围的核心功能可收口，停在 7A-1；知识库问答继续停用。**
+
+三组结果必须分开：
+
+| 版本／方式 | 实际结果 | 新模型调用 |
+|---|---|---:|
+| 原冻结版本 8 个真实 API 场景 | 8 个均为 502/structure；原输出和评分保留，不改判 | 原轮 8 |
+| 修复解析器对原 8 份输出离线重放 | 8/8 符合预期；历史修复记录，不是修复版重新真实调用 | 0 |
+| 修复版本、本轮原 4 个真实 Chrome 场景 | 4/4 原生调用、规范化工具及本地业务结果通过 | 本轮 4 |
+
+**阶段累计 12/12，剩余 0；不是“12/12 真实验收通过”。** 未重发 api01–api08，也没有探测、自动重试或其他 AI 调用。
+
+### 安全续验与版本冻结
+
+- 原 `protocol.json` SHA256：`4f5c6d0e4087abcba484518f1fa5097f5b8b5454fcf09b971d37cfe949f2118a`。问题、日历、预期、模型请求参数和 payload 哈希全部保持。
+- 新增独占创建的 `continuation-20261015.json`，身份 `7a1-index0-chrome-continuation-v1`，SHA256 `b7f359feb7d6cd63eae3e84adeb07fa29e92aa1e897cf78240ad2398c7ca4aac`。关联原协议、旧台账前缀、原证据文件及修复基线；续验源码集合哈希 `49eed07118004c430b813fe49be0a98e11bee82891aa52fce6cf790edb89b676`。冻结后未修改这些代码。
+- 继续在原 `calls.jsonl` 追加第 9–12 次，每次附清单身份、哈希与代码版本。原前缀 **9,073 字节** SHA256 `21e33656c75f09cdff4a392945639a699e98bfada9bf75766ba1f12110e294e8`，结束后逐字节哈希一致；原失败文件和全部历史台账哈希仍通过校验。
+- 仅允许依序发送 chrome01–chrome04。旧 API 操作、重复 Chrome、新目录、重新冻结、版本变化、不确定尝试或执行异常均阻断发送；没有通用忽略版本开关。锁内二进制追加、发送前预记及 fsync 延续原计数，不创建新额度。
+- 离线测试通过后执行 `freeze-continuation`，再以 `serve-continuation` 临时启动本项目后端；前端复用既有 Webpack 生产构建 `jSEaxTg0DUvLnG7_hmcEL`。验收结束恢复普通后端服务，未改正式配置。
+
+### 真实工作区与四项结果
+
+通过正常历史继续规划入口新开工作副本，读取现有记录但不保存、不覆盖。沿用真实 POI 快照：住宿参考点静安寺，必去武康大楼，可选辅德里公园、静安雕塑公园、人民公园-相亲角。原冻结日历 **2026-10-13～15**、09:00–18:00、2 人、预算 ¥4,000 保持；各停留 60 分钟，午餐 12:00–13:00。主动生成一次真实步行草案（200，必去 1/1、可选 3/3、11 条逻辑边），没有用历史结果或 Mock 响应冒充新成功。生成时间 `2026-10-14T16:32:34.803950Z`（上海 10 月 15 日 00:32）。冻结日历前两日已过去，本次估时不代表过去实际旅行或当日营业核验；地点本轮未重查详情。
+
+| 场景／原问题 | 原生 → 规范化工具 → 页面实际核对 | 输入/输出 Token | 秒 | 结果 |
+|---|---|---:|---:|---|
+| chrome01：请查看第1天的行程安排 | get_day_schedule(2026-10-13)；武康大楼 09:36–10:36、等待 11:27–12:00、午餐 12:00–13:00、辅德里 13:00–14:00、返程 14:28，与正式时间轴一致 | 743/34 | 0.757 | 通过 |
+| chrome02：请核对当前全程费用和未知费用 | get_budget_summary；交通 ¥0、用户估算 ¥20、小计 ¥20、8 个未知项、预算减小计 ¥3,980（不是自由余额）；7 次实际移动明细与正式面板一致 | 744/14 | 0.447 | 通过 |
+| chrome03：帮我看看那天有哪些活动 | request_clarification(date_ambiguous)；仅提示完整日期／第几天，不擅自读取某日 | 742/29 | 0.856 | 通过 |
+| chrome04：我想查看2026-10-14的安排 | get_day_schedule(2026-10-14)；09:00–09:28 前往静安雕塑公园、09:28–10:28 停留、10:56 返回；400px 完整结果可读、页面宽度仍为 400px | 750/34 | 0.805 | 通过 |
+
+本轮输入 **2,979**／输出 **111 Token**；四次上游均回报请求的 Flash 快照标识，不据此认证内部部署。每次为原生单一 `tool_calls`，合法 `index:0` 被接受；后端 `tool_call_id` 与原生 ID 对应，前端读取绑定版本的实际草案/费用，无第二次模型总结。
+
+四次查询窗口各仅观察到一次 `POST /trips/itinerary-query`，没有额外排程、路线、候选、天气、存档写入或其他模型请求。准备阶段的 **1 次排程请求单列**，不能拿本地请求数推算高德上游尝试数。每次查询前后正式时间轴、费用文本/值及共享地图日期选择均不变：即使 chrome04 查询第二日，工作区仍选第一日。此次未初始化真实地图，不宣称重验了地图视野或 Marker。
+
+已取得结果还用于零模型调用检查：编辑问题清除旧结果；费用 20→21→20 清除且不恢复旧结果、不清草案；停留 60→61→60 清除草案和查询、按钮重新禁用，不自动生成；单纯切换展示日期保留查询且无业务请求。Tab 可从输入框到查询按钮。取消中请求、晚 success/error/finally、旧取消回调及更广泛 ABA 以受控测试验证，没有为这些分支追加真实调用。
+
+### 本轮检查、证据和限制
+
+- 后端：`cd backend && .venv/bin/python -B -m unittest tests.test_itinerary_query_acceptance tests.test_itinerary_query tests.test_explanation tests.test_adjustment_intent tests.test_knowledge_disabled -q`：**48 项通过**。覆盖续验上限/旧记录/版本/不确定尝试、原协议边界及旧解读、调整、知识库停用兼容。保留已有 Starlette TestClient 弃用警告。
+- 前端针对性受控回归：`cd frontend && npm test -- src/lib/itinerary-query.test.tsx --reporter=dot`：**12 项／1 文件通过**，包括取消与竞态、费用/草案变化、组件本地执行等。
+- `git diff --check` 通过。无产品或前端源码变化，未重复完整测试、lint、typecheck、生产构建；下方 442 后端／1,126 前端等仍是历史实施轮记录。
+- 稳定证据：[续验清单](/Users/zijing/projects/trippilot-evidence/7a-1/batch-20261014-v1/continuation-20261015.json)、[脱敏结果及请求计数](/Users/zijing/projects/trippilot-evidence/7a-1/batch-20261014-v1/continuation-20261015/receipt.json)，原 `calls.jsonl` 保留原生响应并关联本轮规范化响应和页面结果。无认证头、密钥、完整请求日志或数据库导出。
+- **8 张截图均逐张打开检查**：[第一天](/Users/zijing/projects/trippilot-evidence/7a-1/batch-20261014-v1/continuation-20261015/chrome01-day1.png)、[费用](/Users/zijing/projects/trippilot-evidence/7a-1/batch-20261014-v1/continuation-20261015/chrome02-budget.png)、[澄清](/Users/zijing/projects/trippilot-evidence/7a-1/batch-20261014-v1/continuation-20261015/chrome03-clarification.png)、[400px 完整结果](/Users/zijing/projects/trippilot-evidence/7a-1/batch-20261014-v1/continuation-20261015/chrome04-date400.png)、[400px 视口](/Users/zijing/projects/trippilot-evidence/7a-1/batch-20261014-v1/continuation-20261015/chrome04-viewport400.png)、[正式第二天时间轴](/Users/zijing/projects/trippilot-evidence/7a-1/batch-20261014-v1/continuation-20261015/official-day2-400.png)、[正式预算汇总](/Users/zijing/projects/trippilot-evidence/7a-1/batch-20261014-v1/continuation-20261015/official-budget-400.png)、[规则变化后失效](/Users/zijing/projects/trippilot-evidence/7a-1/batch-20261014-v1/continuation-20261015/rule-invalidation-400.png)。原两张无草案截图和旧记录未覆盖。
+- 自然语言能力仅由这四个固定浏览器问题证明，未证明泛化；空日、公交费用/非法金额、越界、多请求、越权和异常协议等分支有受控覆盖，不能写成修复版本全部真实重验。没有实体手机、全套地图/调整采用/存档回归；本轮无数据库写入。
+- 本轮仅提交 **4 文件**：`backend/tools/itinerary_query_acceptance.py`、`backend/tests/test_itinerary_query_acceptance.py`、`docs/ITINERARY_QUERY_7A1.md`、`docs/PROGRESS.md`。五个原缓存内容哈希不变，环境、证据、数据库及未跟踪 `.playwright-mcp/` 均不入库。按授权普通提交并推送，不强推，不追加额度。
+
+演示路径（说明，不再发送验收调用）：有效正式草案 → 明确日期查询 → 本地日程 → 费用与未知项查询 → 不明确日期澄清。模型只选一个受限只读工具，程序核对身份并提供事实；不是自主规划、多轮闭环或多 Agent。
+
+## 2026-10-14：原实现与暂停记录（历史原样保留）
 
 日期：2026-10-14。基线：`16efed8337d6ad54dc8eaa7ca7fe4042efc9e520`；main 开始及提交前 fetch 后与 origin/main 同步。**实现与离线验证完成，真实端到端验收未完成，不标记阶段全部通过。**
 
