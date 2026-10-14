@@ -22,6 +22,8 @@ import WeatherForecast from "./weather-forecast";
 import WeatherScheduleCheck from "./weather-schedule-check";
 import ScheduleAdjustment from "./schedule-adjustment";
 import CostEstimateInput from "./cost-estimate-input";
+import ItineraryQuery from "./itinerary-query";
+import { useItineraryQuery } from "@/lib/use-itinerary-query";
 
 export type WorkspaceEdit = { read: () => WorkspaceInputs; invalidate: () => void; isCurrent: () => boolean };
 
@@ -36,6 +38,8 @@ export default function PlanningWorkspace({ request, initial, origin = "new", re
   const invalidateCheck = checkRevision.invalidate;
   const changed = useCallback(() => { invalidateCheck(); if (alive.current) onDirty?.(); }, [invalidateCheck, onDirty]);
   const schedule = useSchedulePreview(request, changed, initial);
+  const getQueryCosts = useCallback(() => costRef.current, []);
+  const queryAssistant = useItineraryQuery(schedule, getQueryCosts);
   const explanation = useScheduleExplanation(schedule);
   const candidates = useCandidatePool(request, schedule.updateCandidates, initial?.candidates);
   const weatherRequest = { start_date: request.start_date, end_date: request.end_date };
@@ -49,6 +53,7 @@ export default function PlanningWorkspace({ request, initial, origin = "new", re
   }, []);
   const editCost = (row: UserCost, value: string) => {
     if (!alive.current) return;
+    queryAssistant.costsChanged();
     costRef.current = updateCostInput(costRef.current, row, value);
     setCostInputs(costRef.current); onDirty?.();
   };
@@ -86,6 +91,7 @@ export default function PlanningWorkspace({ request, initial, origin = "new", re
     </WorkflowSection>
     <WorkflowSection step="draft" title="生成与查看草案">
     <SchedulePreview request={request} preview={schedule} restored={origin === "history"} enablePlaceMap={origin !== "demo"} />
+    {origin !== "demo" && <ItineraryQuery assistant={queryAssistant} dates={schedule.state.status === "success" ? schedule.state.response!.days.map(d => d.date) : []} />}
     </WorkflowSection>
     <WorkflowSection step="review" title="核对、调整与保存">
     <p className="text-sm leading-6">费用仅作核对，不影响排程或采用资格。天气检查和 AI 调整可跳过，已有有效草案即可保存；调整预览须明确采用才改变正式行程。</p>

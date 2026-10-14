@@ -196,6 +196,12 @@ class QwenClient:
             raise QwenError("structure") from None
 
     async def generate(self, payload: dict[str, object]) -> tuple[object, ExplanationUsage]:
+        try:
+            return parse_content(await self._request(payload))
+        except (ValueError, UnicodeError, RecursionError):
+            raise QwenError("structure") from None
+
+    async def _request(self, payload: dict[str, object]) -> object:
         """Shared bounded transport for server-built schemas only, never client payloads."""
         endpoint = configured_endpoint(self.settings)
         if len(json.dumps(payload, ensure_ascii=False).encode()) > MAX_PROMPT_BYTES:
@@ -219,7 +225,7 @@ class QwenClient:
                         body.extend(chunk)
                     if response.status_code != 200:
                         raise QwenError(error_category(response.status_code, bytes(body)))
-                    return parse_content(strict_json(body))
+                    return strict_json(body)
         except (TimeoutError, httpx.TimeoutException):
             raise QwenError("timeout") from None
         except httpx.HTTPError:

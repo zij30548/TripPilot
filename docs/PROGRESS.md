@@ -38,6 +38,10 @@
 
 ## Current
 
+- **7A-1 只读行程查询已实现并完成离线检查，真实端到端验收暂停（2026-10-14）**。实际基线 `16efed8337d6ad54dc8eaa7ca7fe4042efc9e520`，main 与 fetch 后 origin/main 同步。新增原生 `tools/tool_calls` 独立接口、前端本地白名单读草案/费用及版本隔离；不恢复知识库问答。用户新增 12 次授权中实际 **8/12**：原生工具选择 8 项符合预期，但 API 因未兼容响应 `index:0` 均 **502/structure**，保留原失败。修复只允许该可选协议元数据；8 份原始输出离线重放通过，**不是重做真实验收**。剩余 4 个 Chrome 模型场景未执行；无追加调用。最终后端完整 **442 项**、前端 **1,126/55 文件**、lint/typecheck/Webpack/diff 通过。Chrome 仅验证无草案禁止查询与 400px，两截图已打开；完整日期/费用/澄清端到端仍待复验。详见 [7A-1 实现与暂停验收记录](ITINERARY_QUERY_7A1.md)，稳定 `trippilot-evidence/7a-1/batch-20261014-v1/`。按授权仅提交本轮 15 文件，五缓存/旧台账不变，**不标记全部验收通过，不进入下一阶段**。
+
+### 上一阶段收尾（历史记录）
+
 - **6D-2 知识库问答暂缓收尾完成，正式保留资料检索（2026-10-14）**。实际基线 `b086e15a55edbc6c54d79a909d0f7178c0af6d9b`，`main` 与 fetch 后 `origin/main` 同步。用户选择暂缓：`/knowledge` 不再挂载 AI 回答操作/结果；正式 `POST /knowledge/answer` 固定返回 **503 / knowledge_answer_disabled**，不解析请求、不获取模型客户端，不可通过参数恢复。旧问答实现、候选与评测保留为研究能力，行程解读及自然语言调整没有全局停用。**本轮真实模型调用 0**；没有追加试验或改写旧成绩。检查、真实官方资料＋本地检索 Chrome 验收及 10 文件清单见下方“暂缓收尾”。**这是开放范围收尾，不是 6D-2 回答质量验收通过。**
 
 ### 历史状态（以下保留各轮当时结论，不是当前授权）
@@ -109,6 +113,10 @@
 - POST /trips/schedule-preview accepts confirmed accommodation, up to six required and three distinct optional POIs, requested dates/daily window, separate stay/lunch settings and `transport_mode` (`walking` by default, or `transit`). Every edge and movement uses the selected mode, without comparison, mixing or fallback. Required visits retain their original-order, same-mode/same-batch baseline; only when they all fit (or none were requested) may one optional be appended to each day's fixed tail. Candidate/rule/mode changes synchronously invalidate the preview; old Mock plan/budget/weather, activity bindings and map routes remain independent
 
 ## Next
+
+- **当前停止点：7A-1 修复后的固定版本真实验收尚未完成。** 本轮已发送的 8 次不得重发或改判，12 次授权尚余 4 次未使用；不自动重置、另建额度、补抽成功样本或混合修复前后成绩。先明确修复版本复验安排，再推进剩余 Chrome 场景。知识库正式仅保留资料检索，问答继续停用；不进入后续阶段。提交保存实现与失败记录不等于验收通过。
+
+### 上一阶段停止点（历史记录）
 
 - **当前停止点：知识库问答暂缓收尾；普通提交/推送本轮必要文件后停止。** 正式仅开放可追溯资料检索；RAG 问答已实现及评测，但质量未达到当前准入要求。完整回归仍为 20 题、18 次模型调用＋2 个本地结果、严格 18 通过／2 失败，b01 非阻塞保守提示、b05 阻塞，未获正式集成准入。历史台账全部保留，无可自动续用的额度。
 - **后续主线方向：7A-1 受控单 Agent 工具调用。** 本轮只记录方向，不实现、不新增模型调用；等待另行阶段授权。不继续调提示或将 Plus 候选接入正式问答。

@@ -15,6 +15,7 @@ from app.api.explanation import router as explanation_router
 from app.api.adjustment_intent import router as adjustment_intent_router
 from app.api.knowledge import router as knowledge_router
 from app.api.knowledge_answer_disabled import router as knowledge_answer_router
+from app.api.itinerary_query import router as itinerary_query_router
 
 app = FastAPI(
     title="TripPilot API",
@@ -39,6 +40,7 @@ app.include_router(adjustment_intent_router)
 app.include_router(saved_trips_router)
 app.include_router(knowledge_router)
 app.include_router(knowledge_answer_router)
+app.include_router(itinerary_query_router)
 
 
 @app.exception_handler(ArchiveError)
