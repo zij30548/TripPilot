@@ -140,3 +140,36 @@ describe("input/request version isolation and explicit interaction", () => {
     expect(screen.getByText(/未找到相关资料/)).toBeTruthy();
   });
 });
+
+describe("official page is retrieval only", () => {
+  it("has no answer action or judgments before/after matches and no-match; requests only search", async () => {
+    render(<KnowledgeSearch />);
+    expect(screen.getByText(/AI问答暂未开放/)).toBeTruthy();
+    expect(fetcher).not.toHaveBeenCalled();
+    for (const index of [0, 1, 2, 3]) {
+      const r = fixture(index);
+      fireEvent.change(screen.getByLabelText("场馆／馆区"), { target: { value: r.request.venue_id } });
+      fireEvent.change(screen.getByLabelText("想查询的问题"), { target: { value: r.request.question } });
+      fetcher.mockResolvedValueOnce(response(r));
+      await act(async () => fireEvent.submit(screen.getByRole("button", { name: "查询资料" }).closest("form")!));
+      expect(screen.queryByRole("region", { name: "依据资料回答" })).toBeNull();
+      expect(screen.queryByRole("button", { name: /生成回答|取消回答|AI/ })).toBeNull();
+      expect(screen.queryByText(/部分有依据，仍有事项待确认|已依据收录资料回答/)).toBeNull();
+    }
+    expect(fetcher).toHaveBeenCalledTimes(4);
+    expect(fetcher.mock.calls.every(([url]) => url === "http://127.0.0.1:8000/knowledge/search")).toBe(true);
+  });
+
+  it("cancel is available on the official page and late retrieval cannot show results", async () => {
+    const d = defer(); fetcher.mockReturnValueOnce(d.promise);
+    render(<KnowledgeSearch />);
+    fireEvent.change(screen.getByLabelText("场馆／馆区"), { target: { value: fixture().request.venue_id } });
+    fireEvent.change(screen.getByLabelText("想查询的问题"), { target: { value: fixture().request.question } });
+    fireEvent.submit(screen.getByRole("button", { name: "查询资料" }).closest("form")!);
+    fireEvent.click(screen.getByRole("button", { name: "取消查询" }));
+    await act(async () => d.resolve(response(fixture())));
+    expect(screen.getByText("已取消本次查询。")).toBeTruthy();
+    expect(screen.queryByRole("region", { name: "资料检索结果" })).toBeNull();
+    expect(fetcher).toHaveBeenCalledTimes(1);
+  });
+});

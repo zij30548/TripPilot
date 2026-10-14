@@ -5,7 +5,21 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { isAnswerResponse, makeAnswerRequest, type AnswerResponse } from "./knowledge-answer";
 import { answerKnowledge } from "./knowledge-answer-api";
 import { useKnowledgeSearch } from "./use-knowledge-search";
-import KnowledgeSearch from "@/components/knowledge-search";
+import KnowledgeAnswer from "@/components/knowledge-answer";
+
+// Controlled research harness, intentionally not mounted by /knowledge.
+// Keep the original answer and citation UI/lifecycle regression coverage.
+function ResearchAnswerHarness() {
+  const { input, state, update, query, answer } = useKnowledgeSearch();
+  return <>
+    <form onSubmit={e => { e.preventDefault(); void query(); }}>
+      <label>场馆／馆区<input value={input.venue_id} onChange={e => update({ venue_id: e.target.value })} /></label>
+      <label>想查询的问题<input value={input.question} onChange={e => update({ question: e.target.value })} /></label>
+      <button>查询资料</button>
+    </form>
+    {state.response && <KnowledgeAnswer answer={answer} />}
+  </>;
+}
 
 const backend = resolve(process.cwd(), "../backend");
 const fixtures = JSON.parse(execFileSync(resolve(backend, ".venv/bin/python"), ["-B", "-m", "tests.export_knowledge_answer_contract"], { cwd: backend, encoding: "utf8" })) as AnswerResponse[];
@@ -75,7 +89,7 @@ describe("Python → TS answer and citation contract", () => {
   });
 });
 
-describe("explicit answer lifecycle, current source preserved", () => {
+describe("research-only explicit answer lifecycle, current source preserved", () => {
   it("search and edits never call model; duplicate generation ignored", async () => {
     const { result } = renderHook(useKnowledgeSearch); await search(result);
     expect(fetcher).toHaveBeenCalledTimes(1); const d = deferred(); fetcher.mockReturnValueOnce(d.promise);
@@ -118,7 +132,7 @@ describe("explicit answer lifecycle, current source preserved", () => {
     expect(result.current.answer.state.response).toBeNull();
   });
   it("component renders insufficiency, normal answer and citation anchors without extra calls", async () => {
-    render(<KnowledgeSearch />);
+    render(<ResearchAnswerHarness />);
     fireEvent.change(screen.getByLabelText("场馆／馆区"), { target: { value: "museum_east" } });
     fireEvent.change(screen.getByLabelText("想查询的问题"), { target: { value: fixture().request.question } });
     fetcher.mockResolvedValueOnce(response(fixture().retrieval));

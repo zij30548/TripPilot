@@ -14,7 +14,7 @@ from app.api.weather import router as weather_router
 from app.api.explanation import router as explanation_router
 from app.api.adjustment_intent import router as adjustment_intent_router
 from app.api.knowledge import router as knowledge_router
-from app.api.knowledge_answer import router as knowledge_answer_router
+from app.api.knowledge_answer_disabled import router as knowledge_answer_router
 
 app = FastAPI(
     title="TripPilot API",

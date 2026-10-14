@@ -38,6 +38,10 @@
 
 ## Current
 
+- **6D-2 知识库问答暂缓收尾完成，正式保留资料检索（2026-10-14）**。实际基线 `b086e15a55edbc6c54d79a909d0f7178c0af6d9b`，`main` 与 fetch 后 `origin/main` 同步。用户选择暂缓：`/knowledge` 不再挂载 AI 回答操作/结果；正式 `POST /knowledge/answer` 固定返回 **503 / knowledge_answer_disabled**，不解析请求、不获取模型客户端，不可通过参数恢复。旧问答实现、候选与评测保留为研究能力，行程解读及自然语言调整没有全局停用。**本轮真实模型调用 0**；没有追加试验或改写旧成绩。检查、真实官方资料＋本地检索 Chrome 验收及 10 文件清单见下方“暂缓收尾”。**这是开放范围收尾，不是 6D-2 回答质量验收通过。**
+
+### 历史状态（以下保留各轮当时结论，不是当前授权）
+
 - **6D-2 当前Plus-v3固定完整回归完成，尚不具备正式集成验收条件（2026-10-14）**。基线`afd3889266c6b84d6cb370935a554ae17adc7af5`，main开始与fetch后origin/main同步；候选/提示/Schema/资料/检索/渲染/参数及正式配置未改。先冻结20题及本轮独立口径（b03依已记录勘误，a10仅合法问题，旧评分不改），每题一次；**18/18真实调用＋a08/a09两个本地结果**，未执行/重试/额外调用0。严格**18通过/2失败/0待核**；业务**1阻塞b05**（旁支化石预约冲突被泛化为免票/陪同缺口）、**1非阻塞保守b01**（历史答全但多余今日核实），阅读负担11题另记，不用总分抵消阻塞。**86项相关受控测试通过**，20输出离线核对、差异/敏感信息/旧证据/五缓存检查通过；无前端构建或浏览器验收，旧台账和未知上游标识保留。仅7文件普通commit/push，详见[完整回归报告](KNOWLEDGE_6D2_PLUS_FULL_REGRESSION.md)、[冻结协议](KNOWLEDGE_6D2_PLUS_FULL_PROTOCOL.md)，稳定`trippilot-evidence/6d-2/plus-full-regression/batch-20261014-v1/`。**停止完整回归，不调提示、不替换正式问答、不宣布6D-2收口**。
 
 - **6D-2 Plus缺失事项定向复验已完成，但候选未全部通过（2026-10-14）**。实际基线`9a989604cec1155ec8ca5d1b9c0563239a1a4619`，main与fetch后origin/main同步。先冻结四题/可见资料/预期，再建立独立`knowledge-evidence-selection-v3-plus-question-gaps`，仅追加missing语义；模型Plus快照、Schema、证据/渲染/参数与正式配置不变。新授权**8/8**、重试/额外调用0：a04 **1/2**，新历史表述g02 **2/2**，比较＋今日判断g03 **2/2**，真渠道冲突a05 **2/2**，合计**7/8**；a04第二次仍多加current_applicability并误标partial，失败原样保留，不继续调参。**78项相关受控测试通过**，8份真实输出离线复核、差异/敏感信息/旧证据/五缓存哈希检查通过。旧五批台账与评分不改；上游模型标识仍未知。仅8文件普通commit/push，详见[本轮报告](KNOWLEDGE_6D2_PLUS_GAP_VALIDATION.md)、[冻结协议](KNOWLEDGE_6D2_PLUS_GAP_PROTOCOL.md)和稳定`trippilot-evidence/6d-2/plus-gap-validation/`。**不替换正式问答；回答质量验收仍未完成，停在定向复验报告**。
@@ -106,6 +110,11 @@
 
 ## Next
 
+- **当前停止点：知识库问答暂缓收尾；普通提交/推送本轮必要文件后停止。** 正式仅开放可追溯资料检索；RAG 问答已实现及评测，但质量未达到当前准入要求。完整回归仍为 20 题、18 次模型调用＋2 个本地结果、严格 18 通过／2 失败，b01 非阻塞保守提示、b05 阻塞，未获正式集成准入。历史台账全部保留，无可自动续用的额度。
+- **后续主线方向：7A-1 受控单 Agent 工具调用。** 本轮只记录方向，不实现、不新增模型调用；等待另行阶段授权。不继续调提示或将 Plus 候选接入正式问答。
+
+### 历史授权与停止点（以下不代表当前计划）
+
 - **本轮停在6D-2真实配对报告**。新授权20次已全部用尽，旧20+16也不恢复；不追加调用、不把B接入正式接口或页面、不进入下一阶段。方向更支持整块证据选择，但保留其锚点和missing失败，下一次修改/真实验证须另行授权。以下授权与停止点按各轮历史保留。
 
 - **当前停在6D-2对照方案准备完成处**：等待另行明确授权真实模型试验。旧20次与补修16次均已用尽；不能靠重启、新建台账或离线测试续用额度。正式自由概括流程保持原样，候选只在离线工具中；真实质量改善和候选上线均未验收。以下停止点为各轮历史记录。
@@ -126,6 +135,62 @@
 - **Current instruction: stop after ordinary 6B-2 commit/push.** Do not start a subsequent stage. The earlier 6B-1 stopping point below is retained as history and was superseded by the explicit 6B-2 authorization. No new Qwen allowance, archive update/delete, autosave, persistence of working copies or multi-user access is introduced.
 - Close out only this **6B-1** delivery with an ordinary stage-only commit/push after remote and staged-content checks. Stop afterward; do not start history editing (6B-2). No further Qwen call is authorized by the exhausted **20 / 20** allowance. Physical-phone/touch, dedicated live subway/transfer-operation samples, broader real upstream fault acceptance, six-required-plus-three-optional live full-load acceptance and the Turbopack limitation remain separate; historical evidence is retained
 - Review existing dependency security advisories as a separate, approved maintenance task before deployment
+
+## 6D-2 暂缓收尾：正式仅资料检索 (2026-10-14)
+
+### 改动与边界
+
+- 官方应用仅注册无依赖的停用路由，`POST /knowledge/answer` 返回 `{"detail":{"code":"knowledge_answer_disabled","message":"AI问答暂未开放，请使用资料检索并查阅官方原文。"}}` / HTTP 503。即使空请求、坏 JSON、过长正文、enabled 参数或请求头也不进入研究问答处理器；没有自动转用模型或搜索。不是仅隐藏按钮，也不是关闭共享千问适配器。
+- `knowledge-search.tsx` 移除问答组件挂载与引导，保留馆区、显式查询、取消、错误/空状态、主题摘要、已有短摘录、来源日期/链接及适用提示。摘要与原文摘录区分；检索资料不等于答案或今日适用保证。
+- 原 `app/api/knowledge_answer.py`、服务/契约、前端答复组件/Hook、候选、工具、问题与台账不改。后端研究 API 测试改为独立 FastAPI harness；前端旧回答组件测试改用研究 harness。原失败边界断言保留，官方入口停用另测。旧冻结试验工具不因此获得新额度；生产 main 变化后不得靠重冻旧台账续跑。
+- 不改语料、检索算法、业务数据库、密钥、代理、CORS、默认模型与原五缓存；不实现 7A-1。检索已知无资料误命中 **1/4** 仍保留，不能宣称检索完全准确。完整模型回归原结论不改：严格 18/20，b01 保守提示、b05 阻塞。
+
+### 本轮实际检查
+
+| 命令（对应目录） | 本轮结果 |
+| --- | --- |
+| backend: `.venv/bin/python -B -m unittest discover -s tests -p 'test_knowledge*.py' -q` | 103 通过；官方停用、三馆区检索与旧研究/计数/质量边界均为离线受控检查 |
+| backend: `.venv/bin/python -B -m unittest tests.test_explanation tests.test_adjustment_intent -q` | 23 通过；行程 AI 兼容，不发真实模型请求 |
+| frontend: `npm test -- --reporter=dot` | 1,114 项／54 文件通过 |
+| frontend: `npm test -- --reporter=dot src/lib/knowledge.test.tsx src/lib/knowledge-answer.test.tsx` | 最终 UI 50 项通过；官方检索与研究回答测试分开 |
+| frontend: `npm run lint`、`npm run typecheck`、`npm run build -- --webpack` | 通过；使用最终 Webpack 生产构建验收 |
+| `git diff --check`、提交范围与敏感信息检查、历史资料/台账/缓存哈希复核 | 通过；不纳入环境、数据库、证据或 `.playwright-mcp/` |
+
+首次新增后端测试误用了新版 FastAPI 的懒注册路由结构和状态拼写，纠正测试后通过；没有放宽运行时校验。首次 Chrome 发现新增摘要标签与语料自带前缀重复，移除多余 UI 标签、重新检查/构建后复核。Starlette/httpx 既有弃用提示保留，未增加依赖。未机械重跑无关后端整套测试；历史模型评测没有重跑。
+
+### 真实 Chrome 与证据
+
+稳定目录：`/Users/zijing/projects/trippilot-evidence/6d-2/deferred-search-only/batch-20261014-v1/`。9 张最终截图均已逐张打开检查，`receipt.json` 为脱敏计数、接口结果及保护清单。旧证据不覆盖。
+
+| 实际操作 | 结果／证据 |
+| --- | --- |
+| 人民广场馆“2025免预约和2026特展购票” | 200；2025/2026 各自摘要、链接、日期和历史提示保留；`01-people-history.png` |
+| 东馆“数字馆预约” | 200；完整主题摘要、来源短摘录、官方链接与未知更新时间不变；`02-east-booking.png` |
+| 自然馆“儿童免票和陪同范围” | 200；只展示原资料，无 AI 全局冲突／部分回答。资料自身的渠道差异提示仍保留，不暗示它就是儿童问题结论；`03-natural-children.png` |
+| 官方原文打开、400px/键盘 | 自然馆链接在新标签页打开，原结果保留；Enter 展开提示、Enter 提交问题；宽度与 scrollWidth 均 400；`04-mobile-400.png` |
+| “迪士尼烟花”无资料 | 200/no_match；没有生成回答入口，未命中不代表无限制；`05-no-match.png` |
+| 取消查询 | **真实 Chrome＋可控请求等待**，按下取消后无结果回填；未伪造返回资料，不称为真实慢网故障；`06-cancel-controlled-delay.png` |
+| 从工作副本打开资料页、查询并返回 | 历史副本本轮未生成正式草案；已编辑停留 75 分钟、用户其他费 37.50 保留，整页文本＋输入 SHA256 前后均 `ffd060e69df0f3870d91e96be915c744da761b49479a0e3898f1c877fa930060`，工作区无新增业务请求；`07-from-workspace.png`、`08-workspace-preserved.png`、`09-fee-preserved.png` |
+| 直接 POST 停用接口 | 本地真实 HTTP 503、code=`knowledge_answer_disabled`；结合受控测试证明没有模型客户端/生成调用。不是 AI 成功结果 |
+
+本轮页面查询共 **7 次发起：6 次真实本地检索成功＋1 次可控取消**，其中 1 次是最终构建前的标签复核；最终构建下 5 次成功＋1 次取消。浏览器问答请求 **0**；独立终端停用探测 **1** 次，503。工作区准备只读历史 **3 GET**；保存写入、排程、路线、候选、天气、模型请求均 **0**。旧已打开标签页的历史请求不计入本轮。当前资料页 Console 错误/警告 0。模型真实调用 **0**，全部旧计数/证据哈希不变。
+
+范围限制：本轮未重新生成旅行草案、初始化地图、采用调整或保存新记录，不能把工作副本输入保留说成整套旅行功能真实重验；这些既有行为由本轮前端全量及相关受控回归覆盖。实体手机、真实模型、真实外部故障未实测；400px 是桌面 Chrome 视口。官方资料未重新抓取，获取日期不刷新；来源存在性/语义边界及历史检索误命中保持原记录。
+
+### 精确交付文件（10）
+
+1. `backend/app/api/knowledge_answer_disabled.py`
+2. `backend/main.py`
+3. `backend/tests/test_knowledge_disabled.py`
+4. `backend/tests/test_knowledge_answer.py`
+5. `frontend/src/components/knowledge-search.tsx`
+6. `frontend/src/lib/knowledge.test.tsx`
+7. `frontend/src/lib/knowledge-answer.test.tsx`
+8. `docs/DEMO_6D2.md`
+9. `docs/DEMO_6C1.md`
+10. `docs/PROGRESS.md`
+
+仅以上文件普通 commit/push；原五缓存（2 已跟踪修改＋3 未跟踪）与已有浏览器日志保留，不暂存。**知识库问答暂缓收尾完成，正式保留资料检索；不宣称回答质量验收通过，停止在本次收尾。**
 
 ## 6D-2 真实A/B配对 (2026-10-14)
 

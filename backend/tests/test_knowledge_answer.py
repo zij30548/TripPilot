@@ -5,13 +5,13 @@ import unittest
 from unittest.mock import patch
 
 import httpx
-from fastapi import HTTPException
+from fastapi import FastAPI, HTTPException
 from fastapi.testclient import TestClient
 from pydantic import ValidationError
 from starlette.requests import Request
 
 from app.api.explanation import get_qwen_http_client
-from app.api.knowledge_answer import answer
+from app.api.knowledge_answer import answer, router as research_router
 from app.config import Settings, get_settings
 from app.integrations.qwen import MODEL, QwenError
 from app.schemas.explanation import ExplanationUsage
@@ -19,7 +19,11 @@ from app.schemas.knowledge import KnowledgeRequest
 from app.schemas.knowledge_answer import AnswerRequest, AnswerResponse, ModelAnswer
 from app.services.knowledge import build_index
 from app.services.knowledge_answer import SYSTEM, answer_payload, render_answer
-from main import app
+
+# Research contract/lifecycle tests only. Production deliberately does not mount
+# this router; test_knowledge_disabled exercises the actual main application.
+app = FastAPI()
+app.include_router(research_router)
 
 
 def fixtures(question="数字馆专项预约", venue="museum_east"):
