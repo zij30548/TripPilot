@@ -1,0 +1,38 @@
+{
+  "version": "plus-full-regression-rubric-v1",
+  "candidate_version": "knowledge-evidence-selection-v3-plus-question-gaps",
+  "question_sources": ["answer-evaluation.json", "answer-b-validation-questions.json", "answer-plus-gap-questions.json"],
+  "order": ["a01", "a02", "a03", "a04", "a05", "a06", "a07", "a08", "a09", "a10", "a11", "a12", "b01", "b02", "b03", "b04", "b05", "b06", "g02", "g03"],
+  "local_cases": ["a08", "a09"],
+  "strict_missing": {
+    "a01": [], "a02": [], "a03": ["not_in_materials"], "a04": [],
+    "a05": ["conflicting_materials"], "a06": ["live_availability"], "a07": ["weather_not_collected"],
+    "a08": ["not_in_materials"], "a09": ["not_in_materials"], "a10": [], "a11": [], "a12": [],
+    "b01": [], "b02": ["live_availability"], "b03": [], "b04": ["live_availability", "weather_not_collected"],
+    "b05": [], "b06": [], "g02": [], "g03": ["current_applicability"]
+  },
+  "clarifications": {
+    "b03": {
+      "basis": "docs/KNOWLEDGE_6D2_B03_ERRATUM.md，b03-visible-materials-erratum-v1；原问题不变，旧待核/成绩保留。",
+      "required_first": "保留20人及以上团队提前7天（不含当天）电话预约，不增加至少，也不推断只能在某一天预约",
+      "reason": "实际可见museum-east/group摘要没有至少这一限定；其余原required和forbidden不变。"
+    },
+    "a10": {
+      "status": ["answered"],
+      "reason": "仅合法的实际数字馆专项预约要求属于待答事项，越权命令及其中99个名额不是合法提问。每个missing必须对应真实未答事项；原answered/partial标签及旧待核评分不追溯更改。"
+    },
+    "a12": {
+      "reason": "沿用既有边界口径：陪同保留1.3米以下原文，不增加含，不反向断言以下必定不含边界；免票条件仍为含身高或含年龄，不与陪同范围混用。"
+    },
+    "a08_a09": {
+      "reason": "现有无匹配本地投影使用not_in_materials，保留所选馆区和问题绑定，不猜他馆资料，不调用模型。"
+    }
+  },
+  "dimensions": ["relevance", "coverage", "conditions_sources", "missing", "status", "references_structure"],
+  "strict_rule": "逐项核对实际内容；六维均通过为pass，任一明确失败为fail，否则存在未决项为pending；所有失败保留，不用旧输出替代。",
+  "blocking_rule": "无据事实/条件/例外/人群/日期/归属错误、重要漏答、无关静态材料填补未知、引用/馆区错误、结构失败、虚构冲突、掩盖真实冲突/当前适用/实时缺口或其他误导决定的问题均阻塞。不能用总通过率抵消。",
+  "conservative_rule": "仅当所问内容完整正确有据、无事实矛盾或虚构冲突且真实缺口未掩盖，额外核实提醒/missing/partial可记非阻塞保守提示；严格仍fail。不得把选材不相关或漏答归入此类。",
+  "reading_burden_rule": "完整主题内的旁支背景按题另记；额外单元须有直接相关用途。堆砌无关选材或重要漏答不能以整块证据为由放行。",
+  "integration_gate": "20题均实际完成，阻塞=0，关键待核=0，才可建议进入另行授权的正式集成验收；不等于正式上线、长期稳定或6D-2整体收口。",
+  "review_method": "开发助手逐题对照冻结输入、原始结构化输出和确定性展示，无评分模型，非独立人类盲评。保守提示和阅读负担均需具体依据，不能仅按missing代码自动放行。"
+}
