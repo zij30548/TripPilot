@@ -1,0 +1,258 @@
+{
+  "kind": "offline_audit_not_model_quality",
+  "version": "knowledge-evidence-selection-offline-v1",
+  "real_calls_this_run": 0,
+  "status": "诊断完成，回答质量验收仍未完成",
+  "ledgers": {
+    "6d-2": {
+      "sha256": "9ba9a9dbff80b74d7ebf478481cefc7e5e043e266c92db22c2418c02f0619d86",
+      "attempts": 20
+    },
+    "fix": {
+      "sha256": "ae2f2e7af8f3e5a6c10c7a00af1ebb174aa1f21b9ab540bf935290f8d53c9cd6",
+      "attempts": 16
+    }
+  },
+  "original_reports_sha256": {
+    "answer-evaluation-report.json": "3cda8fdd91b0b1d8639c667a05d13e6c65966aaf621dd1a307af3f2cacd47979",
+    "answer-fix-evaluation-report.json": "27dd6ec600b88e06af4ab514212b722711c9bf1c88c8d4a6ca6e3529ce109989"
+  },
+  "spec_sha256": "3f4f131766ad2d01be553ee750ce59102e8a8d8fcaa03db25d503af0657a722a",
+  "manifest_sha256": "b4022e01f2048bcc7d934e775965ad47b07c3990a3f1544c0712a5e7ede6904c",
+  "corpus_hash": "eef3a7ec3c112f66d9e6c0619f8db1d3dbf87c7b95462f0eebf7cdee5a98d562",
+  "baseline_prompt_hash": "c2fa4eb93b30067aea5e9f4f37bbde8a9ada39bb724701a07735d59a3916aecc",
+  "selection_prompt_hash": "56246388492779af3d683a78051772e9d707198d8cf3b146dd224f3bbfb14b24",
+  "cases": [
+    {
+      "case_id": "a01",
+      "record": "responses/1c962ab92d1e4d8ebc58aa08ddee5649.json",
+      "record_sha256": "dfa2a3ecb74321c87f1b33520dbe825086afec9ab47ae471970e36fcaa8ae818",
+      "attempt": 15,
+      "model_input_reconstructed": true,
+      "baseline_replay": "identical",
+      "evidence": [
+        "museum-east/family"
+      ],
+      "original_review": "pass",
+      "elapsed_seconds": 2.378,
+      "usage": {
+        "input_tokens": 949,
+        "output_tokens": 154
+      },
+      "selection_payload_hash": "b264b43ab21e2d426256c83aa60fe7e6b80bd184a1516967af9bfe8095299500"
+    },
+    {
+      "case_id": "a02",
+      "record": "responses/3188968d87c5435d8668fda538d7f699.json",
+      "record_sha256": "fa94eb790e409c069b738404b8f224bf8d964e735e37807b511e575b152c2257",
+      "attempt": 7,
+      "model_input_reconstructed": true,
+      "baseline_replay": "identical",
+      "evidence": [
+        "museum-east/experience",
+        "museum-east/entry",
+        "museum-east/group"
+      ],
+      "original_review": "pass",
+      "elapsed_seconds": 2.585,
+      "usage": {
+        "input_tokens": 1124,
+        "output_tokens": 177
+      },
+      "selection_payload_hash": "b98b5965e6fc85d5528137804bb8e40d5573d70ba48f9ff125ea3959750fe827"
+    },
+    {
+      "case_id": "a03",
+      "record": "responses/151893802dd848c3b2d1958081e8bad1.json",
+      "record_sha256": "ed0ccd145512d442a70714497487035f5e25488b6890cd3fb84569bfd243b5eb",
+      "attempt": 16,
+      "model_input_reconstructed": true,
+      "baseline_replay": "identical",
+      "evidence": [
+        "museum-west/group",
+        "people-2025/booking",
+        "museum-west/entry"
+      ],
+      "original_review": "fail",
+      "elapsed_seconds": 2.046,
+      "usage": {
+        "input_tokens": 1240,
+        "output_tokens": 123
+      },
+      "selection_payload_hash": "4c588d20e2d93ea5f3c51f14e1ee4048c2e84d3f8a3f7f666dd350c0cab2d19d"
+    },
+    {
+      "case_id": "a04",
+      "record": "responses/6a3af20f5c774e8dafd5dc606be21478.json",
+      "record_sha256": "affcfd11fe3582c5341f76c63d68676f01e84b4d03f735e71365011f2791e1f4",
+      "attempt": 12,
+      "model_input_reconstructed": true,
+      "baseline_replay": "identical",
+      "evidence": [
+        "people-2025/booking",
+        "museum-west/entry",
+        "museum-west/group"
+      ],
+      "original_review": "fail",
+      "elapsed_seconds": 2.12,
+      "usage": {
+        "input_tokens": 1254,
+        "output_tokens": 141
+      },
+      "selection_payload_hash": "e9c1440a9dda25d512732b5fed05e5ebe9fef0d073fa1fa8cbc7494b04bfc171"
+    },
+    {
+      "case_id": "a05",
+      "record": "responses/0c63fcffd4614778871b8b71f0190cae.json",
+      "record_sha256": "19597a1e15cb4d91fc3b4cc382fc6864c69f2eb63c72cdc14f362a3ae32391a0",
+      "attempt": 13,
+      "model_input_reconstructed": true,
+      "baseline_replay": "identical",
+      "evidence": [
+        "natural-visit/fossil",
+        "natural-education/audience",
+        "natural-visit/entry",
+        "natural-school/school",
+        "natural-visit/child"
+      ],
+      "original_review": "pass",
+      "elapsed_seconds": 2.947,
+      "usage": {
+        "input_tokens": 1439,
+        "output_tokens": 218
+      },
+      "selection_payload_hash": "0540981f822a34fb4c12b27a83f82e90be54bc5a2ea3a532f421f9361b7634d1"
+    },
+    {
+      "case_id": "a06",
+      "record": "responses/9721ca3dfe754e0686907d4927d4a805.json",
+      "record_sha256": "ed6d1eb7d37b80110cd3042d0594a913bdb52f784db5a821545c9ff8f9889ae9",
+      "attempt": 8,
+      "model_input_reconstructed": true,
+      "baseline_replay": "identical",
+      "evidence": [
+        "natural-visit/fossil",
+        "natural-education/audience",
+        "natural-school/school",
+        "natural-visit/child"
+      ],
+      "original_review": "fail",
+      "elapsed_seconds": 1.58,
+      "usage": {
+        "input_tokens": 1339,
+        "output_tokens": 80
+      },
+      "selection_payload_hash": "730fc1db289fd3fbd978aeb889d3e76455a51010191a9add4cd912bbfadda70d"
+    },
+    {
+      "case_id": "a07",
+      "record": "responses/32be0f880ecb4549922af73e18b47faa.json",
+      "record_sha256": "21e7633f62402e020b7414ef7f727a1977a046b1af9cfc840c7c3f7ba59d20a2",
+      "attempt": 9,
+      "model_input_reconstructed": true,
+      "baseline_replay": "identical",
+      "evidence": [
+        "museum-east/family"
+      ],
+      "original_review": "pass",
+      "elapsed_seconds": 1.709,
+      "usage": {
+        "input_tokens": 949,
+        "output_tokens": 102
+      },
+      "selection_payload_hash": "593f46ed80fa66acc01e30f2879c83babef649a47f3199c6dfa1a9a0efb83a18"
+    },
+    {
+      "case_id": "a08",
+      "record": "responses/b61ca31c06614a9b8192d5c746ab29f3.json",
+      "record_sha256": "c81343aed5a5ee161b6489bfb959a00f17c60d3ccf780c6efa45dbf211a89c17",
+      "attempt": 0,
+      "model_input_reconstructed": false,
+      "baseline_replay": "local_no_match",
+      "evidence": [],
+      "original_review": "pass",
+      "elapsed_seconds": 0.006,
+      "usage": null,
+      "selection_payload_hash": null
+    },
+    {
+      "case_id": "a09",
+      "record": "responses/213f73e6557a48c6bb9f472065bae214.json",
+      "record_sha256": "6eaf4f1355438dd0574adaf0bba35b599ad040cf904978390bdcce3dc8554e0c",
+      "attempt": 0,
+      "model_input_reconstructed": false,
+      "baseline_replay": "local_no_match",
+      "evidence": [],
+      "original_review": "pass",
+      "elapsed_seconds": 0.004,
+      "usage": null,
+      "selection_payload_hash": null
+    },
+    {
+      "case_id": "a10",
+      "record": "responses/6ce47cf9e7eb478db17a417ae61ba8ae.json",
+      "record_sha256": "5e8021eff3fa52831d160fa2a5b63cf27763d0deaf51fbe5c0951a971d04705d",
+      "attempt": 10,
+      "model_input_reconstructed": true,
+      "baseline_replay": "identical",
+      "evidence": [
+        "museum-east/experience",
+        "museum-east/entry",
+        "museum-east/group"
+      ],
+      "original_review": "needs_review",
+      "elapsed_seconds": 2.267,
+      "usage": {
+        "input_tokens": 1131,
+        "output_tokens": 148
+      },
+      "selection_payload_hash": "a02612aaad159d45caacb0f97aacf5dda26c890fb5176511788492bd4c5a98f6"
+    },
+    {
+      "case_id": "a11",
+      "record": "responses/1fce475ce5304bdc802c120c544369c1.json",
+      "record_sha256": "f188b34e93b40df29db187a2a5229dcc4ed57651740fd76944b8a391a506ed9c",
+      "attempt": 14,
+      "model_input_reconstructed": true,
+      "baseline_replay": "identical",
+      "evidence": [
+        "museum-west/photo",
+        "people-2025/booking"
+      ],
+      "original_review": "fail",
+      "elapsed_seconds": 1.35,
+      "usage": {
+        "input_tokens": 1125,
+        "output_tokens": 66
+      },
+      "selection_payload_hash": "87b4dcb7444b479f0dd17ee3ba255b12fd5ddb42e2440fe88d2df883f9497b9f"
+    },
+    {
+      "case_id": "a12",
+      "record": "responses/359db801118448e89c00d19d8401a421.json",
+      "record_sha256": "7c5ecaa059ff4ffd9a57cb7514e647fbc32673a0e792c0248450f09683e8a3e2",
+      "attempt": 11,
+      "model_input_reconstructed": true,
+      "baseline_replay": "identical",
+      "evidence": [
+        "natural-visit/child",
+        "natural-visit/fossil",
+        "natural-school/school"
+      ],
+      "original_review": "fail",
+      "elapsed_seconds": 1.751,
+      "usage": {
+        "input_tokens": 1205,
+        "output_tokens": 101
+      },
+      "selection_payload_hash": "a99c48b4c5d4c1da2b81d4db034324db2e093003a6870524bb4c1a92c6258655"
+    }
+  ],
+  "prepared_operations": {
+    "cases": 12,
+    "paired_model_inputs": 20,
+    "local_no_match_cases": 2,
+    "largest_payload_bytes": 8402,
+    "new_live_authorization": 0
+  }
+}
