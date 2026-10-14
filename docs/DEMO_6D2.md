@@ -1,5 +1,17 @@
 # 6D-2演示与复核
 
+## 最新补修停止点
+
+**回答质量验收未完成；首轮20/20和补修16/16都已用尽，不得再发真实模型请求。** 补修普通提交不表示阶段验收通过。[补修报告](KNOWLEDGE_6D2_FIX.md)列出固定fix-v3完整12题、6通过/5失败/1待核及全部限制。
+
+补修真实Chrome中a05冲突题与a01借车题可作为成功操作示例；a03误命中、a04历史漏答、a11摄影漏例外截图必须标作失败。五次浏览器生成均已经计入16次，不为演示重生成。
+
+可零调用阅读`fix/report.json`和截图，或检索、展开资料、打开来源。显式验收入口为`python -B -m tools.knowledge_fix_acceptance --phase final`，读取既有`fix/calls.jsonl`，额度不重置；最终manifest变化会停止。不要换普通服务入口绕过耗尽的本轮授权。只有新的明确授权才可继续真实复核。
+
+本轮400px、Tab/Enter引用定位、官方原文打开、改题/馆区清空以及正式草案/费用/地图前后hash相同的证据均在`/Users/zijing/projects/trippilot-evidence/6d-2/fix/`。故障/取消/旧响应仍使用Mock，不消耗上游额度。
+
+## 以下为首轮演示历史
+
 **当前：实现已保存，质量验收未完成，真实额度20/20用尽。** 不得为演示继续请求有匹配资料的模型回答，不能删账本。先查看`KNOWLEDGE_6D2.md`与`/Users/zijing/projects/trippilot-evidence/6d-2/`。
 
 ## 已执行的Chrome流程

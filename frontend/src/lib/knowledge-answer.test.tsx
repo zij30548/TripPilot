@@ -38,6 +38,8 @@ describe("Python → TS answer and citation contract", () => {
     (r: AnswerResponse) => { r.answers[0].text = "已收录资料说明须预约[1]。"; },
     (r: AnswerResponse) => { r.answers[0].text = "已收录资料说明须预约【1】。"; },
     (r: AnswerResponse) => { r.answers[0].text = "依据E9须预约。"; },
+    (r: AnswerResponse) => { r.answers[0].text = "依据E1须预约。"; },
+    (r: AnswerResponse) => { r.answers[0].text = `需预约（来源：${r.retrieval.matches[0].source.id}）。`; },
     (r: AnswerResponse) => { r.retrieval.matches[0].source.venue_id = "natural"; },
     (r: AnswerResponse) => { r.retrieval.corpus_hash = "0".repeat(64); },
     (r: AnswerResponse) => { r.retrieval.matches[0].section.summary = "invented"; },

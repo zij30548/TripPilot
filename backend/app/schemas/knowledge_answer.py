@@ -7,7 +7,7 @@ from pydantic import Field, StringConstraints, field_validator, model_validator
 from app.schemas.explanation import ExplanationUsage, Identifier
 from app.schemas.knowledge import KnowledgeRequest, KnowledgeResponse, Strict, VenueId
 
-PROMPT_VERSION = "knowledge-answer-6d2-v5"
+PROMPT_VERSION = "knowledge-answer-6d2-fix-v3"
 Hash = Annotated[str, StringConstraints(pattern=r"^[0-9a-f]{64}$")]
 EvidenceId = Literal["E1", "E2", "E3", "E4", "E5"]
 MissingCode = Literal["not_in_materials", "live_availability", "weather_not_collected", "current_applicability", "conflicting_materials", "other_venue"]
@@ -28,7 +28,8 @@ class AnswerRequest(Strict):
 
 
 class AnswerItem(Strict):
-    text: Annotated[str, StringConstraints(min_length=1, max_length=180)]
+    text: Annotated[str, StringConstraints(min_length=1, max_length=180)] = Field(
+        description="简短事实正文，每个条件保留原主语，不合并不同人群要求。不写行内引用、来源ID或URL；引用仅放evidence_ids。")
     evidence_ids: list[EvidenceId] = Field(min_length=1, max_length=5)
 
     @model_validator(mode="after")
@@ -36,16 +37,19 @@ class AnswerItem(Strict):
         if (self.text != self.text.strip() or any(ord(c) < 32 for c in self.text)
                 or re.search(r"https?://|www\.|[<>]", self.text, re.I)
                 or re.search(r"\[\s*\d+(?:\s*[,，-]\s*\d+)*\s*\]|【\s*\d+\s*】", self.text)
-                or not set(re.findall(r"E\d+", self.text)) <= set(self.evidence_ids)
+                or re.search(r"E\d+", self.text)
                 or len(set(self.evidence_ids)) != len(self.evidence_ids)):
             raise ValueError("Unsafe prose or duplicate evidence")
         return self
 
 
 class ModelAnswer(Strict):
-    status: Literal["answered", "partial", "insufficient"]
     answers: list[AnswerItem] = Field(max_length=3)
-    missing: list[MissingCode] = Field(max_length=4)
+    missing: list[MissingCode] = Field(max_length=4, description=(
+        "只列所问事项的未解决类别。即使已说明冲突，未能裁决仍必须含conflicting_materials。"
+        "partial/insufficient必非空；answered必为空。历史规定已答全不加current_applicability。"))
+    status: Literal["answered", "partial", "insufficient"] = Field(description=(
+        "按答案与missing决定：全部所问事实有据且无冲突=answered；部分可答或冲突未解=partial；完全无据=insufficient。"))
 
     @model_validator(mode="after")
     def status_consistency(self) -> "ModelAnswer":
@@ -73,7 +77,7 @@ class Citation(Strict):
 
 class AnswerResponse(ModelAnswer):
     schema_version: Literal["knowledge-answer-v1"] = "knowledge-answer-v1"
-    prompt_version: Literal["knowledge-answer-6d2-v5"] = PROMPT_VERSION
+    prompt_version: Literal["knowledge-answer-6d2-fix-v3"] = PROMPT_VERSION
     request: AnswerRequest
     retrieval: KnowledgeResponse
     citations: list[Citation] = Field(max_length=5)

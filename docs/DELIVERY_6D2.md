@@ -1,5 +1,31 @@
 # 6D-2交付清单（质量验收未完成）
 
+## 最新补修交付（2026-10-14，17文件）
+
+基线`d4e8c519da7ede2260f06b24c7abb10435ea218c`，**回答质量验收未完成**；普通commit/push不表示阶段收口。本轮16/16调用；最终固定版本12题6通过/5失败/1待核。后端367、前端1,112、lint/typecheck/Webpack/健康/diff通过。完整数据与限制见[补修报告](KNOWLEDGE_6D2_FIX.md)。
+
+- `backend/app/schemas/knowledge_answer.py`
+- `backend/app/services/knowledge_answer.py`
+- `backend/tools/knowledge_acceptance.py`
+- `backend/tools/knowledge_fix_acceptance.py`
+- `backend/tests/test_knowledge_acceptance.py`
+- `backend/tests/test_knowledge_answer.py`
+- `backend/tests/test_knowledge_answer_fix.py`
+- `backend/tests/test_knowledge_fix_report.py`
+- `backend/tests/fixtures/knowledge_answer_prior_failures.json`
+- `backend/knowledge/answer-fix-evaluation-report.json`
+- `frontend/src/lib/knowledge-answer.ts`
+- `frontend/src/lib/knowledge-answer.test.tsx`
+- `docs/PROGRESS.md`
+- `docs/KNOWLEDGE_6D2.md`
+- `docs/KNOWLEDGE_6D2_FIX.md`
+- `docs/DELIVERY_6D2.md`
+- `docs/DEMO_6D2.md`
+
+旧20次记录、语料、冻结题目和旧评测哈希均不变；保留五缓存及浏览器日志，不暂存。稳定证据`/Users/zijing/projects/trippilot-evidence/6d-2/fix/`。停止于本次补修。
+
+## 首轮交付历史（以下保持原记录）
+
 基线 `196e52f73e5933690c2b13f94ffc274af2080556`；普通阶段提交，不代表全部验收通过。当前上游20/20，已停止真实调用。后端354、前端1,110/54文件、lint/typecheck/Webpack通过，最终FastAPI健康200。修复中间失败、逐题负例及未验收项见[知识库说明](KNOWLEDGE_6D2.md)。
 
 ## 本阶段文件（23个）

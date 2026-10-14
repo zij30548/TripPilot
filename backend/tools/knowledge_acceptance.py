@@ -31,8 +31,8 @@ context: ContextVar[dict | None] = ContextVar("acceptance", default=None)
 
 
 class Ledger:
-    def __init__(self, path: Path, limit: int):
-        self.path, self.limit = path, limit
+    def __init__(self, path: Path, limit: int, stage: str = "6D-2"):
+        self.path, self.limit, self.stage = path, limit, stage
         path.parent.mkdir(parents=True, exist_ok=True)
 
     def append(self, record: dict, reserve: bool = False) -> dict:
@@ -45,7 +45,7 @@ class Ledger:
             if reserve and len(reservations) >= self.limit:
                 raise QwenError("quota")
             if reserve: record = {**record, "ordinal": len(reservations)+1}
-            record = {**record, "time": datetime.now(timezone.utc).isoformat(), "stage": "6D-2"}
+            record = {**record, "time": datetime.now(timezone.utc).isoformat(), "stage": self.stage}
             stream.seek(0, 2); stream.write(json.dumps(record, ensure_ascii=False)+"\n")
             stream.flush(); os.fsync(stream.fileno())
             return record
@@ -92,13 +92,14 @@ def install(ledger: Ledger):
 
 
 class RecordedApp:
-    def __init__(self, application, directory: Path, ledger: Ledger):
+    def __init__(self, application, directory: Path, ledger: Ledger, metadata: dict | None = None):
         self.application, self.directory, self.ledger = application, directory, ledger
+        self.metadata = metadata or {}
 
     async def __call__(self, scope, receive, send):
         if scope["type"] != "http" or scope.get("path") != "/knowledge/answer" or scope.get("method") != "POST":
             return await self.application(scope, receive, send)
-        state = {"operation": uuid.uuid4().hex, "evidence_type": "real_official_corpus_and_real_qwen_or_local_no_match",
+        state = {**self.metadata, "operation": uuid.uuid4().hex, "evidence_type": "real_official_corpus_and_real_qwen_or_local_no_match",
                  "corpus_version": build_index().corpus.corpus_version, "corpus_hash": build_index().hash}
         token = context.set(state); incoming = bytearray(); outgoing = bytearray(); start = time.monotonic()
         async def read():

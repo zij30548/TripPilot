@@ -1,0 +1,117 @@
+{
+  "description": "Saved real failures from prior round, not new model output or golden answers. Original files unchanged.",
+  "records": [
+    {
+      "old_attempt": 16,
+      "case_id": "a11",
+      "record": "responses/7e4a1f7922a9400985fe3576897350dc.json",
+      "sha256": "eadf3d96310619862f4b8b1abb0c07abe3b244e49012afc142697a262a4a9d17",
+      "question": "人民广场馆能用闪光灯和自拍杆吗，合作展览拍照有例外吗？",
+      "venue_id": "museum_people",
+      "model_output": {
+        "status": "answered",
+        "answers": [
+          {
+            "text": "已收录资料说明，上海博物馆人民广场馆禁止使用闪光灯、自拍杆和支架类摄影器材。该规定自2026年6月30日起实行，参观者须遵守现场标志。",
+            "evidence_ids": [
+              "E1"
+            ]
+          },
+          {
+            "text": "已收录资料说明，涉及合作展览时，可能因版权协议禁止拍摄展品，需遵守现场具体标志。此限制适用于特展期间（如2026年7月9日至2027年11月14日）。",
+            "evidence_ids": [
+              "E1"
+            ]
+          }
+        ],
+        "missing": []
+      },
+      "review": {
+        "result": "needs_review",
+        "relevance": "pass",
+        "support": "needs_review",
+        "state": "pass",
+        "conditions": "摄影禁令、合作展版权例外和现场标志有支持；附带日期把整页生效/特展适用区间说成具体摄影规则期限，归属仍需复核，保守不计完整通过。",
+        "canonical_evidence_ids_and_source_binding": "pass",
+        "inline_citation_format": "pass",
+        "method": "agent manual-style per-clause review against actual provided snippets; no second model"
+      }
+    },
+    {
+      "old_attempt": 19,
+      "case_id": "a04",
+      "record": "responses/a7613225371b445baec7b8fb091d6334.json",
+      "sha256": "dfac9be40e57b6445dd9c89f0ad409f0cf68766550c5390bb9c9726dd47ae3a1",
+      "question": "比较2025免预约公告和2026特展须知：预约要求和停止入场时间有什么不同？",
+      "venue_id": "museum_people",
+      "model_output": {
+        "status": "partial",
+        "answers": [
+          {
+            "text": "已收录资料说明，2025年试行公告（E1）提及散客凭证免预约，但国定假日、寒暑假及热门特展高峰仍需预约；停止入场时间为16:00。该规定为历史试行，不能直接用于当前入馆，请核对最新官方须知。",
+            "evidence_ids": [
+              "E1"
+            ]
+          },
+          {
+            "text": "已收录资料说明，2026年参观须知（E2）指出美洲古代文明大展期间须预约购票并携带有效证件原件从南门核验；日场停止入场时间为15:00。该须知自2026-06-30实行。",
+            "evidence_ids": [
+              "E2"
+            ]
+          }
+        ],
+        "missing": [
+          "current_applicability"
+        ]
+      },
+      "review": {
+        "result": "fail",
+        "relevance": "pass",
+        "support": "pass",
+        "state": "fail",
+        "conditions": "历史事实及条件分别有支持，但把未被问及的当前适用性当缺失，仍非预期answered。没有强改标签。",
+        "canonical_evidence_ids_and_source_binding": "pass",
+        "inline_citation_format": "pass",
+        "method": "agent manual-style per-clause review against actual provided snippets; no second model"
+      }
+    },
+    {
+      "old_attempt": 20,
+      "case_id": "a05",
+      "record": "responses/6a1d462e79064038b114b1a85a12372a.json",
+      "sha256": "f88109d8da04972e374560e33304aba38e3a71ed12c0d4fb1c578c58ce510cbb",
+      "question": "化石挖掘到底现场还是网上预约，有什么参加条件和费用？",
+      "venue_id": "natural",
+      "model_output": {
+        "status": "partial",
+        "answers": [
+          {
+            "text": "已收录资料说明化石挖掘预约渠道存在冲突：概述提及现场预约，细则规定每天8:35通过官网或微信预约当天名额[1]。因渠道差异需向馆方确认[1]。",
+            "evidence_ids": [
+              "E1"
+            ]
+          },
+          {
+            "text": "已收录资料说明参加条件为限身高1.0–1.3米儿童，须现场测量，提前15分钟确认[1]。费用方面，教育活动不另收费但需购入馆票[1]。",
+            "evidence_ids": [
+              "E1"
+            ]
+          }
+        ],
+        "missing": [
+          "not_in_materials"
+        ]
+      },
+      "review": {
+        "result": "fail",
+        "relevance": "pass",
+        "support": "pass",
+        "state": "fail",
+        "conditions": "渠道双方、儿童身高/测量/确认/费用条件有支持，已不再扩展陪同人群；却输出非约定行内[1]，且冲突标not_in_materials而非conflicting_materials。最终离线校验会整条拒绝；未获新真实成功样本。",
+        "canonical_evidence_ids_and_source_binding": "pass",
+        "inline_citation_format": "fail",
+        "method": "agent manual-style per-clause review against actual provided snippets; no second model"
+      }
+    }
+  ]
+}
