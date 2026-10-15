@@ -1,7 +1,7 @@
 import { type DestinationId } from "./destinations";
 
-export type PhotoClue = { name: string; city: string | null; basis: string };
-export type PhotoResult = { contract_version: "photo-landmark-v1"; request_id: string; destination_id: DestinationId;
+export type PhotoClue = { name: string; city: string | null };
+export type PhotoResult = { contract_version: "photo-landmark-v2"; request_id: string; destination_id: DestinationId;
   status: "possible" | "uncertain" | "unrecognized"; clues: PhotoClue[]; model: string;
   usage: { input_tokens: number | null; output_tokens: number | null } };
 const record = (v: unknown): v is Record<string, unknown> => !!v && typeof v === "object" && !Array.isArray(v);
@@ -9,12 +9,10 @@ const exact = (v: Record<string, unknown>, keys: string[]) => Object.keys(v).len
 const bounded = (v: unknown, n: number): v is string => typeof v === "string" && v.trim().length > 0 && Array.from(v).length <= n;
 export function parsePhotoResult(v: unknown, requestId: string, city: DestinationId): PhotoResult {
   if (!record(v) || !exact(v, ["contract_version", "request_id", "destination_id", "status", "clues", "model", "usage"])
-    || v.contract_version !== "photo-landmark-v1" || v.request_id !== requestId || v.destination_id !== city
+    || v.contract_version !== "photo-landmark-v2" || v.request_id !== requestId || v.destination_id !== city
     || v.model !== "qwen3-vl-plus" || typeof v.status !== "string" || !["possible", "uncertain", "unrecognized"].includes(v.status)
-    || !Array.isArray(v.clues) || v.clues.length > 3
-    || !v.clues.every(c => record(c) && exact(c, ["name", "city", "basis"]) && bounded(c.name, 80) && (c.city === null || bounded(c.city, 40)) && bounded(c.basis, 160))
-    || (v.status === "unrecognized" && v.clues.length !== 0) || (v.status === "possible" && !v.clues.length)
-    || new Set(v.clues.map(c => JSON.stringify([c.name, c.city]))).size !== v.clues.length
+    || !Array.isArray(v.clues) || v.clues.length !== (v.status === "possible" ? 1 : 0)
+    || !v.clues.every(c => record(c) && exact(c, ["name", "city"]) && bounded(c.name, 80) && (c.city === null || bounded(c.city, 40)))
     || !record(v.usage) || !exact(v.usage, ["input_tokens", "output_tokens"])
     || ![v.usage.input_tokens, v.usage.output_tokens].every(x => x === null || Number.isSafeInteger(x) && Number(x) >= 0 && Number(x) <= 1_000_000)
     || v.usage.output_tokens !== null && Number(v.usage.output_tokens) > 1024) throw new Error("识别结果未通过校验，未加入任何地点。");

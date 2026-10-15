@@ -20,7 +20,7 @@ def photo(fmt="PNG", size=(30, 20), **kwargs):
         im.save(out, fmt, **kwargs); return out.getvalue()
 
 
-SELECTION = {"status": "possible", "clues": [{"name": "可能地点", "city": "上海", "basis": "圆形塔身"}]}
+SELECTION = {"status": "possible", "clues": [{"name": "可能地点", "city": "上海"}]}
 
 
 def answer(content=SELECTION, **message):
@@ -49,11 +49,15 @@ class ImageSafetyTests(unittest.TestCase):
     def test_schema_no_executable_fields_or_fake_poi(self):
         for content in [dict(SELECTION, coordinates=[1,2]), {"status":"possible", "clues":[]},
                         {"status":"unrecognized", "clues":SELECTION["clues"]},
+                        {"status":"uncertain", "clues":SELECTION["clues"]},
+                        {"status":"possible", "clues":SELECTION["clues"]*2},
                         {"status":"possible", "clues":SELECTION["clues"]*4},
                         {"status":"possible", "clues":[dict(SELECTION["clues"][0], id="fake")]},
                         {"status":"possible", "clues":[dict(SELECTION["clues"][0], basis=" ")]}]:
             with self.assertRaises(ValueError): PhotoSelection.model_validate(content)
         self.assertEqual(PhotoSelection.model_validate({"status":"uncertain","clues":[]}).clues, [])
+        self.assertEqual(PhotoSelection.model_validate({"status":"unrecognized","clues":[]}).clues, [])
+        self.assertIsNone(PhotoSelection.model_validate({"status":"possible","clues":[{"name":"线索","city":None}]}).clues[0].city)
 
 
 class VisionTests(unittest.IsolatedAsyncioTestCase):

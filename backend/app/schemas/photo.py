@@ -11,25 +11,22 @@ class LandmarkClue(BaseModel):
     model_config = ConfigDict(extra="forbid", strict=True)
     name: Short
     city: Annotated[str, StringConstraints(min_length=1, max_length=40, strip_whitespace=True)] | None
-    basis: Annotated[str, StringConstraints(min_length=1, max_length=160, strip_whitespace=True)]
 
 
 class PhotoSelection(BaseModel):
     model_config = ConfigDict(extra="forbid", strict=True)
     status: Literal["possible", "uncertain", "unrecognized"]
-    clues: list[LandmarkClue] = Field(max_length=3)
+    clues: list[LandmarkClue] = Field(max_length=1)
 
     @model_validator(mode="after")
     def coherent(self) -> Self:
-        if (self.status == "unrecognized" and self.clues) or (self.status == "possible" and not self.clues):
+        if len(self.clues) != (1 if self.status == "possible" else 0):
             raise ValueError("inconsistent recognition")
-        if len({(c.name, c.city) for c in self.clues}) != len(self.clues):
-            raise ValueError("duplicate clue")
         return self
 
 
 class PhotoResponse(PhotoSelection):
-    contract_version: Literal["photo-landmark-v1"] = "photo-landmark-v1"
+    contract_version: Literal["photo-landmark-v2"] = "photo-landmark-v2"
     request_id: str
     destination_id: DestinationId
     model: str

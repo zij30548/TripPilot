@@ -16,7 +16,7 @@ _TYPES = {
     "model_attributes_type": "field_type", "dict_type": "field_type",
     "extra_forbidden": "extra_field", "missing": "missing_field", "literal_error": "enum",
     "string_too_long": "length", "string_too_short": "length", "too_long": "length", "too_short": "length",
-    # These are the two existing root postconditions: status/clues and duplicates.
+    # The root postcondition binds status to the exact permitted clue count.
     "value_error": "state_consistency",
 }
 
@@ -35,11 +35,11 @@ def safe_path(location: tuple[object, ...]) -> str:
     index = location[1]
     if type(index) is not int:
         return path + ".<unknown>"
-    path += f"[{index}]" if 0 <= index < 3 else "[*]"
+    path += "[0]" if index == 0 else "[*]"
     if len(location) == 2:
         return path
     field = location[2]
-    if len(location) == 3 and field in ("name", "city", "basis"):
+    if len(location) == 3 and field in ("name", "city"):
         return path + "." + field
     return path + ".<unknown>"
 

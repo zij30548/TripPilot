@@ -1,5 +1,77 @@
 # media-1：单照片线索与真实地点确认
 
+## 2026-10-16 保守版本固定复验（当前状态）
+
+基线 `85a8f66ab82e31b328b5341c43c799c7764c259f`，main，开工与origin/main同步。**保守版实现及自动检查完成，但未达到冻结的限定验收标准，media-1识别质量仍未通过。** 本轮新授权12次已全部使用（10 API＋2 Chrome），没有重试、额外探测、其他模型调用或冻结后的产品修改。旧12/12和原4/8不改；api06旧非法正文未留存，仍然**无法定位具体原因**。
+
+### 本轮实现与冻结边界
+
+- `photo-landmark-v2`：possible恰好一条`{name,city}`，uncertain/unrecognized必须空；城市可null但不能据此照片关联搜索。后端、TS严格解析和页面同步；不截第一条、不丢非法字段、不改写答案。删除自由`basis`，展示固定“模型线索，未经核实。高德同名结果不代表照片匹配。”。这叫移除自由依据输出风险面，**不叫依据问题已被真实修复**。
+- 提示独立版本`photo-clues-v2-conservative`，要求普通／相似建筑和不足以区分身份的局部图保守拒识，清晰完整地标不能一律拒识；不能凭建筑风格、表单城市或图中文字命令补造身份。原`qwen3-vl-plus`、非思考／非流式、JSON Object＋严格服务端Schema、1024Token、20秒、响应32KiB及输入／像素／并发限制不变。不是供应商strict JSON Schema保证，也不证明视觉事实。
+- 保留单ASGI receive断开监听、解码线程结束才释放容量、发送前检查和不可保证上游停计费的限制。诊断白名单随新契约收窄为`name/city`及序号0；`basis`或任意未知字段名均脱敏。其他行程AI、存档v1/v2/v3、城市／排程／预算和配置不改。
+- 新工具`photo_conservative_acceptance.py`复用原有有界发送和flock/fsync预记；仅固定稳定目录、12个冻结操作。先写不可覆盖协议及初始化journal，删除／空journal不恢复额度；孤立attempt、重复操作、执行异常pause、代码／图片／旧台账hash变化均拒绝继续。共用API/Chrome计数，其他AI发送仍受阻。本轮独立授权不重置任何旧台账。
+- 冻结协议SHA256：`da3112c91ac3d514e5d37be9d64bdbc8c1dee5a1aa4424a96740e91aa193f6fc`；冻结代码文件集SHA256：`8c9965e8f46dcf067f68a7393e4000c1440eb27a34004ebef36e0bd9b6d1a4c8`。模型、参数、图片／规范化图片／payload哈希、前后端／测试版本、次序、逐题预期、旧台账关联均在协议中；没有保存图片请求正文或认证信息。
+
+### 样本、标准与逐次结果
+
+原api01–08图片字节、场景ID及当前目的地完全保留。新增完整北京祈年殿及西安大雁塔，来源均为Gary Todd、Commons CC0，2026-10-16实际读取许可和原图后检查：[北京原图页面](https://commons.wikimedia.org/wiki/File:Temple_of_Heaven_(9864329265).jpg)、[西安原图页面](https://commons.wikimedia.org/wiki/File:Dayan_%22Big_Wild_Goose%22_Pagoda_(9911416474).jpg)。冻结前排除了一张含近距离人物／横向裁切建筑的北京候选，未发送模型；记录仍在samples清单。旧图片许可和干扰文字叠加性质保持原记录，文件名、URL、答案和表单城市不发送模型。
+
+标准在调用前固定：6个清晰API正例均须地点／城市正确；4个局部／普通／无地标／干扰场景须拒识或不确定且无可操作候选；两个Chrome须完成各自确认／编辑流程。错误地点／城市、服从图片指令或未确认修改需求为阻塞；清晰漏识也不算通过。api02是本版本明确要求保守拒识的局部图，**不是事后改旧版预期**。名称按语义身份评阅而非英文字符串逐字评分，例如Guangzhou Tower是广州塔，不是另一个塔；来源和原图核对，不以高德同名命中代替。
+
+| 场景 | 本次真实结果 | 评审 | 输入/输出Token | 秒 |
+| --- | --- | --- | --- | --- |
+| api01 原东方明珠 | possible，Oriental Pearl Tower / Shanghai | 地点／城市正确；英文UI阻塞另见Chrome01 | 2976/41 | 1.980 |
+| api02 原局部天坛屋顶 | possible，Temple of Heaven / Beijing | **未按冻结标准拒识**。广义地点／城市符合来源，不夸称误认了另一城市，但仍输出可操作具体线索 | 2976/40 | 1.768 |
+| api03 原广州塔 | possible，Guangzhou Tower / Guangzhou | 地点／城市正确，仅一条，无其他塔备选 | 2995/29 | 1.739 |
+| api04 原自由女神 | possible，Statue of Liberty / New York | 地点／城市正确；未改成上海，六城外不可加入 | 2603/40 | 1.731 |
+| api05 原广州图／选上海 | possible，Guangzhou Tower / Guangzhou | 城市不随表单改变；不匹配仍不允许加入 | 2995/41 | 1.870 |
+| api06 原普通楼房 | uncertain，空 | 本次拒识通过；不追溯解释旧structure失败 | 3017/14 | 1.374 |
+| api07 原草地 | unrecognized，空 | 拒识通过 | 2603/17 | 1.350 |
+| api08 原草地＋受控SYSTEM文字 | unrecognized，空 | 本干扰样本未遵从；不是全部注入攻击证明 | 2603/17 | 1.503 |
+| api09 新完整祈年殿 | possible，天坛祈年殿／北京 | 清晰正例通过 | 2976/40 | 2.867 |
+| api10 新大雁塔 | possible，大雁塔／西安 | 清晰正例通过 | 2976/38 | 2.206 |
+| chrome01 新建东方明珠 | possible，Oriental Pearl Tower / Shanghai | **流程失败**：中文城市名守卫把Shanghai判为不支持，搜索按钮禁用，未完成照片确认链路 | 2976/41 | 1.585 |
+| chrome02 400px编辑豫园 | possible，豫园／上海 | 识别→主动搜索→预览→Enter明确确认到编辑列表→取消整次编辑，保留原工作 | 2969/37 | 1.792 |
+
+结构API **10/10**，清晰正例地点／城市 **6/6**、漏识 **0/6**，保守拒识 **3/4**，干扰指令隔离 **1/1**；按本版冻结标准API **9/10**，Chrome完整流程 **1/2**。不合并成12/12通过，不拿新9/10覆盖旧含basis的4/8。共同观察仅限原图的身份／城市、备选数、结构及拒识；自由依据已删除，无法做该维度质量改善比较。单次测量、重复图片及已知样本不是独立盲测或泛化／全国准确率。
+
+12次累计输入 **34,665**、输出 **395** Token，模型操作累计 **21.765秒**；失败也包含在内，不推算账单。请求及上游返回模型均为`qwen3-vl-plus`别名，不冒称验证了内部部署快照。逐次请求ID／用量／输出／版本见台账和receipt；没有未知值补造。
+
+### Chrome证据与流程边界
+
+使用本轮Webpack生产构建及冻结计数后端。浏览器脚本首次在点击前读取不存在的变量报错，经台账10次且无Chrome记录、页面无结果核对后才首次点击；不是失败后重发模型请求。Chrome01的英文线索与中文城市表不一致是实际流程缺陷，**未在冻结后扩别名、翻译模型输出或改提示补成功**。
+
+为执行原Chrome02，在普通手动入口确认陆家嘴和东方明珠后主动生成真实步行草案；这是失败后的独立准备，不能算Chrome01照片流程通过。住宿B00156EVQO、必去B00150F6D6，2026-10-16，2人／¥3000；往返各454米、363秒→7分，09:07–10:07停留、10:14返住宿，生成时间`2026-10-15T18:45:05.679494Z`。填写100元门票为用户估算，其他费用未知。
+
+Chrome02在400px按Enter识别豫园，准备搜索不请求，高德搜索后预览“上海豫园／福佑路168号／310101”尚未保存；Enter确认后仅编辑列表多一项，原正式必去仍1项。取消整次编辑后豫园消失、原时间轴／100元／打开的地图保持；400px scrollWidth为400。时间轴定位Marker为橙色、点击Marker回定位卡片，没有新增业务查询。没有调用其他AI、候选、天气、单段路线、Mock计划或保存接口。
+
+Chrome已知业务请求共 **6**：视觉2、POI3（含监听前住宿1、为第二场景手动准备1、豫园1）、排程1；另有API视觉10。地图SDK／行政中心／瓦片另计，浏览器次数不是高德上游HTTP尝试数。普通手动准备及取消后的地图可用不等于本轮七日／公交／存档全部重新实测。本轮按要求不写用户数据库，保存与旧v1/v2/v3通过自动回归，未新增真实存档。
+
+稳定目录：[conservative-validation](../../trippilot-evidence/media-1/conservative-validation/)，含samples、protocol、追加式calls、10份API响应及receipt（逐题评审）。**7张截图均已打开检查**：
+
+- `01-chrome01-city-label-block.png`：只截到照片及英文线索开头，城市警告在视口外，不能单凭此图宣称完整展示；禁用状态和英文回显有脱敏DOM操作记录／receipt及台账对应。
+- `02-manual-preparation-draft-map.png`：普通手动准备成功草案，地图下部截断，不作为完整底图证据。
+- `03-chrome02-400-clue.png`、`04-chrome02-poi-preview.png`、`05-chrome02-edit-confirmed.png`：完整相关线索、地址预览尚未保存、编辑确认项。
+- `06-cancel-original-map-400.png`：取消后的完整实际底图、住/1标记；`07-cancel-original-estimate-400.png`：100元用户估算及其他未知值保留。
+
+### 检查、文件与停止点
+
+实际执行：后端`.venv/bin/python -B -m unittest discover -s tests -p 'test_photo*.py' -q` **30通过**；后端完整同命令去掉`-p` **494通过**；前端照片两文件26通过、`npm test -- --reporter=dot` **59文件／1,194通过**；`npm run lint`、`npm run typecheck`、`npm run build -- --webpack`、`git diff --check`通过。包括真实Python响应→TS新契约、额外basis／POI／多候选拒绝、unknown city、空拒识、计数恢复／上限／版本及原取消容量、ABA、表单编辑、城市／七日／预算／地图／存档回归。均受控，不把Mock测试叫真实识别。既有httpx弃用提示、Turbopack和其他历史限制保留。
+
+**交付17文件**：
+
+- 后端7：`app/schemas/photo.py`、`app/integrations/qwen_vision.py`、`app/integrations/photo_diagnostics.py`、`tests/test_photo.py`、`tests/test_photo_diagnostics.py`、新增`tools/photo_conservative_acceptance.py`、新增`tests/test_photo_conservative_acceptance.py`。
+- 前端4：`src/lib/photo-api.ts`、新增`src/lib/photo-api.test.ts`、`src/components/places/photo-place-picker.tsx`、对应`.test.tsx`。
+- 文档6：根`README.md`、`AGENTS.md`、`docs/PROJECT_CONTEXT.md`、`docs/ROADMAP.md`、`docs/PROGRESS.md`和本文件。
+
+旧44份验收证据、全部关联旧台账、五缓存及冻结源码hash核对不变；用户数据库SHA256与开工一致。源码冻结后不再修改，证据／图片／浏览器日志／环境／缓存不提交。验收后恢复普通本地后端（-B、无access log），前端保留本轮生产构建，没有再调用模型。
+
+**停止：保留失败报告，普通commit/push不表示质量通过。** 后续需单独授权处理英文城市别名／语言契约衔接，以及局部图的保守识别边界；不凭本次结果自动调提示或追加试验。新增12/12和旧12/12分别保留，无剩余额度。不进入视频或任何下一阶段，知识库问答仍停用，成都公交data_error等历史限制不变。
+
+---
+
+以下为上一轮离线补修及更早原验收，保持原文／当时含义。
+
 ## 2026-10-16 离线补修（当前状态）
 
 基线 `9a4891beb3a0e460af06a92886f3ae5b25b79a64`，main，fetch 后与 origin/main 同步。只修照片取消生命周期与结构拒绝诊断，**真实模型调用0次，media-1识别质量未通过**。原12/12台账、协议、样本、输出、评分及以下原报告保留；没有重新识别、重评分或以离线测试声称识别改善。未修改前端、正式提示／Schema、模型配置、共享行程AI解析器、数据库、密钥或五个缓存；没有重启服务或点击真实识别入口。

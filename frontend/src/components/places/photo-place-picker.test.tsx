@@ -9,7 +9,7 @@ import { tripRequest, deferred } from "@/lib/weather-schedule-check.test-fixture
 const mock = vi.hoisted(() => ({ recognize: vi.fn(), search: vi.fn(), create: vi.fn(), revoke: vi.fn() }));
 vi.mock("@/lib/photo-api", async original => ({ ...await original<typeof import("@/lib/photo-api")>(), recognizePhoto: mock.recognize }));
 vi.mock("@/lib/places-api", () => ({ searchPlaces: mock.search }));
-const response = (city: string | null = "上海"): PhotoResult => ({ contract_version:"photo-landmark-v1", request_id:"r",destination_id:"shanghai", model:"qwen3-vl-plus",usage:{input_tokens:20,output_tokens:30},status:"possible",clues:[{name:"测试景点",city,basis:"可见塔身"}] });
+const response = (city: string | null = "上海"): PhotoResult => ({ contract_version:"photo-landmark-v2", request_id:"r",destination_id:"shanghai", model:"qwen3-vl-plus",usage:{input_tokens:20,output_tokens:30},status:"possible",clues:[{name:"测试景点",city}] });
 const place = located({id:"photo-fixture",name:"测试景点",address:"测试地址",source:"amap",category:null,longitude:121,latitude:31});
 const file = () => new File(["controlled fixture"], "image.png", {type:"image/png"});
 function selectFile(f = file()) { fireEvent.change(screen.getByLabelText(/选择一张照片/), { target: { files:[f] } }); }
@@ -23,11 +23,19 @@ describe("photo clues are not confirmed POIs", () => {
     const {confirm}=mount(); selectFile(); expect(mock.recognize).not.toHaveBeenCalled();expect(mock.search).not.toHaveBeenCalled();
     fireEvent.click(screen.getByRole("button",{name:"识别照片"}));
     await screen.findByText("可能地点：测试景点"); expect(confirm).not.toHaveBeenCalled();expect(mock.search).not.toHaveBeenCalled();
+    expect(screen.getByText(/模型线索，未经核实/)).toBeTruthy();expect(screen.queryByText(/可见依据/)).toBeNull();
     fireEvent.click(screen.getByRole("button",{name:"用此线索准备搜索"}));expect(mock.search).not.toHaveBeenCalled();
     fireEvent.click(screen.getByRole("button",{name:"搜索"}));await screen.findByText("地址：测试地址");
     expect(screen.getByRole("button",{name:"确认必去地点"}).hasAttribute("disabled")).toBe(true);
     fireEvent.click(screen.getByRole("button",{name:/测试景点.*测试地址/}));expect(confirm).not.toHaveBeenCalled();
     fireEvent.click(screen.getByRole("button",{name:"确认必去地点"})); expect(confirm).toHaveBeenCalledWith(place);
+  });
+  it.each(["uncertain", "unrecognized"] as const)("%s has no actionable clue or automatic search", async status => {
+    mock.recognize.mockResolvedValue({...response(),status,clues:[]});const {confirm}=mount();selectFile();
+    fireEvent.click(screen.getByRole("button",{name:"识别照片"}));
+    await screen.findByText(/请改用普通手动搜索/);
+    expect(screen.queryByRole("button",{name:"用此线索准备搜索"})).toBeNull();
+    expect(mock.search).not.toHaveBeenCalled();expect(confirm).not.toHaveBeenCalled();
   });
   it.each(["北京","深圳",null])("mismatch/unsupported/unknown city %s never searches", async city => {
     mock.recognize.mockResolvedValue(response(city));mount();selectFile();fireEvent.click(screen.getByRole("button",{name:"识别照片"}));
