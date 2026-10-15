@@ -18,6 +18,7 @@ in that order before making architectural or product decisions. Also read applic
 - At each round's end update PROGRESS with actual changes, checks, evidence, unresolved items and a clear stopping point. Do not mark blocked or unverified work complete.
 - Historical model allowances and ledgers are not new authorization. New real model calls require explicit applicable authorization and a remaining budget; count failed/sent-cancelled attempts as required. Do not reset quotas by restarting, opening a new conversation, changing stages or creating another ledger.
 - Knowledge-base generative Q&A remains deferred and disabled. Existing itinerary AI tools do not authorize reopening it; multi-Agent architecture is not a prerequisite for the product roadmap.
+- media-1 adds a single-photo clue → explicit AMap search → confirmed required-place entry. Implementation and limited Chrome flow are verified, but recognition quality has unresolved failures: consult MEDIA_1/PROGRESS, do not claim full acceptance. Its 12/12 visual calls are exhausted; photos are not persisted, and no video, optional import or automatic city/plan change is implemented. This does not override the roadmap authorization rules above.
 
 ## Rules
 

@@ -12,7 +12,7 @@ from app.schemas.weather import CityWeatherRequest, CityWeatherForecastResponse,
 
 
 class SafeWeatherValidation(SafeRouteValidation):
-    validation_message = "天气查询参数无效，请提供连续 1 至 3 天的起止日期。"
+    validation_message = "天气查询参数无效：当前城市请求支持连续 1～7 天，旧版无城市请求仅支持 1～3 天。"
 
 
 router = APIRouter(prefix="/weather", tags=["weather"], route_class=SafeWeatherValidation)

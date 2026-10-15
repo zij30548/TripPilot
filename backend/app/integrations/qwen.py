@@ -44,13 +44,20 @@ class QwenError(Exception):
 
 
 def configured_endpoint(settings: Settings) -> str:
+    if settings.qwen_model not in ALLOWED_MODELS:
+        raise QwenError("configuration")
+    return beijing_endpoint(settings)
+
+
+def beijing_endpoint(settings: Settings) -> str:
+    """Shared URL/key boundary; each caller must separately validate its model."""
     raw = settings.qwen_base_url
     try:
         parsed = urlsplit(raw)
         host = parsed.hostname or ""
         allowed = host == "dashscope.aliyuncs.com" or re.fullmatch(
             r"[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?\.cn-beijing\.maas\.aliyuncs\.com", host)
-        if (not settings.qwen_api_key.get_secret_value().strip() or settings.qwen_model not in ALLOWED_MODELS
+        if (not settings.qwen_api_key.get_secret_value().strip()
                 or not allowed or parsed.scheme != "https" or parsed.port is not None
                 or parsed.username is not None or parsed.password is not None or parsed.query or parsed.fragment
                 or parsed.path not in ("/compatible-mode/v1", "/compatible-mode/v1/")

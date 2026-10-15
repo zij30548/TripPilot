@@ -6,6 +6,7 @@ import type { Place } from "@/types/place";
 import type { Pace, TripPlan, TripRequest } from "@/types/trip";
 import PlaceDetails from "./places/place-details";
 import RequirementPlacePicker from "./places/requirement-place-picker";
+import PhotoPlacePicker from "./places/photo-place-picker";
 import { validEditedRequirements } from "@/lib/restore-trip";
 import { DESTINATIONS, destination, isDestinationId, regionBelongsTo, type DestinationId } from "@/lib/destinations";
 import { MAX_TRIP_DAYS, LEGACY_MAX_TRIP_DAYS } from "@/lib/planning-limits";
@@ -86,6 +87,7 @@ type PickerTarget =
   | { role: "must_visit"; replacingId?: string };
 
 type PickerSession = {
+  photo?: boolean;
   version: number;
   target: PickerTarget;
   initialKeyword: string;
@@ -132,12 +134,12 @@ export default function TripRequestForm({ onSuccess, initialRequest, onConfirm, 
     setPlaceError("");
   }
 
-  function openPicker(target: PickerTarget, initialKeyword = "") {
+  function openPicker(target: PickerTarget, initialKeyword = "", photo = false) {
     if (!alive.current || submitting.current) return;
     if (onConfirm && !city) { setPlaceError("请先选择目的地。"); return; }
     pickerSession.current?.controller.abort();
     const session: PickerSession = {
-      version: ++pickerVersion.current, target, initialKeyword, controller: new AbortController(),
+      version: ++pickerVersion.current, target, initialKeyword, photo, controller: new AbortController(),
     };
     pickerSession.current = session;
     setPicker(session);
@@ -147,10 +149,12 @@ export default function TripRequestForm({ onSuccess, initialRequest, onConfirm, 
 
   function confirmPlace(session: PickerSession, place: Place) {
     if (!alive.current || submitting.current || pickerSession.current !== session || session.controller.signal.aborted) return;
+    if (onConfirm && (!city || !regionBelongsTo(place.region, city))) { setPlaceError("地点城市归属不符，请重新搜索确认。"); return; }
     if (session.target.role === "accommodation") {
       setAccommodationPlace(place);
     } else {
       const replacingId = session.target.replacingId;
+      if (onConfirm && !replacingId && mustVisitPlaces.length >= 6) { setPlaceError("本阶段最多六个必去地点，请先移除一个。"); return; }
       if (mustVisitPlaces.some((confirmed) => confirmed.id === place.id && confirmed.id !== replacingId)) {
         setPlaceError("该 POI 已在必去地点中，请选择其他地点。");
         return;
@@ -276,7 +280,8 @@ export default function TripRequestForm({ onSuccess, initialRequest, onConfirm, 
         </span>
       </div>
 
-      {picker && <RequirementPlacePicker key={picker.version}
+      {picker?.photo && city ? <PhotoPlacePicker key={picker.version} destinationId={city} sessionSignal={picker.controller.signal}
+        excludedIds={excludedPlaceIds} onConfirm={place => confirmPlace(picker, place)} onCancel={closePicker} /> : picker && <RequirementPlacePicker key={picker.version}
         destinationId={onConfirm && city ? city : undefined}
         title={picker.target.role === "accommodation" ? "住宿参考点" : "必去地点"}
         initialKeyword={picker.initialKeyword}
@@ -519,7 +524,9 @@ export default function TripRequestForm({ onSuccess, initialRequest, onConfirm, 
                 </div>
               </li>)}
             </ul>}
-            <button type="button" className={`${placeButtonClass} mt-3`} onClick={() => openPicker({ role: "must_visit" })}>添加必去地点</button>
+            <button type="button" className={`${placeButtonClass} mt-3`} disabled={!!onConfirm && mustVisitPlaces.length >= 6} onClick={() => openPicker({ role: "must_visit" })}>添加必去地点</button>
+            {onConfirm && <button type="button" className={`${placeButtonClass} mt-3 ml-2`} disabled={!city || mustVisitPlaces.length >= 6} onClick={() => openPicker({ role: "must_visit" }, "", true)}>从照片发现必去地点</button>}
+            {onConfirm && mustVisitPlaces.length >= 6 && <p className="mt-2 text-xs">已达六个必去地点上限；请先移除再添加。</p>}
           </section>
 
           <label className="mt-5 block text-sm font-medium" htmlFor="excluded-places">

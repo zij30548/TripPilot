@@ -21,6 +21,7 @@ class Settings(BaseSettings):
     qwen_api_key: SecretStr = SecretStr("")
     qwen_base_url: str = ""
     qwen_model: str = "qwen3.7-flash-2026-07-15"
+    qwen_vision_model: str = "qwen3-vl-plus"
 
 
 def get_settings() -> Settings:
