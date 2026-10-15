@@ -1,65 +1,64 @@
 # TripPilot Project Context
 
-## Product
+本文件描述产品定位及当前边界，不是新增功能授权。2026-10-15 依据实际 `e4330f505a7deaf6d62b5c23f37968c9c2071789` 更新；若 HEAD 继续变化，先核对代码及 [PROGRESS](PROGRESS.md) 的最新摘要，不依据旧聊天回退。
 
-TripPilot is an executable and dynamically replannable AI travel agent.
+## 长期目标：国内旅行规划助手
 
-## Current MVP
+帮助个人及小团体把旅行灵感、想去的地点、时间和费用约束转化为可解释、可调整、可保存的方案。用户掌握地点确认和方案采用权；AI 降低表达与查找成本，程序和真实来源承担事实核对。
 
-The first version supports:
+长期方向包括：选择国内目的地；更长时间的旅行；从照片识别可能的景点，再到从短视频发现多个地点；用户核对真实 POI 并明确确认后，才将地点用于规划、调整和保存；最终支持跨城市与多个住宿点。
 
-- Shanghai
-- 1-3 day trips
-- budget constraints
-- travel preferences
-- must-visit places
-- daily itinerary generation
-- real route data
-- weather-aware replanning
+**上述扩展均未实现。上海、1～3 天、单住宿是当前版本与调用预算下的产品范围，不是长期永久限制。** 扩展天数上限、上传限制和阶段编号尚待细化。依赖与优先级见 [ROADMAP](ROADMAP.md)，不能一次性据此实施。
 
-## Current Scope
+## 当前可用及已验收范围
 
-The MVP does NOT initially support:
+### 正式工作区
 
-- user authentication
-- automatic payment
-- train ticket purchasing
-- flight purchasing
-- nationwide China
-- Japan
-- MCP
-- multi-agent architecture
+- 首页确认 `TripRequest` 后直接进入共享 `PlanningWorkspace`；历史副本复用同一工作区。进入不等于生成，不调用旧 `POST /trips/plan`，不自动查询候选、交通、天气或模型。
+- 上海 1～3 天，每天同一住宿参考点往返；住宿需用户确认，不等于酒店预订。必去最多 6 个，按确认顺序；可选来自有效候选池未排除的前 3 个，必去全排入后每日尾部至多补充 1 个；无必去时也可仅试排可选。
+- 整份草案选择步行或上海公交／地铁参考，不自动比较、混选或失败兜底。使用真实路线秒数统一向上取整成分钟；独立停留设置、午餐不可占用窗口、等待和完整返程。无路线、未安排和空白日期明确显示。
+- 主动查看正式每日地点／编号／双向 Marker，以及当天时间轴中一段实际交通的同次查询几何；不拼接全天路线、不为地图补查。未采用的预览不进入正式地图。
+- 独立天气查询与用户标注的游览方式关联检查；主动排除预览、新旧对比、取消或确认采用。天气不自动更换地点或重排行程。
+- 费用只读当前正式时间轴与用户估算，整数分累计、全部旅客口径；未知不是零，预算差额不是自由余额。调整两侧共用用户估算；费用不改变排程或采用资格。
+- SQLite 保存 `saved-trip-v1` 快照、列表和只读详情；从历史创建新会话，恢复输入而不是把旧结果当新成功，主动重新生成后另存。事务式编辑取消保留当前工作，确认后按依赖清理草案和费用。
 
-## Architecture
+### AI：已经接入，但职责受限
 
-Frontend:
-- Next.js
-- React
-- TypeScript
-- Tailwind CSS
+1. 行程解读：模型选择当前正式草案事实 ID，程序核对引用与前提，渲染内容并固定展示关键限制。
+2. 自然语言调整：只支持请求排除一个当前已安排的可选地点；歧义／多动作／不支持需澄清或拒绝。程序生成预览，用户采用才改变正式状态；模型不直接写行程。
+3. 7A-1 只读查询：原生 `tools/tool_calls` 选择指定日期、全程费用或有限原因澄清；后端校验，前端读取与请求版本绑定的本地草案／费用。每次最多一个工具调用、一次模型请求，无循环、重试或追加总结。
 
-Backend:
-- Python 3.12
-- FastAPI
-- Pydantic
-- SQLModel
+7A-1 **已在上述限定范围收口**，不等于自主 Agent 或广泛自然语言泛化完成。原版本 8 次真实 API 失败、修复版原输出离线重放 8/8、修复版真实 Chrome 续验 4/4 分开保留；累计 12/12，无剩余额度。此前各阶段台账仍有效，不能把换对话、重启、换阶段视为新调用授权。
 
-Planned integrations:
-- AMap
-- Weather API
-- LLM
-- OR-Tools
-- Playwright
+### 知识库与旧示例
 
-## Core Principle
+- `/knowledge` 当前只有可追溯资料检索：三个上海馆区、六份官方资料、十五个主题片段，中文词法 BM25、本地查询、人工版本化。用户必须明确馆区；正文摘要、短摘录、来源日期与适用性区分显示。
+- 6D-2 生成式问答实验保留，但质量未达准入要求，正式入口固定停用。完整回归严格 18/20，b01 非阻塞保守提示、b05 阻塞；不能说“回答质量已通过”。6D-1 已知无资料误命中 1/4 也保留，命中不是当前适用或答案正确保证。
+- `/demo` 承载旧固定两日 Mock 计划与地图联调；`POST /trips/plan` 保留兼容，不参与正式新建流程。旧 Mock 预算、天气与活动不可用于正式核算。
 
-LLMs may understand user intent and explain recommendations.
+## 实际技术与数据边界
 
-LLMs must not invent:
+- 前端：Next.js 16.3.3 App Router、React 19.2.8、TypeScript、Tailwind 4；本地 Hook/ref + fetch，无全局状态库。修改前阅读 `frontend/AGENTS.md` 和该版本本地 Next 文档。
+- 后端：`pyproject.toml` 要求 Python >=3.13（不是早期规划的 3.12）；FastAPI、Pydantic/pydantic-settings、httpx、SQLModel。依赖由 uv.lock 和 package-lock.json 管理。
+- 外部数据：高德 POI、步行／公交、上海天气；浏览器 JS API 2.0 和现有限定代理。千问百炼北京地域配置仅在服务端，默认 Flash 快照；Plus 等历史研究模型不等于正式默认配置。
+- 排程：后端纯规则函数与有界路线采集分离。仅必去最多 17 条逻辑边、含可选最多 29 条；最多 3 并发、至少 0.4 秒逻辑启动间隔、共享 20 秒搜索截止。现有连接失败最多重试一次，不额外新增重试；取消清理可能增加返回时间，节流不是账号级限流。
+- 存档：`backend/data/saved-trips.sqlite3`，请求级 Session，唯一保存操作标识及幂等冲突校验；首次存档访问初始化表，不是迁移平台。读取不重新查询上游，不支持覆盖／删除／自动保存或账号隔离。
+- `saved-trip-v1` 保存确认需求、实际排程请求及规范化结果、相关用户费用文本；不保存 AI、天气、临时预览、完整候选池与旧排除历史、地图状态或新增步行绘图附件。已有公交数据按原契约保留；恢复不猜缺失状态。
+- 正式草案、预览、恢复输入和历史只读结果必须分开。失效操作同步 abort 并递增版本，晚 success/error/finally 不可恢复旧状态；确认采用原子更新输入与结果。存档验证是内部一致性检查，不是认证客户端数据来自高德。
 
-- transport duration
-- prices
-- weather
-- opening hours
+## 当前尚未实现／不作承诺
 
-Deterministic code and external data must validate these values.
+- 全国城市选择、更长行程、照片／视频上传识别、跨城及多住宿。
+- 海外旅行规划、自动支付、火车票／机票购买；这些不属于当前国内规划主线的已实现能力。
+- 全局最优排程、自动交通比较、预算优化、营业／门票／预约核验、天气自动重排。节奏偏好暂不参与排程，不想去文字未自动语义过滤。
+- 公交旅行日期与具体出发时刻的班次保证、实时到站、导航或全日路线拼接。
+- 登录、用户数据隔离、公网上传管理、跨用户限额、自动备份、云同步、可直接上线的部署与运营体系。
+- 自主循环、多 Agent、LangGraph、MCP、向量检索；没有把它们作为实现当前产品的前置条件。
+
+既有实体手机、真实故障、满载规模、部分公交专项及 Turbopack 环境限制仍以各轮报告为准；本轮文档整理不重新认证这些分支。
+
+## 不变原则与文档读取
+
+住宿与必去需用户明确确认；可选需展示本次试排名单并由用户主动生成，不要求每个可选逐一确认。未来媒体识别也须匹配并确认真实 POI。模型不编造交通耗时、价格、天气、营业或预约事实。来源、查询时间、未知项、失败和未安排原因须可追溯；历史时间不能被重新打开或编辑刷新成新数据。
+
+按 [README](../README.md) → 本文件 → [ROADMAP](ROADMAP.md) → [PROGRESS](PROGRESS.md) 读取，另遵守 [AGENTS](../AGENTS.md)。README 提供实际启动与演示，ROADMAP 是未来计划，PROGRESS 顶部是当前状态／停止点，下方旧验收保持原历史含义。当前只完成产品文档整理，后续实施须明确授权。
