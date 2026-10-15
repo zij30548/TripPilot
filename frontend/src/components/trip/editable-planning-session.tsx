@@ -6,6 +6,7 @@ import type { TripRequest } from "@/types/trip";
 import PlanningWorkspace, { type WorkspaceEdit } from "./planning-workspace";
 import TripRequestForm from "../trip-request-form";
 import { SavedTripDetails } from "./saved-history";
+import { destination } from "@/lib/destinations";
 
 type EditSession = { id: number; workspace: WorkspaceEdit; dirtyBefore: boolean };
 export type PlanningOrigin = { kind: "new" } | { kind: "history"; source: SavedDetail };
@@ -44,8 +45,9 @@ export default function EditablePlanningSession({ initial, sessionId, origin }: 
       <p>原保存时间：{new Date(origin.source.saved_at).toLocaleString("zh-CN", { timeZone: "Asia/Shanghai" })}；原生成时间：{new Date(origin.source.snapshot.schedule.generated_at).toLocaleString("zh-CN", { timeZone: "Asia/Shanghai" })}。</p>
       <p>未保存的副本编辑是临时状态，刷新会丢失并重新从原存档开始。没有自动保存；另存也不会覆盖原记录。离开提示保护本页工作状态，已保存快照不受影响。</p>
       <p>只恢复原需求、排程输入和费用原文，没有更早的候选池、排除记录、天气、AI 解读、标注、调整预览或地图绑定。主动生成会重新查询所选交通，但不会重新核验历史 POI 名称、地址或坐标。</p>
+      {origin.source.schema_version === "saved-trip-v1" && <p className="font-semibold">此为旧上海 v1 快照，未保存地点城市归属。旧可选不恢复为有效输入；请修改需求，重新搜索确认住宿及必去地点后再生成。</p>}
     </section> : <section className="mb-6 rounded-2xl bg-white p-5 text-sm leading-7">
-      <h1 className="text-2xl font-semibold">上海旅行 · 正式规划工作区</h1>
+      <h1 className="text-2xl font-semibold">{inputs.request.destination_id ? destination(inputs.request.destination_id).name : "上海旧版"}旅行 · 正式规划工作区</h1>
       <p>从本次确认的需求开始规划。请主动生成草案，再核对与保存；刷新会丢失未保存的工作，没有自动保存。</p>
     </section>}
     {notices.length > 0 && <div role="status" className="mb-5 rounded-xl bg-white p-4 text-sm leading-6">{notices.map(n => <p key={n}>{n}</p>)}</div>}

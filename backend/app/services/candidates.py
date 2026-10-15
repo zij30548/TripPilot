@@ -7,6 +7,7 @@ from app.schemas.candidates import (
     PlaceCandidate, RetrievalSource,
 )
 from app.schemas.place import Place
+from app.schemas.destination import CityCandidateRequest, CityCandidateResponse, LocatedCandidate
 
 
 # Order is a product rule, independent of request order and asynchronous timing.
@@ -88,7 +89,8 @@ async def prepare_candidates(request: CandidateRequest, amap: AmapClient) -> Can
             try:
                 # AmapClient owns page 1 / 20 and its existing connection-only
                 # retry (at most two HTTP attempts). Never retry at batch level.
-                places = (await amap.search(source.keyword, "上海"))[:PAGE_LIMIT]
+                places = (await amap.search(source.keyword, request.destination_id, destination_id=request.destination_id)
+                          if isinstance(request, CityCandidateRequest) else await amap.search(source.keyword, "上海"))[:PAGE_LIMIT]
                 return CandidateQuery(
                     **source.model_dump(), status="success", result_count=len(places),
                 ), places
@@ -131,10 +133,14 @@ async def prepare_candidates(request: CandidateRequest, amap: AmapClient) -> Can
 
     queries = [query for query, _ in outcomes]
     successes = sum(query.status == "success" for query in queries)
-    return CandidateResponse(
+    merged = merge_candidates(request, sources, [places for _, places in outcomes])
+    response_type = CityCandidateResponse if isinstance(request, CityCandidateRequest) else CandidateResponse
+    return response_type(
+        **({"destination_id": request.destination_id} if isinstance(request, CityCandidateRequest) else {}),
         status="success" if successes == len(queries) else "partial" if successes else "failed",
         queried_at=datetime.now(timezone.utc),
         keywords=[source.keyword for source in sources],
         queries=queries,
-        candidates=merge_candidates(request, sources, [places for _, places in outcomes]),
+        candidates=[LocatedCandidate(place=c.place, role=c.role, retrieval_sources=c.retrieval_sources) for c in merged]
+        if isinstance(request, CityCandidateRequest) else merged,
     )

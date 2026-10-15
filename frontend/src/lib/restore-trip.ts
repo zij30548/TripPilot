@@ -20,17 +20,17 @@ export function restoreSavedTrip(value: unknown, sessionId: string): RestoredTri
   if (!sessionId || !isSavedDetail(value)) throw new Error("历史快照无效或版本不支持，未创建工作副本。");
   const { requirements, schedule, costs } = value.snapshot;
   return structuredClone({ sessionId, source: structuredClone(value), inputs: {
-    request: structuredClone(requirements), costs: structuredClone(costs),
+    request: structuredClone(value.schema_version === "saved-trip-v1" ? { ...requirements, destination_id: "shanghai" } : requirements), costs: structuredClone(costs),
     settings: { transportMode: schedule.request.transport_mode,
       stays: Object.fromEntries(schedule.request.duration_settings.map(s => [s.place_id, { value: String(s.minutes), source: s.source }])),
       lunch: { enabled: schedule.request.lunch.enabled, start: schedule.request.lunch.start_time, end: schedule.request.lunch.end_time } },
     candidates: { ...emptyCandidateSnapshot(), history: { kind: "history", recordId: value.id, name: value.name,
-      savedAt: value.saved_at, places: structuredClone(schedule.request.optional_places ?? []) } },
+      savedAt: value.saved_at, places: value.schema_version === "saved-trip-v1" ? [] : structuredClone(schedule.request.optional_places ?? []) } },
   } });
 }
 
 export function validEditedRequirements(value: unknown): value is TripRequest {
-  if (!isTripRequest(value) || !isConfirmedPlace(value.accommodation_place) || !scheduleDates(value.start_date, value.end_date) ||
+  if (!isTripRequest(value) || !value.destination_id || !isConfirmedPlace(value.accommodation_place) || !scheduleDates(value.start_date, value.end_date) ||
       !Number.isSafeInteger(value.travelers) || value.travelers > 1000) return false;
   const start = scheduleMinutes(scheduleClock(value.daily_start_time)), end = scheduleMinutes(scheduleClock(value.daily_end_time));
   return start !== null && end !== null && start < end;
@@ -39,10 +39,11 @@ export function validEditedRequirements(value: unknown): value is TripRequest {
 export function applyEditedRequirements(current: WorkspaceInputs, request: TripRequest): { inputs: WorkspaceInputs; notices: string[] } {
   if (!validEditedRequirements(request)) throw new Error("请检查旅行日期、人数、地点和每日时间窗口。");
   const before = current.request;
+  const cityChanged = before.destination_id !== request.destination_id;
   const homeChanged = canonical(before.accommodation_place) !== canonical(request.accommodation_place);
-  const resetCandidates = homeChanged || canonical(before.must_visit_places) !== canonical(request.must_visit_places) ||
+  const resetCandidates = cityChanged || homeChanged || canonical(before.must_visit_places) !== canonical(request.must_visit_places) ||
     canonical([...before.interests].sort()) !== canonical([...request.interests].sort());
-  const resetCosts = before.start_date !== request.start_date || before.end_date !== request.end_date || before.travelers !== request.travelers;
+  const resetCosts = cityChanged || before.start_date !== request.start_date || before.end_date !== request.end_date || before.travelers !== request.travelers;
   const candidates = resetCandidates ? emptyCandidateSnapshot() : structuredClone({ ...current.candidates, loading: false });
   const places = [...(request.must_visit_places ?? []), ...candidateItems(candidates).filter(c => c.role === "optional").map(c => c.place)];
   const ids = new Set(places.map(p => p.id));
@@ -54,9 +55,10 @@ export function applyEditedRequirements(current: WorkspaceInputs, request: TripR
   };
   // Persistent notices describe input changes; draft guidance follows live workspace state.
   const notices: string[] = [];
+  if (cityChanged) notices.push("目的地已变化：旧城市的草案、候选及排除、地图、天气与检查、AI 结果、预览和全部费用估算已清空。请主动生成。");
   if (resetCandidates) notices.push("住宿、必去或兴趣已变化，可选清单及本次排除选择已清空，请主动重新获取候选。");
-  if (resetCosts) notices.push("日期或人数已变化，全部用户费用估算已清空；没有自动缩放或搬移旧餐饮费。");
-  else if (homeChanged) notices.push("住宿参考点已变化，住宿估算已清空；其他仍相关的原估算保留。");
+  if (resetCosts && !cityChanged) notices.push("日期或人数已变化，全部用户费用估算已清空；没有自动缩放或搬移旧餐饮费。");
+  else if (homeChanged && !resetCosts) notices.push("住宿参考点已变化，住宿估算已清空；其他仍相关的原估算保留。");
   return { inputs: structuredClone({ request, settings: { ...current.settings, stays }, candidates, costs }), notices };
 }
 

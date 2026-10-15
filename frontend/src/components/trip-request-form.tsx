@@ -7,6 +7,7 @@ import type { Pace, TripPlan, TripRequest } from "@/types/trip";
 import PlaceDetails from "./places/place-details";
 import RequirementPlacePicker from "./places/requirement-place-picker";
 import { validEditedRequirements } from "@/lib/restore-trip";
+import { DESTINATIONS, destination, isDestinationId, regionBelongsTo, type DestinationId } from "@/lib/destinations";
 
 const paces = [
   { value: "relaxed", label: "轻松", description: "少走一点，慢慢感受" },
@@ -96,6 +97,9 @@ const placeButtonClass = "min-h-10 rounded-lg border border-[#315f51]/30 bg-whit
 type FormProps = { onSuccess: (plan: TripPlan) => void; initialRequest?: never; onConfirm?: never; onCancel?: never }
   | { initialRequest?: TripRequest; onConfirm: (request: TripRequest) => void; onCancel?: () => void; onSuccess?: never };
 export default function TripRequestForm({ onSuccess, initialRequest, onConfirm, onCancel }: FormProps) {
+  const [city, setCity] = useState<DestinationId | "">(initialRequest?.destination_id ?? (onSuccess ? "shanghai" : ""));
+  const cityEpoch = useRef(0);
+  const renderedCityEpoch = cityEpoch.current;
   const [form, setForm] = useState<FormState>(() => initialRequest ? {
     startDate: initialRequest.start_date, endDate: initialRequest.end_date, totalBudget: String(initialRequest.budget),
     travelers: String(initialRequest.travelers), pace: initialRequest.pace, interests: [...initialRequest.interests],
@@ -104,8 +108,8 @@ export default function TripRequestForm({ onSuccess, initialRequest, onConfirm, 
   const [dateError, setDateError] = useState("");
   const [timeError, setTimeError] = useState("");
   const [placeError, setPlaceError] = useState("");
-  const [accommodationPlace, setAccommodationPlace] = useState<Place | null>(() => structuredClone(initialRequest?.accommodation_place ?? null));
-  const [mustVisitPlaces, setMustVisitPlaces] = useState<Place[]>(() => structuredClone(initialRequest?.must_visit_places ?? []));
+  const [accommodationPlace, setAccommodationPlace] = useState<Place | null>(() => structuredClone(initialRequest?.accommodation_place && (!onConfirm || city && regionBelongsTo(initialRequest.accommodation_place.region, city)) ? initialRequest.accommodation_place : null));
+  const [mustVisitPlaces, setMustVisitPlaces] = useState<Place[]>(() => structuredClone((initialRequest?.must_visit_places ?? []).filter(p => !onConfirm || city && regionBelongsTo(p.region, city))));
   const [picker, setPicker] = useState<PickerSession | null>(null);
   const pickerSession = useRef<PickerSession | null>(null);
   const pickerVersion = useRef(0);
@@ -129,6 +133,7 @@ export default function TripRequestForm({ onSuccess, initialRequest, onConfirm, 
 
   function openPicker(target: PickerTarget, initialKeyword = "") {
     if (!alive.current || submitting.current) return;
+    if (onConfirm && !city) { setPlaceError("请先选择目的地。"); return; }
     pickerSession.current?.controller.abort();
     const session: PickerSession = {
       version: ++pickerVersion.current, target, initialKeyword, controller: new AbortController(),
@@ -175,7 +180,8 @@ export default function TripRequestForm({ onSuccess, initialRequest, onConfirm, 
 
   const handleSubmit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
-    if (!alive.current || submitting.current) return;
+    if (!alive.current || submitting.current || renderedCityEpoch !== cityEpoch.current) return;
+    if (onConfirm && !city) { setPlaceError("请先选择目的地。"); return; }
     if (pickerSession.current) {
       setPlaceError("请先确认或取消当前地点选择，再生成行程。");
       return;
@@ -200,6 +206,7 @@ export default function TripRequestForm({ onSuccess, initialRequest, onConfirm, 
     if (nextDateError || nextTimeError) return;
 
     const tripRequest: TripRequest = {
+      ...(onConfirm && city ? { destination_id: city } : {}),
       start_date: form.startDate,
       end_date: form.endDate,
       budget: Number(form.totalBudget),
@@ -264,11 +271,12 @@ export default function TripRequestForm({ onSuccess, initialRequest, onConfirm, 
           </p>
         </div>
         <span className="hidden rounded-full bg-[#edf3ef] px-3 py-1.5 text-xs font-semibold text-[#315f51] sm:block">
-          上海 · 1～3 天
+          {city ? destination(city).name : "选择城市"} · 1～3 天
         </span>
       </div>
 
       {picker && <RequirementPlacePicker key={picker.version}
+        destinationId={onConfirm && city ? city : undefined}
         title={picker.target.role === "accommodation" ? "住宿参考点" : "必去地点"}
         initialKeyword={picker.initialKeyword}
         sessionSignal={picker.controller.signal}
@@ -276,6 +284,15 @@ export default function TripRequestForm({ onSuccess, initialRequest, onConfirm, 
         onConfirm={(place) => confirmPlace(picker, place)} onCancel={closePicker} />}
 
       <form className="space-y-9" onSubmit={handleSubmit} aria-busy={isLoading}>
+        {onConfirm && <label className="block text-sm font-medium">目的地 *
+          <select aria-label="目的地" required value={city} className={inputClassName} onChange={event => {
+            if (!isDestinationId(event.target.value)) return;
+            cityEpoch.current++; closePicker(); setCity(event.target.value); setAccommodationPlace(null); setMustVisitPlaces([]);
+            setSubmission({ status: "idle" });
+          }}><option value="" disabled>请选择城市</option>{DESTINATIONS.map(d => <option key={d.id} value={d.id}>{d.name}</option>)}</select>
+          <span className="mt-2 block text-xs font-normal">切换城市会清空此编辑副本的地点，请重新确认；取消编辑不影响原工作。</span>
+        </label>}
+        {onConfirm && initialRequest?.accommodation_place && !initialRequest.accommodation_place.region && <p className="text-sm text-amber-800">旧上海记录没有城市归属字段，不能当作已核验。请重新搜索确认住宿“{initialRequest.accommodation_place.name}”及必去：{initialRequest.must_visit_places?.map(p => p.name).join("、") || "无"}。</p>}
         <fieldset disabled={isLoading}>
           <legend className="mb-5 flex items-center gap-3 text-sm font-bold text-[#18392f]">
             <span className="grid size-7 place-items-center rounded-full bg-[#18392f] text-xs text-white">

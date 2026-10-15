@@ -6,5 +6,6 @@ export default function PlaceDetails({ place }: { place: Place }) {
     <span className="block">地址：{place.address?.trim() || "暂未提供地址"}</span>
     {place.category && <span className="block text-xs">类别：{place.category}</span>}
     <span className="block text-xs">来源：高德地图</span>
+    {place.region && <span className="block text-xs">归属字段：{place.region.cityname} · 区划 {place.region.adcode}（上游记录，不是独立实地核验）</span>}
   </span>;
 }

@@ -1,4 +1,5 @@
-export type WeatherForecastRequest = { start_date: string; end_date: string };
+import { destination, isDestinationId, type DestinationId } from "@/lib/destinations";
+export type WeatherForecastRequest = { start_date: string; end_date: string; destination_id?: DestinationId };
 export type WeatherFreshness = "fresh" | "stale" | "unknown";
 export type WeatherPrecipitation = "rain" | "snow" | "rain_snow" | "none" | "unknown";
 export type WeatherPeriod = {
@@ -18,8 +19,8 @@ export type WeatherForecastDay = {
 export type WeatherForecastResponse = {
   request: WeatherForecastRequest;
   source: "amap";
-  city: "上海市";
-  adcode: "310000";
+  city: string;
+  adcode: string;
   timezone: "Asia/Shanghai";
   queried_at: string;
   reported_at: string | null;
@@ -59,7 +60,7 @@ function dateMillis(value: unknown): number | null {
   return Number.isFinite(parsed) && new Date(parsed).toISOString().slice(0, 10) === value ? parsed : null;
 }
 export function isWeatherForecastRequest(value: unknown): value is WeatherForecastRequest {
-  if (!record(value) || !exact(value, ["start_date", "end_date"])) return false;
+  if (!record(value) || !exact(value, ["start_date", "end_date", ...("destination_id" in value ? ["destination_id"] : [])]) || ("destination_id" in value && !isDestinationId(value.destination_id))) return false;
   const start = dateMillis(value.start_date);
   const end = dateMillis(value.end_date);
   return start !== null && end !== null && end >= start && end - start <= 2 * DAY_MS;
@@ -108,8 +109,9 @@ function isPeriod(value: unknown): value is WeatherPeriod {
 }
 export function isWeatherForecastResponse(value: unknown, request?: WeatherForecastRequest): value is WeatherForecastResponse {
   if (!record(value) || !exact(value, ["request", "source", "city", "adcode", "timezone", "queried_at", "reported_at", "report_time_status", "freshness_at_query", "coverage", "guidance_rule", "days"])) return false;
-  if (!isWeatherForecastRequest(value.request) || (request !== undefined && (!isWeatherForecastRequest(request) || value.request.start_date !== request.start_date || value.request.end_date !== request.end_date))) return false;
-  if (value.source !== "amap" || value.city !== "上海市" || value.adcode !== "310000" || value.timezone !== "Asia/Shanghai" || value.guidance_rule !== "amap_text_precipitation_v1") return false;
+  if (!isWeatherForecastRequest(value.request) || (request !== undefined && (!isWeatherForecastRequest(request) || value.request.destination_id !== request.destination_id || value.request.start_date !== request.start_date || value.request.end_date !== request.end_date))) return false;
+  const city = destination(value.request.destination_id ?? "shanghai");
+  if (value.source !== "amap" || value.city !== city.official_name || value.adcode !== city.adcode || value.timezone !== "Asia/Shanghai" || value.guidance_rule !== "amap_text_precipitation_v1") return false;
   const queried = timestampMillis(value.queried_at, "Z");
   if (queried === null) return false;
   if (value.report_time_status === "valid") {

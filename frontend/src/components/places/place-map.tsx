@@ -1,7 +1,8 @@
 "use client";
 
 import { useEffect, useLayoutEffect, useRef, useState } from "react";
-import { getShanghaiCenter, loadAMap, type AMapSDK } from "@/lib/amap-loader";
+import { getDestinationCenter, getShanghaiCenter, loadAMap, type AMapSDK } from "@/lib/amap-loader";
+import { destination, type DestinationId } from "@/lib/destinations";
 import { hasValidCoordinates, type Place } from "@/types/place";
 import type { WalkingRouteResponse } from "@/types/route";
 import type { TransitRouteResponse } from "@/types/transit";
@@ -11,7 +12,8 @@ type MarkerEntry = { marker: AMap.Marker; element: HTMLDivElement; onClick: () =
 
 export default function PlaceMap({ places, selectedPlaceId, selectionVersion = 0, onSelect,
   fitAllLabel = "查看全部搜索结果", footnote = "编号对应搜索候选地点，不代表行程顺序或路线。",
-  walkingRoute, transitRoute, routeSelectionVersion = 0, markerLabels, isActive, fitRouteLabel }: {
+  walkingRoute, transitRoute, routeSelectionVersion = 0, markerLabels, isActive, fitRouteLabel, destinationId }: {
+  destinationId?: DestinationId;
   places: Place[];
   selectedPlaceId: string | null;
   selectionVersion?: number;
@@ -25,6 +27,7 @@ export default function PlaceMap({ places, selectedPlaceId, selectionVersion = 0
   markerLabels?: Readonly<Record<string, string>>;
   isActive?: () => boolean;
 }) {
+  const cityName = destinationId ? destination(destinationId).name : "上海";
   const container = useRef<HTMLDivElement>(null);
   const map = useRef<AMap.Map | null>(null);
   const sdk = useRef<AMapSDK | null>(null);
@@ -65,7 +68,7 @@ export default function PlaceMap({ places, selectedPlaceId, selectionVersion = 0
       try {
         const amap = await loadAMap();
         if (controller.signal.aborted || activeRef.current?.() === false) return;
-        const center = await getShanghaiCenter(amap, controller.signal);
+        const center = await (destinationId ? getDestinationCenter(amap, destinationId, controller.signal) : getShanghaiCenter(amap, controller.signal));
         if (controller.signal.aborted || activeRef.current?.() === false || !container.current) return;
         // Passing a verified center prevents the SDK from using IP location.
         map.current = new amap.Map(container.current, { center, zoom: 11, viewMode: "2D" });
@@ -94,7 +97,7 @@ export default function PlaceMap({ places, selectedPlaceId, selectionVersion = 0
       map.current = null;
       sdk.current = null;
     };
-  }, [attempt]);
+  }, [attempt, destinationId]);
 
   useEffect(() => {
     if (mapStatus.status !== "ready" || !map.current || !sdk.current) return;
@@ -198,7 +201,7 @@ export default function PlaceMap({ places, selectedPlaceId, selectionVersion = 0
   return (
     <div className="overflow-hidden rounded-xl border border-[#18201d]/15 bg-[#f3f2ec]">
       <div className="flex flex-wrap items-center justify-between gap-3 border-b border-[#18201d]/10 bg-white px-3 py-2">
-        <p className="text-xs text-[#56605c]">上海地图 · 高德地图</p>
+        <p className="text-xs text-[#56605c]">{cityName}地图 · 高德地图</p>
         <button type="button" onClick={fitAll} disabled={mapStatus.status !== "ready" || places.length === invalidCount}
           className="rounded-lg border border-[#315f51]/30 px-3 py-1.5 text-xs font-medium text-[#315f51] focus-visible:outline-2 focus-visible:outline-offset-2 disabled:cursor-not-allowed disabled:opacity-45">{fitAllLabel}</button>
       </div>
@@ -220,9 +223,9 @@ export default function PlaceMap({ places, selectedPlaceId, selectionVersion = 0
         </button>
       </div>}
       <div className="relative">
-        <div ref={container} aria-label="上海地点地图" className="h-80 w-full sm:h-96" />
+        <div ref={container} aria-label={`${cityName}地点地图`} className="h-80 w-full sm:h-96" />
         {mapStatus.status !== "ready" && <div className="absolute inset-0 grid place-items-center bg-[#f3f2ec] px-5 text-center text-sm leading-6 text-[#56605c]">
-          {mapStatus.status === "loading" ? <p role="status">正在加载上海地图…</p> : <div><p role="alert">{mapStatus.message}</p>
+          {mapStatus.status === "loading" ? <p role="status">正在加载{cityName}地图…</p> : <div><p role="alert">{mapStatus.message}</p>
             <button type="button" className="mt-3 min-h-11 rounded-lg border border-[#315f51]/30 bg-white px-4 text-[#315f51]" onClick={() => {
               if (activeRef.current?.() === false) return;
               setMapStatus({ status: "loading" }); setAttempt(value => value + 1);

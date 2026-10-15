@@ -325,7 +325,7 @@ describe("confirmed structured trip requirements", () => {
     fireEvent.keyDown(input, { key: "Enter", code: "Enter" });
     // jsdom does not synthesize the browser's Enter default submit action.
     fireEvent.submit(searchForm);
-    await waitFor(() => expect(controls.searchPlaces).toHaveBeenLastCalledWith("回车搜索词", expect.any(AbortSignal)));
+    await waitFor(() => expect(controls.searchPlaces).toHaveBeenLastCalledWith("回车搜索词", expect.any(AbortSignal), undefined));
     expect(controls.planTrip).not.toHaveBeenCalled();
   });
 

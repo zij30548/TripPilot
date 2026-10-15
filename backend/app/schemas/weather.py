@@ -5,6 +5,7 @@ from datetime import date, timedelta
 from typing import Literal, Self
 
 from pydantic import AwareDatetime, BaseModel, ConfigDict, Field, field_validator, model_validator
+from app.destinations import DestinationId, destination_for
 
 
 Precipitation = Literal["rain", "snow", "rain_snow", "none", "unknown"]
@@ -59,6 +60,10 @@ class WeatherRequest(BaseModel):
 
     def dates(self) -> list[date]:
         return [self.start_date + timedelta(days=offset) for offset in range((self.end_date - self.start_date).days + 1)]
+
+
+class CityWeatherRequest(WeatherRequest):
+    destination_id: DestinationId
 
 
 class WeatherPeriod(BaseModel):
@@ -139,4 +144,17 @@ class WeatherForecastResponse(BaseModel):
                 raise ValueError("Freshness must use the original publication time")
         elif self.reported_at is not None or self.freshness_at_query != "unknown":
             raise ValueError("Unknown publication cannot become fresh from a query time")
+        return self
+
+
+class CityWeatherForecastResponse(WeatherForecastResponse):
+    request: CityWeatherRequest
+    city: str
+    adcode: str
+
+    @model_validator(mode="after")
+    def city_identity(self) -> Self:
+        city = destination_for(self.request.destination_id)
+        if self.city != city.official_name or self.adcode != city.adcode:
+            raise ValueError("Forecast identity differs from request")
         return self

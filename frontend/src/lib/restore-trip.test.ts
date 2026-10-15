@@ -2,8 +2,10 @@ import { execFileSync } from "node:child_process";
 import { resolve } from "node:path";
 import { describe, expect, it } from "vitest";
 import { restoreSavedTrip, applyEditedRequirements, restoredEstimateRows } from "./restore-trip";
-import { savedFixture } from "./restore-trip.test-fixtures";
-import { required, optionals, home } from "./weather-schedule-check.test-fixtures";
+import { savedCityFixture as savedFixture } from "./restore-trip.test-fixtures";
+import { required as oldRequired, optionals as oldOptionals, home as oldHome } from "./weather-schedule-check.test-fixtures";
+import { located } from "./destination.test-fixtures";
+const required = located(oldRequired), optionals = oldOptionals.map(p => located(p)), home = located(oldHome);
 import { buildRequest, eligibleOptional, validateScheduleInput } from "./schedule-input";
 import { isSavedDetail } from "./saved-trips";
 import type { SavedDetail } from "./saved-trips";
@@ -16,10 +18,11 @@ describe("v1 archives → independent inputs, never a successful result", () => 
     for (const record of records) {
       expect(isSavedDetail(record)).toBe(true);
       const copy=restoreSavedTrip(record,"new-session"), input=copy.inputs;
-      expect(input.request).toEqual(record.snapshot.requirements);expect(input.costs).toEqual(record.snapshot.costs);
+      expect(input.request).toEqual({ ...record.snapshot.requirements, destination_id: "shanghai" });expect(input.costs).toEqual(record.snapshot.costs);
       expect(input.candidates.response).toBeNull();expect(input.candidates.lastAttempt).toBeNull();expect(input.candidates.excludedIds.size).toBe(0);
-      expect(input.candidates.history?.places).toEqual(record.snapshot.schedule.request.optional_places);
-      expect(buildRequest(input.request,input.settings,eligibleOptional(input.request,input.candidates))).toEqual(record.snapshot.schedule.request);
+      expect(input.candidates.history?.places).toEqual([]);
+      expect(validateScheduleInput(input.request,input.settings,eligibleOptional(input.request,input.candidates),false)).toContain("重新");
+      expect(copy.source).toEqual(record);
       expect(Object.keys(input).sort()).toEqual(["candidates","costs","request","settings"]);
     }
   });

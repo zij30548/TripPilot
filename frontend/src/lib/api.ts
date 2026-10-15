@@ -1,5 +1,6 @@
 import type { TripPlan, TripRequest } from "@/types/trip";
 import { isConfirmedPlace, type Place } from "@/types/place";
+import { isDestinationId, regionBelongsTo } from "./destinations";
 
 const PLAN_URL = "http://127.0.0.1:8000/trips/plan";
 
@@ -51,6 +52,12 @@ function matchesConfirmedRequest(sent: TripRequest, echoed: TripRequest): boolea
 }
 
 export function isTripRequest(value: unknown): value is TripRequest {
+  if (isRecord(value) && "destination_id" in value) {
+    if (!isDestinationId(value.destination_id)) return false;
+    const city = value.destination_id;
+    if (![value.accommodation_place, ...(Array.isArray(value.must_visit_places) ? value.must_visit_places : [])]
+      .every(p => isConfirmedPlace(p) && regionBelongsTo(p.region, city))) return false;
+  }
   return isRecord(value) &&
     typeof value.start_date === "string" && typeof value.end_date === "string" &&
     Number.isFinite(Date.parse(value.start_date)) && Number.isFinite(Date.parse(value.end_date)) &&

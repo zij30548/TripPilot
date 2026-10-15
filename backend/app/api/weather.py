@@ -8,7 +8,7 @@ from app.api.routes import SafeRouteValidation
 from app.config import Settings, get_settings
 from app.integrations.amap import AmapError, AmapTimeoutError
 from app.integrations.amap_weather import AmapWeatherClient
-from app.schemas.weather import WeatherForecastResponse, WeatherRequest
+from app.schemas.weather import CityWeatherRequest, CityWeatherForecastResponse, WeatherForecastResponse, WeatherRequest
 
 
 class SafeWeatherValidation(SafeRouteValidation):
@@ -28,9 +28,9 @@ def get_weather_client(
     return AmapWeatherClient(client, key)
 
 
-@router.post("/forecast", response_model=WeatherForecastResponse)
+@router.post("/forecast", response_model=CityWeatherForecastResponse | WeatherForecastResponse)
 async def forecast(
-    request: WeatherRequest,
+    request: CityWeatherRequest | WeatherRequest,
     amap: Annotated[AmapWeatherClient, Depends(get_weather_client)],
 ) -> WeatherForecastResponse:
     try:

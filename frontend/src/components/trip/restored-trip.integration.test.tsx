@@ -1,7 +1,7 @@
 import { act, fireEvent, render, screen, within } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import RestoredTripPage from "./restored-trip";
-import { savedFixture } from "@/lib/restore-trip.test-fixtures";
+import { savedCityFixture as savedFixture } from "@/lib/restore-trip.test-fixtures";
 import { adjustmentResponse } from "@/lib/schedule-adjustment.test-fixtures";
 import { deferred, now, required } from "@/lib/weather-schedule-check.test-fixtures";
 import type { SavedDetail, SaveOperation } from "@/lib/saved-trips";

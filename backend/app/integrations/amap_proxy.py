@@ -10,6 +10,7 @@ from urllib.parse import unquote, urlsplit
 import httpx
 
 from app.logging_filters import install_http_log_redaction
+from app.destinations import DESTINATIONS
 
 
 install_http_log_redaction()
@@ -100,12 +101,14 @@ def validate_proxy_query(path: str, items: Sequence[tuple[str, str]], key: str) 
         raise ProxyError(400, "地图回调参数无效。")
     if "output" in params and params["output"].lower() != "json":
         raise ProxyError(400, "地图服务仅支持 JSON 数据。")
-    if params.get("keywords") not in {"上海", "上海市", "310000"}:
-        raise ProxyError(400, "当前地图只支持上海。")
-    fixed = {"subdistrict": "0", "extensions": "base", "level": "province", "page": "1"}
+    city = next((city for city in DESTINATIONS.values()
+                 if params.get("keywords") in {city.name, city.official_name, city.adcode}), None)
+    if city is None:
+        raise ProxyError(400, "当前地图仅开放上海、杭州和北京。")
+    fixed = {"subdistrict": "0", "extensions": "base", "level": city.district_level, "page": "1"}
     for name, value in fixed.items():
         if name in params and params[name] != value:
-            raise ProxyError(400, "行政区查询仅允许上海本级基础信息。")
+            raise ProxyError(400, "行政区查询仅允许所选城市本级基础信息。")
     if "offset" in params and params["offset"] not in {"1", "10", "20"}:
         raise ProxyError(400, "行政区查询参数无效。")
     # Explicit server limits also apply if the browser omits them.

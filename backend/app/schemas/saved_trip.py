@@ -4,13 +4,14 @@ import math
 from types import UnionType
 from typing import Annotated, Any, Literal, Union, get_args, get_origin
 
-from pydantic import AwareDatetime, BaseModel, Field, StringConstraints, model_validator
+from pydantic import AwareDatetime, BaseModel, Field, StringConstraints, TypeAdapter, model_validator
 
 from app.schemas.explanation import ScheduleSnapshot, StrictModel
 from app.schemas.schedule import ScheduleResponse
 from app.schemas.trip import TripRequest
 from app.services.explanation import compact_schedule, validate_snapshot
 from app.services.schedule import build_schedule
+from app.schemas.destination import CityTripRequest, CityScheduleRequest, CityScheduleResponse, core_place
 
 MAX_BODY_BYTES = 2 * 1024 * 1024
 VERSION = "saved-trip-v1"
@@ -124,10 +125,49 @@ class SavedSnapshot(StrictModel):
         return self
 
 
+class SavedSnapshotV2(StrictModel):
+    """New city-aware wire version; validate the unchanged v1 core by projection."""
+    schema_version: Literal["saved-trip-v2"]
+    requirements: CityTripRequest
+    schedule: CityScheduleResponse
+    costs: SavedCosts
+
+    @model_validator(mode="before")
+    @classmethod
+    def bounded_exact(cls, value: Any) -> Any:
+        bounded_tree(value)
+        exact_model_fields(value, cls)
+        return {**value,
+                "requirements": CityTripRequest.model_validate_json(json.dumps(value["requirements"]), strict=True),
+                "schedule": CityScheduleResponse.model_validate_json(json.dumps(value["schedule"]), strict=True)}
+
+    @model_validator(mode="after")
+    def consistent(self) -> "SavedSnapshotV2":
+        req, schedule = self.requirements, self.schedule
+        if req.destination_id != schedule.request.destination_id:
+            raise ValueError("Destination mismatch")
+        if (req.accommodation_place != schedule.request.accommodation_place
+                or req.must_visit_places != schedule.request.must_visit_places):
+            raise ValueError("Confirmed regions differ")
+        requirements = req.model_dump(mode="json", exclude={"destination_id"})
+        requirements["accommodation_place"] = core_place(req.accommodation_place)
+        requirements["must_visit_places"] = [core_place(p) for p in req.must_visit_places]
+        core = schedule.model_dump(mode="json")
+        core["request"] = schedule.request.core().model_dump(mode="json")
+        # Pure replay does not depend on city, and never certifies upstream provenance.
+        SavedSnapshot.model_validate_json(json.dumps({"schema_version": VERSION,
+            "requirements": requirements, "schedule": core, "costs": self.costs.model_dump()}), strict=True)
+        return self
+
+
+Snapshot = Annotated[SavedSnapshot | SavedSnapshotV2, Field(discriminator="schema_version")]
+snapshot_adapter = TypeAdapter(Snapshot)
+
+
 class SaveTrip(StrictModel):
     operation_id: RecordId
     name: Name
-    snapshot: SavedSnapshot
+    snapshot: Snapshot
 
     @model_validator(mode="after")
     def nonblank_name(self) -> "SaveTrip":
@@ -140,7 +180,7 @@ class SavedSummary(StrictModel):
     id: RecordId
     name: Name
     saved_at: AwareDatetime
-    schema_version: Literal["saved-trip-v1"]
+    schema_version: Literal["saved-trip-v1", "saved-trip-v2"]
     start_date: str
     end_date: str
     transport_mode: Literal["walking", "transit"]
@@ -148,7 +188,7 @@ class SavedSummary(StrictModel):
 
 
 class SavedDetail(SavedSummary):
-    snapshot: SavedSnapshot
+    snapshot: Snapshot
 
 
 class SavedList(StrictModel):

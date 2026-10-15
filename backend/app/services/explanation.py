@@ -16,6 +16,7 @@ def compact_schedule(schedule: ScheduleResponse) -> dict[str, Any]:
     for place in [data["request"]["accommodation_place"], *data["request"]["must_visit_places"], *data["request"]["optional_places"]]:
         place.pop("address", None)
         place.pop("category", None)
+        place.pop("region", None)
     data["edges"] = [{key: edge[key] for key in (
         "id", "origin", "destination", "transport_mode", "status", "duration_seconds",
         "duration_minutes", "source", "queried_at", "used",
@@ -61,7 +62,7 @@ def validate_snapshot(snapshot: ScheduleSnapshot) -> ScheduleResponse:
     # Replaying the existing pure scheduler validates the WHOLE timeline, not
     # merely the Pydantic shape: dates, ordering, lunch/waits, home return, roles,
     # used flags, optional attempts and all recorded non-arrangement reasons.
-    if compact_schedule(expected) != snapshot.model_dump(mode="json"):
+    if compact_schedule(expected) != snapshot.model_dump(mode="json", exclude={"request": {"destination_id"}}):
         raise ValueError("Snapshot is inconsistent with the current scheduling rules")
     return expected
 

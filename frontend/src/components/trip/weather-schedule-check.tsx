@@ -27,7 +27,7 @@ export default function WeatherScheduleCheck({ check, onEdit, onPreview, preview
       <p className="text-sm font-medium">{check.valid ? "本次检查" : "上次检查 · 已失效"} · {time(check.report.checkedAt)}</p>
       {check.report.showingPrevious && <p className="text-sm text-[#8a5b19]">基于上次成功查询的天气。{check.report.refreshError}</p>}
       <details className="rounded-xl bg-white p-3 text-xs leading-6 text-[#56605c]"><summary className="cursor-pointer text-sm">查看天气来源与检查范围</summary>
-        <p>高德天气 · 上海市 · 上海时间</p><p>成功查询：{time(check.report.queriedAt)}</p><p>来源发布：{check.report.reportedAt ? time(check.report.reportedAt) : "未知"}</p>
+        <p>高德天气 · {check.report.city ?? "上海市"} · Asia/Shanghai 时区</p><p>成功查询：{time(check.report.queriedAt)}</p><p>来源发布：{check.report.reportedAt ? time(check.report.reportedAt) : "未知"}</p>
         <p>只关联同日昼夜预报，未确认活动具体时段的天气，不划分精确日夜小时。未评估交通路段、营业、预约或安全适宜性。</p>
       </details>
       {check.report.days.map((day) => <section key={day.date} aria-label={`${day.date} 天气检查`} className="space-y-3">

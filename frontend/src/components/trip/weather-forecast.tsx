@@ -3,6 +3,7 @@
 import { useWeatherDisplayClock } from "@/lib/use-weather-display-clock";
 import type { useWeatherForecast } from "@/lib/use-weather-forecast";
 import { getShanghaiDate, getWeatherDates, getWeatherFreshness, type WeatherForecastRequest, type WeatherPeriod } from "@/types/weather";
+import { destination } from "@/lib/destinations";
 
 type WeatherController = ReturnType<typeof useWeatherForecast>;
 
@@ -34,6 +35,7 @@ function PeriodForecast({ label, period, allowGuidance }: { label: "白天" | "�
 }
 
 export default function WeatherForecast({ request, weather }: { request: WeatherForecastRequest; weather: WeatherController }) {
+  const city = destination(request.destination_id ?? "shanghai");
   const { state, canQuery } = weather;
   const response = state.response;
   const now = useWeatherDisplayClock(response);
@@ -43,11 +45,11 @@ export default function WeatherForecast({ request, weather }: { request: Weather
   const loading = state.status === "loading";
   const attempted = state.status !== "idle" || response !== null;
 
-  return <section aria-label="上海逐日天气预报" className="mt-6 min-w-0 rounded-3xl border border-[#34657b]/20 bg-[#f1f7fa] p-5 sm:p-8">
+  return <section aria-label={`${city.name}逐日天气预报`} className="mt-6 min-w-0 rounded-3xl border border-[#34657b]/20 bg-[#f1f7fa] p-5 sm:p-8">
     <div className="flex flex-wrap items-start justify-between gap-4">
       <div className="min-w-0 flex-1 basis-64">
-        <h2 className="text-xl font-semibold text-[#18392f]">上海逐日天气预报</h2>
-        <p className="mt-2 text-sm leading-6 text-[#56605c]">按本次确认的旅行日期查看上海市预报。仅在你点击时查询，不会随日期切换、地图或草案操作自动刷新。</p>
+        <h2 className="text-xl font-semibold text-[#18392f]">{city.name}逐日天气预报</h2>
+        <p className="mt-2 text-sm leading-6 text-[#56605c]">按本次确认的旅行日期查看{city.official_name}预报。仅在你点击时查询，不会随日期切换、地图或草案操作自动刷新。</p>
       </div>
       <button type="button" disabled={loading || !canQuery} onClick={() => { void weather.query(); }}
         className="min-h-11 max-w-full rounded-xl bg-[#18392f] px-5 py-3 text-sm font-semibold text-white focus-visible:outline-2 focus-visible:outline-offset-2 disabled:cursor-not-allowed disabled:opacity-50">
@@ -59,13 +61,13 @@ export default function WeatherForecast({ request, weather }: { request: Weather
     {!canQuery && <p role="alert" className="mt-4 text-sm text-[#a63d2d]">请返回修改需求，确认有效的 1～3 天旅行日期。</p>}
     <div aria-live="polite" className="mt-4 text-sm leading-6 text-[#315f51]">
       {state.status === "idle" && <p>尚未查询天气，请点击“查询天气”。</p>}
-      {loading && <p role="status">正在查询上海天气，请稍候。</p>}
+      {loading && <p role="status">正在查询{city.name}天气，请稍候。</p>}
       {state.status === "failed" && <p role="alert">{state.message ?? "本次天气查询失败，请主动重试。"}</p>}
       {state.showingPrevious && response && <p>当前展示上次成功查询的整批结果；{loading ? "正在刷新。" : "本次刷新失败，查询时间与发布时间仍为原值。"}</p>}
       {response && <p>{response.coverage === "complete" ? "本批预报包含全部旅行日期。" : response.coverage === "partial" ? "本批预报仅包含部分旅行日期，缺失日期未补值。" : "本批未取得旅行日期的预报；这不等同于查询失败。"}</p>}
     </div>
     {response && <div className="mt-3 rounded-xl border border-[#34657b]/15 bg-white/70 p-3 text-xs leading-6 text-[#56605c]">
-      <p>来源：高德天气 · 上海市（310000）</p>
+      <p>来源：高德天气 · {response.city}（{response.adcode}）</p>
       <p>成功查询时间：{shanghaiTime(response.queried_at)}</p>
       <p>来源发布时间：{response.reported_at ? shanghaiTime(response.reported_at) : response.report_time_status === "missing" ? "未知（来源未提供）" : "未知（来源时间无法确认）"}</p>
       <p>{freshness === "stale" ? "预报已陈旧：来源发布时间已超过 24 小时，暂不提供当前有效的出行判断。" : freshness === "unknown" ? "预报新鲜度未知：无法确认来源发布时间，暂不提供当前有效的出行判断。" : "来源发布时间未超过 24 小时；这不保证预报准确或适合出行。"}</p>

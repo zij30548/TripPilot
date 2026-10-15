@@ -5,6 +5,7 @@ from typing import Annotated, Literal, Self
 from pydantic import AwareDatetime, BaseModel, ConfigDict, Field, StringConstraints, field_validator, model_validator
 
 from app.schemas.route import Latitude, Longitude, PlaceId, RouteEndpoint
+from app.destinations import DestinationId
 from app.schemas.schedule import (
     LunchWindow, ScheduleRequest, StayDuration, TransportMode,
 )
@@ -42,6 +43,7 @@ class SnapshotStay(StayDuration):
 
 
 class SnapshotRequest(StrictModel):
+    destination_id: DestinationId | None = None
     start_date: DateText
     end_date: DateText
     daily_start_time: Clock
@@ -54,7 +56,7 @@ class SnapshotRequest(StrictModel):
     transport_mode: TransportMode
 
     def scheduling_input(self) -> ScheduleRequest:
-        data = self.model_dump(mode="json")
+        data = self.model_dump(mode="json", exclude={"destination_id"})
         for place in [data["accommodation_place"], *data["must_visit_places"], *data["optional_places"]]:
             place.update(address=None, category=None)
         return ScheduleRequest.model_validate(data)

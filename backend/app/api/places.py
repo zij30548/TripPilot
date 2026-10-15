@@ -8,6 +8,8 @@ from pydantic import StringConstraints
 from app.config import Settings, get_settings
 from app.integrations.amap import AmapClient, AmapError, AmapTimeoutError, REQUEST_TIMEOUT
 from app.schemas.place import Place
+from app.schemas.destination import LocatedPlace
+from app.destinations import DestinationId, destination_for
 
 
 router = APIRouter(prefix="/places", tags=["places"])
@@ -30,13 +32,19 @@ def get_amap_client(
     return AmapClient(client, key)
 
 
-@router.get("/search", response_model=list[Place])
+@router.get("/search", response_model=list[LocatedPlace] | list[Place])
 async def search_places(
     keyword: Annotated[Keyword, Query()],
-    city: Annotated[City, Query()],
     amap: Annotated[AmapClient, Depends(get_amap_client)],
+    city: Annotated[City | None, Query()] = None,
+    destination_id: Annotated[DestinationId | None, Query()] = None,
 ) -> list[Place]:
+    if (city is None) == (destination_id is None):
+        raise HTTPException(status_code=422, detail="请明确选择目的地。")
     try:
+        if destination_id is not None:
+            return await amap.search(keyword, destination_for(destination_id).name, destination_id=destination_id)
+        # Original explicit city interface retained for /demo compatibility only.
         return await amap.search(keyword, city)
     except AmapTimeoutError as error:
         raise HTTPException(status_code=504, detail=str(error)) from None

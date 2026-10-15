@@ -14,7 +14,7 @@ from sqlalchemy.engine import Engine
 from sqlmodel import Field, Session, SQLModel, create_engine, select
 
 from app.integrations.qwen import strict_json
-from app.schemas.saved_trip import MAX_BODY_BYTES, SaveTrip, SavedDetail, SavedList, SavedSnapshot, SavedSummary
+from app.schemas.saved_trip import MAX_BODY_BYTES, SaveTrip, SavedDetail, SavedList, SavedSnapshot, SavedSummary, snapshot_adapter
 
 DEFAULT_PATH = Path(__file__).resolve().parents[1] / "data" / "saved-trips.sqlite3"
 _initialization_lock = Lock()
@@ -79,7 +79,7 @@ def detail(row: SavedTripRow) -> SavedDetail:
         if len(row.snapshot_json.encode()) > MAX_BODY_BYTES:
             raise ValueError("oversized")
         strict_json(row.snapshot_json)
-        snapshot = SavedSnapshot.model_validate_json(row.snapshot_json, strict=True)
+        snapshot = snapshot_adapter.validate_json(row.snapshot_json, strict=True)
         result = summary(row)
         request = snapshot.schedule.request
         if (result.schema_version != snapshot.schema_version or result.start_date != request.start_date.isoformat()

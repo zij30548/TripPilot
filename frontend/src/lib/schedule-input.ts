@@ -3,6 +3,7 @@ import type { CandidatePoolSnapshot } from "@/lib/use-candidate-pool";
 import { isScheduleRequest, scheduleClock, scheduleDates, scheduleMinutes, type ScheduleRequest } from "@/types/schedule";
 import type { TripRequest } from "@/types/trip";
 import { candidateItems } from "./candidate-pool-state";
+import { regionBelongsTo } from "./destinations";
 
 export type StayDraft = { value: string; source: "default" | "user" };
 export type ScheduleSettings = { transportMode: "walking" | "transit"; stays: Record<string, StayDraft>; lunch: { enabled: boolean; start: string; end: string } };
@@ -18,6 +19,7 @@ export function eligibleOptional(request: TripRequest, candidates: CandidatePool
   const selected: Place[] = [];
   for (const candidate of candidateItems(candidates)) {
     if (candidate.role !== "optional" || !isConfirmedPlace(candidate.place) || excluded.has(candidate.place.id)) continue;
+    if (request.destination_id && !regionBelongsTo(candidate.place.region, request.destination_id)) continue;
     excluded.add(candidate.place.id); selected.push(candidate.place);
   }
   return selected;
@@ -26,6 +28,7 @@ export function buildRequest(request: TripRequest, settings: ScheduleSettings, o
   const lunchStart = scheduleMinutes(settings.lunch.start), lunchEnd = scheduleMinutes(settings.lunch.end);
   const validLunchClocks = lunchStart !== null && lunchEnd !== null && lunchStart < lunchEnd;
   const value: unknown = {
+    ...(request.destination_id ? { destination_id: request.destination_id } : {}),
     transport_mode: settings.transportMode,
     start_date: request.start_date, end_date: request.end_date,
     daily_start_time: scheduleClock(request.daily_start_time), daily_end_time: scheduleClock(request.daily_end_time),
@@ -44,6 +47,7 @@ export function buildRequest(request: TripRequest, settings: ScheduleSettings, o
   return isScheduleRequest(value) ? structuredClone(value) : null;
 }
 export function validateScheduleInput(request: TripRequest, settings: ScheduleSettings, optionalPlaces: Place[], candidateLoading: boolean): string | null {
+  if (request.destination_id && [request.accommodation_place, ...(request.must_visit_places ?? []), ...optionalPlaces].some(p => !p || !regionBelongsTo(p.region, request.destination_id!))) return "地点缺少有效的所选城市归属，请修改需求并重新搜索确认；旧上海记录不会自动补全归属。";
   if (candidateLoading) return "候选地点正在更新，请等待获取结束后再生成草案。";
   if (!isConfirmedPlace(request.accommodation_place)) return "请先返回修改旅行需求，确认住宿参考点。";
   const required = request.must_visit_places ?? [];

@@ -38,7 +38,7 @@ export default function Home() {
           </a>
           <SavedHistory />
           <span className="hidden rounded-full border border-[#18392f]/15 bg-white/70 px-3 py-1.5 text-xs font-semibold text-[#31564b] sm:inline sm:px-4 sm:text-sm">
-            上海限定 · MVP
+            上海 · 杭州 · 北京
           </span>
         </header>
 
@@ -49,17 +49,17 @@ export default function Home() {
               Plan less. Experience more.
             </p>
             <h1 className="max-w-2xl text-[2.7rem] leading-[1.08] font-semibold tracking-[-0.055em] text-balance sm:text-6xl lg:text-[4rem]">
-              把想去的上海，变成一份真正适合你的行程。
+              确认想去的城市，规划属于你的行程。
             </h1>
             <p className="mt-6 max-w-xl text-base leading-7 text-[#56605c] sm:text-lg sm:leading-8">
-              确认地点，主动查询真实交通，再按时间窗口生成上海 1～3 日草案。
+              从上海、杭州、北京选择一座城市，确认地点，主动查询真实交通，再按时间窗口生成 1～3 日草案。
               必去按输入顺序安排，可选每天最多补充一个。预算用于核对，旅行节奏暂不参与排程；AI 只按需解读或理解受限调整，不负责生成整份行程。
             </p>
 
             <div className="mt-9 grid max-w-xl grid-cols-3 overflow-hidden rounded-2xl border border-[#18201d]/10 bg-white/55">
               {[
                 ["1～3 天", "行程长度"],
-                ["上海", "当前城市"],
+                ["三城可选", "单城规划"],
                 ["规则排程", "规划方式"],
               ].map(([value, label], index) => (
                 <div

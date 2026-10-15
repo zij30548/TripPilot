@@ -4,7 +4,9 @@ import TripPlanner from "./trip-planner";
 import EditablePlanningSession from "./editable-planning-session";
 import { newWorkspaceInputs } from "@/lib/restore-trip";
 import { adjustmentResponse } from "@/lib/schedule-adjustment.test-fixtures";
-import { candidateResponse, deferred, forecast, now, required, tripRequest } from "@/lib/weather-schedule-check.test-fixtures";
+import { candidateResponse as oldCandidates, deferred, forecast as oldForecast, now, required as oldRequired, tripRequest as oldRequest } from "@/lib/weather-schedule-check.test-fixtures";
+import { cityCandidates, cityWeather, cityRequest, located } from "@/lib/destination.test-fixtures";
+const candidateResponse = () => cityCandidates(oldCandidates()), forecast = () => cityWeather(oldForecast()), tripRequest = () => cityRequest(oldRequest()), required = located(oldRequired);
 import type { SaveOperation } from "@/lib/saved-trips";
 import type { ScheduleResponse } from "@/types/schedule";
 import type { AMapSDK } from "@/lib/amap-loader";
@@ -12,7 +14,7 @@ import { drawingFixture } from "@/lib/schedule-drawing.test-fixtures";
 import { validateDrawing } from "@/lib/schedule-drawing";
 
 const api = vi.hoisted(() => ({ search: vi.fn(), plan: vi.fn(), schedule: vi.fn(), candidates: vi.fn(), weather: vi.fn(), save: vi.fn(), model: vi.fn(), intent: vi.fn() }));
-const loader = vi.hoisted(() => ({ loadAMap: vi.fn(), getShanghaiCenter: vi.fn() }));
+const loader = vi.hoisted(() => ({ loadAMap: vi.fn(), getShanghaiCenter: vi.fn(), getDestinationCenter: vi.fn() }));
 vi.mock("@/lib/amap-loader", () => loader);
 const maps: TestMap[] = [], markers: TestMarker[] = [];
 const lines: TestLine[] = [];
@@ -49,6 +51,7 @@ function open(request = tripRequest()) { return render(<EditablePlanningSession 
 beforeEach(() => {
   vi.resetAllMocks(); vi.useFakeTimers({ toFake: ["Date"] }); vi.setSystemTime(now);
   maps.length = 0; markers.length = 0; lines.length = 0;
+  loader.getDestinationCenter.mockResolvedValue([121, 31]);
   loader.loadAMap.mockResolvedValue({ Map: TestMap, Marker: TestMarker, Polyline: TestLine } as unknown as AMapSDK); loader.getShanghaiCenter.mockResolvedValue([121, 31]);
   api.schedule.mockImplementation(async r => adjustmentResponse(r)); api.candidates.mockResolvedValue(candidateResponse()); api.weather.mockResolvedValue(forecast());
   api.search.mockResolvedValue([tripRequest().accommodation_place, required]);
@@ -57,6 +60,37 @@ beforeEach(() => {
 afterEach(() => vi.useRealTimers());
 
 describe("6C-1 formal homepage and stable presentation (controlled services)", () => {
+  it.each(["success", "error"])("city editing ABA rejects old search %s; cancelling keeps original draft, fee and map", async outcome => {
+    open(); await click("生成行程草案"); await click("查看当天地图");
+    fireEvent.change(official().getByRole("textbox", { name: /全程其他/ }), { target: { value: "25" } });
+    const before = timeline(); await click("修改旅行需求");
+    await click("更换住宿参考点"); change("搜索上海地点", "old");
+    const pending = deferred<ReturnType<typeof located>[]>(); api.search.mockReturnValueOnce(pending.promise);
+    await click("搜索"); const signal = api.search.mock.calls.at(-1)![1];
+    change("目的地", "beijing"); change("目的地", "shanghai");
+    expect(signal.aborted).toBe(true);
+    await click("选择住宿参考点");
+    await act(async () => { if (outcome === "success") pending.resolve([located({ ...tripRequest().accommodation_place!, name: "过期候选" })]); else pending.reject(new Error("过期错误")); });
+    expect(screen.queryByText(/过期候选|过期错误/)).toBeNull();
+    expect(screen.getByRole("button", { name: "确认住宿参考点" })).toHaveProperty("disabled", true);
+    await click("取消需求修改"); expect(timeline()).toBe(before);
+    expect(official().getByRole("textbox", { name: /全程其他/ })).toHaveProperty("value", "25");
+    expect(maps).toHaveLength(1); expect(maps[0].destroy).not.toHaveBeenCalled(); expect(api.schedule).toHaveBeenCalledTimes(1);
+  });
+  it("confirmed city change requires a new explicit place and clears all formal dependencies without auto-query", async () => {
+    open(); await click("获取候选地点"); await click("生成行程草案"); await click("查询天气"); await click("查看当天地图");
+    fireEvent.change(official().getByRole("textbox", { name: /全程其他/ }), { target: { value: "25" } });
+    await click("修改旅行需求"); change("目的地", "hangzhou");
+    expect(screen.queryByRole("button", { name: "更换住宿参考点" })).toBeNull();
+    const p = located({ ...tripRequest().accommodation_place!, id: "hz-home", name: "杭州受控住宿" }, "hangzhou");
+    api.search.mockResolvedValueOnce([p]); await click("选择住宿参考点"); change("搜索杭州地点", "测试"); await click("搜索");
+    expect(api.search.mock.calls.at(-1)![2]).toBe("hangzhou"); await click(/候选 1/); await click("确认住宿参考点");
+    const requests = counts(); await click("确认需求修改");
+    expect(counts()).toEqual(requests); expect(screen.getByText("杭州旅行 · 正式规划工作区")).toBeTruthy();
+    expect(screen.queryByRole("list", { name: "草案时间线" })).toBeNull(); expect(maps[0].destroy).toHaveBeenCalledOnce();
+    expect(screen.getByRole("button", { name: "保存当前正式草案" })).toHaveProperty("disabled", true);
+    expect(screen.getByText(/目的地已变化/)).toBeTruthy();
+  });
   it("independent retrieval entry opens a new tab without changing draft, costs or requests", async () => {
     open(); await click("生成行程草案");
     fireEvent.change(official().getByRole("textbox", { name: /全程其他/ }), { target: { value: "23" } });
@@ -72,6 +106,8 @@ describe("6C-1 formal homepage and stable presentation (controlled services)", (
     render(<TripPlanner><p>新建说明</p></TripPlanner>);
     expect(screen.getByLabelText(/开始日期/)).toHaveProperty("value", "");
     expect(Object.values(counts()).every(n => n === 0)).toBe(true);
+    expect(screen.getByLabelText("目的地")).toHaveProperty("value", "");
+    change("目的地", "shanghai");
     change(/开始日期/, "2026-10-10"); change(/结束日期/, "2026-10-10"); change(/总预算/, "3000");
     const submit = () => fireEvent.submit(screen.getByRole("button", { name: "确认需求，开始规划" }).closest("form")!);
     submit(); expect(screen.queryByText("上海旅行 · 正式规划工作区")).toBeNull();

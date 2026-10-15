@@ -8,6 +8,7 @@ from fastapi.routing import APIRoute
 from app.api.places import get_amap_client
 from app.integrations.amap import AmapClient
 from app.schemas.candidates import CandidateRequest, CandidateResponse
+from app.schemas.destination import CityCandidateRequest, CityCandidateResponse
 from app.services.candidates import prepare_candidates
 
 
@@ -30,9 +31,9 @@ class SafeCandidateValidation(APIRoute):
 router = APIRouter(prefix="/places", tags=["places"], route_class=SafeCandidateValidation)
 
 
-@router.post("/candidates", response_model=CandidateResponse)
+@router.post("/candidates", response_model=CityCandidateResponse | CandidateResponse)
 async def get_candidates(
-    request: CandidateRequest,
+    request: CityCandidateRequest | CandidateRequest,
     amap: Annotated[AmapClient, Depends(get_amap_client)],
 ) -> CandidateResponse:
     return await prepare_candidates(request, amap)

@@ -1,10 +1,11 @@
+import { destination, type DestinationId } from "./destinations";
 type DistrictSearchClient = {
   search: (keyword: string, callback: (status: string, result: unknown) => void) => void;
 };
 
 export type AMapSDK = Pick<typeof AMap, "Map" | "Marker" | "Polyline"> & {
   DistrictSearch: new (options: {
-    level: "province";
+    level: "province" | "city";
     subdistrict: 0;
     extensions: "base";
   }) => DistrictSearchClient;
@@ -62,6 +63,10 @@ function isRecord(value: unknown): value is Record<string, unknown> {
 }
 
 export function getShanghaiCenter(amap: AMapSDK, signal?: AbortSignal): Promise<[number, number]> {
+  return getDestinationCenter(amap, "shanghai", signal);
+}
+export function getDestinationCenter(amap: AMapSDK, destinationId: DestinationId, signal?: AbortSignal): Promise<[number, number]> {
+  const city = destination(destinationId);
   return new Promise((resolve, reject) => {
     if (signal?.aborted) {
       reject(new DOMException("地图加载已取消。", "AbortError"));
@@ -74,22 +79,22 @@ export function getShanghaiCenter(amap: AMapSDK, signal?: AbortSignal): Promise<
       clearTimeout(timeout);
       signal?.removeEventListener("abort", cancel);
       if (center) resolve(center);
-      else reject(error ?? new Error("暂时无法获取上海地图中心，请刷新后重试。"));
+      else reject(error ?? new Error(`暂时无法获取${city.name}地图中心，请主动重试。`));
     };
     const cancel = () => finish(undefined, new DOMException("地图加载已取消。", "AbortError"));
     const timeout = setTimeout(() => finish(), 10_000);
     signal?.addEventListener("abort", cancel, { once: true });
 
     try {
-      const district = new amap.DistrictSearch({ level: "province", subdistrict: 0, extensions: "base" });
-      district.search("上海", (status, result) => {
+      const district = new amap.DistrictSearch({ level: city.district_level, subdistrict: 0, extensions: "base" });
+      district.search(city.name, (status, result) => {
         if (settled) return;
         if (status !== "complete" || !isRecord(result) || !Array.isArray(result.districtList)) {
           finish();
           return;
         }
         const shanghai: unknown = result.districtList.find((item: unknown) =>
-          isRecord(item) && String(item.adcode) === "310000",
+          isRecord(item) && String(item.adcode) === city.adcode,
         );
         const center = isRecord(shanghai) ? shanghai.center : null;
         let lng: unknown;

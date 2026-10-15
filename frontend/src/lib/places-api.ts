@@ -1,11 +1,12 @@
 import { isPlace, type Place } from "@/types/place";
+import { regionBelongsTo, type DestinationId } from "./destinations";
 
 const SEARCH_URL = "http://127.0.0.1:8000/places/search";
 
-export async function searchPlaces(keyword: string, signal?: AbortSignal): Promise<Place[]> {
+export async function searchPlaces(keyword: string, signal?: AbortSignal, destinationId?: DestinationId): Promise<Place[]> {
   const query = keyword.trim();
   if (!query || Array.from(query).length > 80) {
-    throw new Error("请输入 1～80 个字的上海地点关键词。");
+    throw new Error("请输入 1～80 个字的地点关键词。");
   }
   if (signal?.aborted) throw new DOMException("搜索已取消。", "AbortError");
 
@@ -19,12 +20,12 @@ export async function searchPlaces(keyword: string, signal?: AbortSignal): Promi
   }, 15_000);
 
   try {
-    const params = new URLSearchParams({ keyword: query, city: "上海" });
+    const params = new URLSearchParams(destinationId ? { keyword: query, destination_id: destinationId } : { keyword: query, city: "上海" });
     const response = await fetch(`${SEARCH_URL}?${params}`, { signal: controller.signal });
     if (!response.ok) {
       const messages: Record<number, string> = {
         422: "搜索关键词未通过校验，请输入 1～80 个字后重试。",
-        502: "高德地点搜索暂时不可用，请稍后重试。",
+        502: "地点归属或上游数据未通过检查，或搜索服务暂不可用；未采用这些结果，请更换关键词或稍后重试。",
         503: "地点搜索服务尚未配置，请联系服务维护者。",
         504: "地点搜索超时，请稍后重试。",
       };
@@ -35,6 +36,7 @@ export async function searchPlaces(keyword: string, signal?: AbortSignal): Promi
     if (!Array.isArray(data) || !data.every(isPlace)) {
       throw new Error("地点数据格式或坐标无效，未显示搜索结果，请重试。");
     }
+    if (destinationId && !data.every(p => regionBelongsTo(p.region, destinationId))) throw new Error("地点归属未通过检查，请重新搜索确认。");
     // A repeated POI id must not create ambiguous card / marker selections.
     return data.filter((place, index) => data.findIndex((item) => item.id === place.id) === index);
   } catch (error) {

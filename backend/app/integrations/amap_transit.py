@@ -229,9 +229,14 @@ def _location(endpoint: RouteEndpoint) -> str:
 
 
 class AmapTransitClient:
-    def __init__(self, client: httpx.AsyncClient, key: str) -> None:
+    def __init__(self, client: httpx.AsyncClient, key: str, destination_id: str | None = None) -> None:
         self._client = client
         self._key = key
+        from app.destinations import destination_for
+        self._city = destination_for(destination_id).citycode if destination_id is not None else "上海"
+
+    def for_destination(self, destination_id: str) -> "AmapTransitClient":
+        return AmapTransitClient(self._client, self._key, destination_id)
 
     async def transit(self, request: TransitRouteRequest) -> TransitRouteResponse:
         origin, destination = request.origin, request.destination
@@ -244,7 +249,7 @@ class AmapTransitClient:
                     TRANSIT_URL,
                     params={
                         "key": self._key, "origin": origin_location, "destination": destination_location,
-                        "city": "上海", "cityd": "上海", "extensions": "all", "output": "JSON",
+                        "city": self._city, "cityd": self._city, "extensions": "all", "output": "JSON",
                     },
                     timeout=REQUEST_TIMEOUT, follow_redirects=False,
                 )

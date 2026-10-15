@@ -1,5 +1,6 @@
 "use client";
 import { useState } from "react";
+import { destination } from "@/lib/destinations";
 import { useSaveTrip } from "@/lib/use-saved-trips";
 import type { useSchedulePreview } from "@/lib/use-schedule-preview";
 import type { TripRequest } from "@/types/trip";
@@ -7,7 +8,7 @@ import type { CostInputs } from "@/lib/schedule-costs";
 import SavedHistory from "./saved-history";
 
 export default function SaveTrip({schedule,requirements,getCosts}:{schedule:ReturnType<typeof useSchedulePreview>;requirements:TripRequest;getCosts:()=>CostInputs}){
-  const [name,setName]=useState(`上海 ${requirements.start_date} 行程`);
+  const [name,setName]=useState(`${requirements.destination_id ? destination(requirements.destination_id).name : "上海旧版"} ${requirements.start_date} 行程`);
   const save=useSaveTrip(schedule,requirements,getCosts), loading=save.state.status==="saving";
   return <section aria-label="保存正式行程" className="mt-6 rounded-2xl border border-[#315f51]/30 bg-white p-5 sm:p-7">
     <h2 className="text-xl font-semibold">保存行程</h2>

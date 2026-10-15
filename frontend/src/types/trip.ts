@@ -1,8 +1,10 @@
 import type { Place } from "./place";
+import type { DestinationId } from "@/lib/destinations";
 
 export type Pace = "relaxed" | "balanced" | "packed";
 
 export type TripRequest = {
+  destination_id?: DestinationId; // absent only in legacy /demo and saved-trip-v1
   start_date: string;
   end_date: string;
   budget: number;

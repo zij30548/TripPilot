@@ -1,10 +1,12 @@
 import { hasValidCoordinates, isConfirmedPlace, type Place } from "./place";
+import { isDestinationId, regionBelongsTo, type DestinationId } from "@/lib/destinations";
 import type { WalkingRouteEndpoint } from "./route";
 import { isTransitRouteResponse, type TransitRoute } from "./transit";
 
 export type ScheduleTransportMode = "walking" | "transit";
 export type DurationSetting = { place_id: string; minutes: number; source: "default" | "user" };
 export type ScheduleRequest = {
+  destination_id?: DestinationId;
   start_date: string; end_date: string; daily_start_time: string; daily_end_time: string;
   accommodation_place: Place; must_visit_places: Place[]; duration_settings: DurationSetting[];
   optional_places?: Place[];
@@ -65,6 +67,16 @@ export function scheduleDates(start: string, end: string): string[] | null {
   return Array.from({ length: (to - from) / 86_400_000 + 1 }, (_, index) => new Date(from + index * 86_400_000).toISOString().slice(0, 10));
 }
 export function isScheduleRequest(value: unknown): value is ScheduleRequest {
+  if (record(value) && "destination_id" in value) {
+    if (!isDestinationId(value.destination_id)) return false;
+    const city = value.destination_id;
+    const places = [value.accommodation_place, ...(Array.isArray(value.must_visit_places) ? value.must_visit_places : []), ...(Array.isArray(value.optional_places) ? value.optional_places : [])];
+    if (!places.every(p => isConfirmedPlace(p) && regionBelongsTo(p.region, city))) return false;
+    if (places.some((p, i) => places.slice(0, i).some(q => q.id === p.id && !samePlace(p, q)))) return false;
+    const { destination_id: _city, ...core } = value;
+    void _city;
+    return isScheduleRequest(core);
+  }
   if (!record(value) || !exact(value, ["start_date", "end_date", "daily_start_time", "daily_end_time", "accommodation_place", "must_visit_places", "duration_settings", "lunch", ...("optional_places" in value ? ["optional_places"] : []), ...("transport_mode" in value ? ["transport_mode"] : [])]) ||
       ("transport_mode" in value && value.transport_mode !== "walking" && value.transport_mode !== "transit") ||
       typeof value.start_date !== "string" || typeof value.end_date !== "string" || !scheduleDates(value.start_date, value.end_date) ||
@@ -91,11 +103,11 @@ export function isScheduleRequest(value: unknown): value is ScheduleRequest {
   });
 }
 function samePlace(left: Place, right: Place): boolean {
-  return left.id === right.id && left.name === right.name && left.address === right.address && left.longitude === right.longitude &&
+  return left.region?.citycode === right.region?.citycode && left.region?.cityname === right.region?.cityname && left.region?.adcode === right.region?.adcode && left.id === right.id && left.name === right.name && left.address === right.address && left.longitude === right.longitude &&
     left.latitude === right.latitude && left.category === right.category && left.source === right.source;
 }
 function sameRequest(left: ScheduleRequest, right: ScheduleRequest): boolean {
-  return (left.transport_mode ?? "walking") === (right.transport_mode ?? "walking") && left.start_date === right.start_date && left.end_date === right.end_date && left.daily_start_time === right.daily_start_time && left.daily_end_time === right.daily_end_time &&
+  return left.destination_id === right.destination_id && (left.transport_mode ?? "walking") === (right.transport_mode ?? "walking") && left.start_date === right.start_date && left.end_date === right.end_date && left.daily_start_time === right.daily_start_time && left.daily_end_time === right.daily_end_time &&
     samePlace(left.accommodation_place, right.accommodation_place) && left.must_visit_places.length === right.must_visit_places.length &&
     left.must_visit_places.every((place, index) => samePlace(place, right.must_visit_places[index])) &&
     (left.optional_places ?? []).length === (right.optional_places ?? []).length && (left.optional_places ?? []).every((place, index) => samePlace(place, (right.optional_places ?? [])[index])) &&

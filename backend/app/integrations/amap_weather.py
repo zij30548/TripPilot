@@ -10,7 +10,9 @@ from zoneinfo import ZoneInfo
 import httpx
 
 from app.integrations.amap import AmapError, AmapTimeoutError
+from app.destinations import destination_for
 from app.schemas.weather import (
+    CityWeatherRequest, CityWeatherForecastResponse,
     WeatherDay, WeatherForecastResponse, WeatherPeriod, WeatherRequest,
     precipitation_for, strict_date,
 )
@@ -82,6 +84,7 @@ def _report_time(value: object, queried_at: datetime) -> tuple[datetime | None, 
 
 
 def convert_forecast(data: object, request: WeatherRequest, queried_at: datetime) -> WeatherForecastResponse:
+    city = destination_for(request.destination_id if isinstance(request, CityWeatherRequest) else "shanghai")
     if not isinstance(data, dict):
         raise AmapError(INVALID_DATA)
     if data.get("status") != "1":
@@ -94,8 +97,8 @@ def convert_forecast(data: object, request: WeatherRequest, queried_at: datetime
     try:
         if forecasts:
             forecast = forecasts[0]
-            if (not isinstance(forecast, dict) or forecast.get("adcode") != "310000"
-                    or forecast.get("city") not in ("上海", "上海市")):
+            if (not isinstance(forecast, dict) or forecast.get("adcode") != city.adcode
+                    or forecast.get("city") not in (city.name, city.official_name)):
                 raise ValueError("Unexpected forecast city")
             casts = forecast.get("casts")
             if not isinstance(casts, list):
@@ -116,7 +119,9 @@ def convert_forecast(data: object, request: WeatherRequest, queried_at: datetime
             for day in request.dates()
         ]
         available = sum(day.status == "available" for day in days)
-        return WeatherForecastResponse(
+        response_type = CityWeatherForecastResponse if isinstance(request, CityWeatherRequest) else WeatherForecastResponse
+        return response_type(
+            city=city.official_name, adcode=city.adcode,
             request=request, queried_at=queried_at, reported_at=reported_at,
             report_time_status=report_status, freshness_at_query=freshness,
             coverage="complete" if available == len(days) else "partial" if available else "none",
@@ -132,6 +137,7 @@ class AmapWeatherClient:
         self._key = key
 
     async def forecast(self, request: WeatherRequest) -> WeatherForecastResponse:
+        city = destination_for(request.destination_id if isinstance(request, CityWeatherRequest) else "shanghai")
         # The absolute deadline is shared by both attempts, never reset on retry.
         loop = asyncio.get_running_loop()
         deadline = loop.time() + BATCH_TIMEOUT_SECONDS
@@ -144,7 +150,7 @@ class AmapWeatherClient:
                     try:
                         response = await self._client.get(
                             WEATHER_URL,
-                            params={"key": self._key, "city": "310000", "extensions": "all", "output": "JSON"},
+                            params={"key": self._key, "city": city.adcode, "extensions": "all", "output": "JSON"},
                             timeout=httpx.Timeout(remaining, connect=min(3.0, remaining)),
                             follow_redirects=False,
                         )

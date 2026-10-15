@@ -15,6 +15,7 @@ export function explanationSnapshot(response: ScheduleResponse) {
   return {
     generated_at: response.generated_at, status: response.status,
     request: {
+      ...(response.request.destination_id ? { destination_id: response.request.destination_id } : {}),
       start_date: response.request.start_date, end_date: response.request.end_date,
       daily_start_time: response.request.daily_start_time, daily_end_time: response.request.daily_end_time,
       accommodation_place: place(response.request.accommodation_place), must_visit_places: response.request.must_visit_places.map(place),

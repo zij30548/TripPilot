@@ -6,6 +6,7 @@ from pydantic import BaseModel, ConfigDict
 
 from app.schemas.route import RouteEndpoint, WalkingRoute
 from app.schemas.schedule import ScheduleResponse
+from app.schemas.destination import CityScheduleResponse
 
 MAX_SEGMENTS = 256
 MAX_EDGE_POINTS = 6_000
@@ -34,6 +35,10 @@ class ScheduleDelivery(BaseModel):
     model_config = ConfigDict(extra="forbid")
     schedule: ScheduleResponse
     drawing: ScheduleDrawing
+
+
+class CityScheduleDelivery(ScheduleDelivery):
+    schedule: CityScheduleResponse
 
 
 def within_edge_limit(route: WalkingRoute) -> bool:

@@ -28,7 +28,7 @@ export default function SchedulePlaceMap({ map }: { map: ReturnType<typeof useSc
         <p className="mt-1 text-xs">来源：{route.walking || route.transit ? "高德路线" : "本次草案交通记录"} · 查询／判定时间：{new Date(route.queriedAt).toLocaleString("zh-CN", { hour12: false })}</p>
         <button type="button" onClick={clearRoute} className="mt-2 min-h-11 rounded-lg border border-[#315f51]/30 px-3">清除路线</button>
       </div>}
-      {initialized && <PlaceMap places={data.places} markerLabels={data.labels} selectedPlaceId={selection?.placeId ?? null}
+      {initialized && <PlaceMap destinationId={data.destinationId} places={data.places} markerLabels={data.labels} selectedPlaceId={selection?.placeId ?? null}
         selectionVersion={selectionVersion} onSelect={selectMarker} isActive={isCurrent}
         walkingRoute={route?.walking} transitRoute={route?.transit} routeSelectionVersion={routeVersion} fitRouteLabel="查看这段路线全貌"
         fitAllLabel="查看当天全部地点" footnote="住：住宿参考点；数字：当天实际访问顺序。一次只展示选中的交通，不拼接全天路线。" />}

@@ -1,4 +1,5 @@
 import { isConfirmedPlace, type Place } from "./place";
+import { isDestinationId, regionBelongsTo, type DestinationId } from "@/lib/destinations";
 
 export const CANDIDATE_INTERESTS = ["摄影", "Citywalk", "美食", "建筑", "博物馆", "购物"] as const;
 export type CandidateInterest = typeof CANDIDATE_INTERESTS[number];
@@ -7,6 +8,7 @@ export const CANDIDATE_KEYWORDS: Record<CandidateInterest, string> = {
 };
 export type RetrievalSource = { interest: CandidateInterest | null; keyword: string };
 export type CandidateRequest = {
+  destination_id?: DestinationId;
   accommodation_place: Place;
   must_visit_places: Place[];
   interests: CandidateInterest[];
@@ -18,6 +20,7 @@ export type CandidateQueryResult = RetrievalSource & {
   message: string | null;
 };
 export type CandidateResponse = {
+  destination_id?: DestinationId;
   status: "success" | "partial" | "failed";
   queried_at: string;
   keywords: string[];
@@ -40,21 +43,26 @@ export function candidateSearches(interests: readonly CandidateInterest[]): Retr
     [{ interest: null, keyword: "旅游景点" }];
 }
 export function isCandidateRequest(value: unknown): value is CandidateRequest {
-  if (!object(value) || !keys(value, ["accommodation_place", "must_visit_places", "interests"]) ||
+  if (!object(value) || !keys(value, ["accommodation_place", "must_visit_places", "interests", ...("destination_id" in value ? ["destination_id"] : [])]) ||
       !isConfirmedPlace(value.accommodation_place) || !Array.isArray(value.must_visit_places) ||
       !value.must_visit_places.every(isConfirmedPlace) || !Array.isArray(value.interests) ||
       !value.interests.every(isCandidateInterest)) return false;
+  if ("destination_id" in value) {
+    if (!isDestinationId(value.destination_id)) return false;
+    const city = value.destination_id;
+    if (![value.accommodation_place, ...value.must_visit_places].every(p => regionBelongsTo(p.region, city))) return false;
+  }
   return new Set(value.must_visit_places.map((place) => place.id.trim())).size === value.must_visit_places.length;
 }
 function samePlace(actual: Place, expected: Place): boolean {
-  return actual.id.trim() === expected.id.trim() && actual.name.trim() === expected.name.trim() &&
+  return actual.region?.citycode === expected.region?.citycode && actual.region?.cityname === expected.region?.cityname && actual.region?.adcode === expected.region?.adcode && actual.id.trim() === expected.id.trim() && actual.name.trim() === expected.name.trim() &&
     actual.address === expected.address && actual.latitude === expected.latitude && actual.longitude === expected.longitude &&
     actual.category === expected.category && actual.source === expected.source;
 }
 
 // Validate metadata separately: a confirmed Place stays the exact 5A-1 contract.
 export function isCandidateResponse(value: unknown, request: CandidateRequest): value is CandidateResponse {
-  if (!object(value) || !keys(value, ["status", "queried_at", "keywords", "queries", "candidates"]) ||
+  if (!object(value) || !keys(value, ["status", "queried_at", "keywords", "queries", "candidates", ...(request.destination_id ? ["destination_id"] : [])]) || value.destination_id !== request.destination_id ||
       (value.status !== "success" && value.status !== "partial" && value.status !== "failed") ||
       typeof value.queried_at !== "string" || !/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d+)?(?:Z|\+00:00)$/.test(value.queried_at) ||
       !Number.isFinite(Date.parse(value.queried_at)) || new Date(value.queried_at).toISOString().slice(0, 19) !== value.queried_at.slice(0, 19) ||
@@ -84,6 +92,7 @@ export function isCandidateResponse(value: unknown, request: CandidateRequest): 
   for (const entry of value.candidates) {
     if (!object(entry) || !keys(entry, ["place", "role", "retrieval_sources"]) || !isConfirmedPlace(entry.place) ||
         (entry.role !== "must_visit" && entry.role !== "optional") || !Array.isArray(entry.retrieval_sources)) return false;
+    if (request.destination_id && !regionBelongsTo(entry.place.region, request.destination_id)) return false;
     const id = entry.place.id.trim();
     if (ids.has(id)) return false;
     ids.add(id);

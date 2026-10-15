@@ -4,10 +4,12 @@ import type { TripRequest } from "@/types/trip";
 import type { CostInputs } from "./schedule-costs";
 
 export const ARCHIVE_VERSION = "saved-trip-v1";
+export const CITY_ARCHIVE_VERSION = "saved-trip-v2";
+export type ArchiveVersion = typeof ARCHIVE_VERSION | typeof CITY_ARCHIVE_VERSION;
 export const ARCHIVE_BYTES = 2 * 1024 * 1024;
-export type SavedSnapshot = { schema_version: typeof ARCHIVE_VERSION; requirements: TripRequest; schedule: ScheduleResponse; costs: CostInputs };
+export type SavedSnapshot = { schema_version: ArchiveVersion; requirements: TripRequest; schedule: ScheduleResponse; costs: CostInputs };
 export type SaveOperation = { operation_id: string; name: string; snapshot: SavedSnapshot };
-export type SavedSummary = { id: string; name: string; saved_at: string; schema_version: typeof ARCHIVE_VERSION; start_date: string; end_date: string; transport_mode: "walking" | "transit"; status: ScheduleResponse["status"] };
+export type SavedSummary = { id: string; name: string; saved_at: string; schema_version: ArchiveVersion; start_date: string; end_date: string; transport_mode: "walking" | "transit"; status: ScheduleResponse["status"] };
 export type SavedDetail = SavedSummary & { snapshot: SavedSnapshot };
 export type SavedList = { items: SavedSummary[]; offset: number; limit: number; has_more: boolean };
 const record = (v: unknown): v is Record<string, unknown> => typeof v === "object" && v !== null && !Array.isArray(v);
@@ -27,15 +29,17 @@ function bounded(value: unknown, depth = 0, count = { n: 0 }): boolean {
   return !record(value) || Object.keys(value).length <= 64 && Object.values(value).every(v => bounded(v,depth+1,count));
 }
 export function isSavedSnapshot(value: unknown): value is SavedSnapshot {
-  if (!record(value) || !exact(value,["schema_version","requirements","schedule","costs"]) || value.schema_version !== ARCHIVE_VERSION || !bounded(value) ||
-      !record(value.requirements) || !exact(value.requirements,reqKeys) || !isTripRequest(value.requirements) ||
+  if (!record(value) || !exact(value,["schema_version","requirements","schedule","costs"]) || ![ARCHIVE_VERSION, CITY_ARCHIVE_VERSION].includes(value.schema_version as string) || !bounded(value) ||
+      !record(value.requirements) || !exact(value.requirements,[...reqKeys, ...(value.schema_version === CITY_ARCHIVE_VERSION ? ["destination_id"] : [])]) || !isTripRequest(value.requirements) ||
       !record(value.schedule) || !record(value.schedule.request) || !isScheduleResponse(value.schedule,value.schedule.request as ScheduleResponse["request"])) return false;
   const r=value.requirements, s=value.schedule, q=s.request;
+  if (r.destination_id !== q.destination_id || (value.schema_version === CITY_ARCHIVE_VERSION && !r.destination_id)) return false;
   if (!Number.isSafeInteger(r.travelers) || r.travelers > 1000 || r.interests.length > 32 || r.avoid_places.length > 32 ||
       r.start_date!==q.start_date || r.end_date!==q.end_date || scheduleClock(r.daily_start_time)!==q.daily_start_time || scheduleClock(r.daily_end_time)!==q.daily_end_time ||
       canonical(r.accommodation_place)!==canonical(q.accommodation_place) || canonical(r.must_visit_places)!==canonical(q.must_visit_places) ||
       canonical(r.must_visit)!==canonical(q.must_visit_places.map(p=>p.name)) || r.accommodation_location!==q.accommodation_place.name) return false;
   const places=[q.accommodation_place,...q.must_visit_places,...(q.optional_places??[])];
+  if (value.schema_version === ARCHIVE_VERSION && ("destination_id" in q || places.some(p => "region" in p) || [r.accommodation_place, ...r.must_visit_places ?? []].some(p => p && "region" in p))) return false;
   if (places.some(p=>p.name.length>160 || /[\u0000-\u001f]/.test(p.name)) || !Object.hasOwn(q,"optional_places") ||
       s.edges.some(e=>(e.duration_seconds??0)>604800 || e.transit_route && (e.transit_route.legs.length>60 || e.transit_route.legs.some(l=>l.geometry.length>256))) || s.days.some(d=>d.items.length>40)) return false;
   const c=value.costs, visits=s.days.flatMap(d=>d.items.filter(i=>i.kind==="visit").map(i=>i.place_id!));
@@ -51,17 +55,17 @@ export function createSnapshot(requirements: TripRequest, schedule: ScheduleResp
   const core = { status: schedule.status, generated_at: schedule.generated_at, request: schedule.request,
     days: schedule.days, unscheduled: schedule.unscheduled, edges: schedule.edges,
     rules: schedule.rules, unknowns: schedule.unknowns, optional_results: schedule.optional_results };
-  const req = Object.fromEntries(reqKeys.map(k=>[k,requirements[k as keyof TripRequest]]));
+  const req = Object.fromEntries([...reqKeys, ...(requirements.destination_id ? ["destination_id"] : [])].map(k=>[k,requirements[k as keyof TripRequest]]));
   req.daily_start_time = `${scheduleClock(requirements.daily_start_time)}:00`;
   req.daily_end_time = `${scheduleClock(requirements.daily_end_time)}:00`;
-  const snapshot = { schema_version: ARCHIVE_VERSION, requirements:req, schedule: core,
+  const snapshot = { schema_version: requirements.destination_id ? CITY_ARCHIVE_VERSION : ARCHIVE_VERSION, requirements:req, schedule: core,
     costs: { tickets: Object.fromEntries(schedule.days.flatMap(d=>d.items.filter(i=>i.kind==="visit").map(i=>[i.place_id!,Object.hasOwn(inputs.tickets,i.place_id!)?inputs.tickets[i.place_id!]:""]))),
       meals:Object.fromEntries(schedule.days.map(d=>[d.date,inputs.meals[d.date]??""])), accommodation:inputs.accommodation, other:inputs.other } };
   if (!isSavedSnapshot(snapshot) || new TextEncoder().encode(JSON.stringify(snapshot)).length>ARCHIVE_BYTES-256) throw new Error("当前快照不完整、不一致或超过存档大小限制，未保存。费用文本每项最多 256 字。");
   return structuredClone(snapshot);
 }
 export function isSavedSummary(v: unknown, detail = false): v is SavedSummary {
-  return record(v) && exact(v,[...summaryKeys,...(detail?["snapshot"]:[])]) && id(v.id) && validSaveName(v.name) && v.schema_version===ARCHIVE_VERSION &&
+  return record(v) && exact(v,[...summaryKeys,...(detail?["snapshot"]:[])]) && id(v.id) && validSaveName(v.name) && [ARCHIVE_VERSION,CITY_ARCHIVE_VERSION].includes(v.schema_version as string) &&
     typeof v.saved_at==="string" && /^\d{4}-\d{2}-\d{2}T.*(?:Z|\+00:00)$/.test(v.saved_at) && Number.isFinite(Date.parse(v.saved_at)) &&
     typeof v.start_date==="string" && typeof v.end_date==="string" && !!scheduleDates(v.start_date,v.end_date) &&
     (v.transport_mode==="walking" || v.transport_mode==="transit") && ["complete","partial","unscheduled"].includes(v.status as string);
@@ -69,7 +73,7 @@ export function isSavedSummary(v: unknown, detail = false): v is SavedSummary {
 export function isSavedDetail(v: unknown): v is SavedDetail {
   if (!record(v)) return false;
   const snapshot=v.snapshot;
-  if (!isSavedSummary(v,true) || !isSavedSnapshot(snapshot)) return false;
+  if (!isSavedSummary(v,true) || !isSavedSnapshot(snapshot) || v.schema_version !== snapshot.schema_version) return false;
   const s=snapshot.schedule;
   return v.start_date===s.request.start_date && v.end_date===s.request.end_date && v.transport_mode===s.request.transport_mode && v.status===s.status;
 }

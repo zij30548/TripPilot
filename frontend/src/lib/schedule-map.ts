@@ -24,6 +24,6 @@ export function scheduleMapData(response: ScheduleResponse, date: string) {
   const labels = Object.fromEntries(places.map(p => [p.id,
     [p.id === home.id ? "住" : null, ...visits.filter(v => v.placeId === p.id).map(v => v.number)].filter(v => v !== null).join("·"),
   ]));
-  return { date, home, visits, places, labels,
+  return { date, destinationId: response.request.destination_id, home, visits, places, labels,
     invalidCount: places.filter(p => !hasValidCoordinates(p)).length + visits.filter(v => !v.place).length };
 }

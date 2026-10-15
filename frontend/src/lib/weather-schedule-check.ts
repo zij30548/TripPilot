@@ -8,6 +8,7 @@ export type ScheduledVisit = { date: string; place: Place; role: "must_visit" | 
 export type PeriodAssessment = { period: "白天" | "夜间"; description: string | null; status: "precipitation" | "no_trigger" | "unassessed"; explanation: string };
 export type VisitAssessment = ScheduledVisit & { exposure: VisitExposure; attention: boolean; canAdjust: boolean; periods: PeriodAssessment[] };
 export type WeatherScheduleReport = {
+  city?: string;
   checkedAt: number; timeKey: string; queriedAt: string; reportedAt: string | null;
   showingPrevious: boolean; refreshError: string | null;
   days: { date: string; visits: VisitAssessment[] }[];
@@ -41,10 +42,10 @@ export function checkWeatherSchedule(schedule: ScheduleResponse, weather: Weathe
   const freshness = getWeatherFreshness(weather, now);
   const visits = scheduledVisits(schedule);
   return {
-    checkedAt: now, timeKey: weatherCheckTimeKey(weather, now), queriedAt: weather.queried_at, reportedAt: weather.reported_at, ...previous,
+    city: weather.city, checkedAt: now, timeKey: weatherCheckTimeKey(weather, now), queriedAt: weather.queried_at, reportedAt: weather.reported_at, ...previous,
     days: schedule.days.map(({ date }) => {
       const forecast = weather.days.find((day) => day.date === date);
-      const unavailable = date < getShanghaiDate(now) ? "日期已过去；旧预报不是历史实际天气，未评估。"
+      const unavailable = schedule.request.destination_id !== weather.request.destination_id ? "天气与行程目的地不同，未评估。" : date < getShanghaiDate(now) ? "日期已过去；旧预报不是历史实际天气，未评估。"
         : freshness === "stale" ? "来源发布时间已超过 24 小时，预报陈旧，未评估。"
         : freshness === "unknown" ? "来源发布时间或新鲜度未知，未评估。"
         : forecast?.status !== "available" ? "暂未取得该日期预报，未评估。" : null;

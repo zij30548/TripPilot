@@ -13,8 +13,8 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "TripPilot｜你的上海旅行规划助手",
-  description: "根据日期、预算和兴趣，规划适合你的上海 1～3 日行程。",
+  title: "TripPilot｜单城旅行规划助手",
+  description: "选择上海、杭州或北京，确认地点，主动生成真实交通参考的 1～3 日草案；预算单独核对。",
 };
 
 export default function RootLayout({ children }: LayoutProps<"/">) {

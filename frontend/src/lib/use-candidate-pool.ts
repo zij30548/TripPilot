@@ -58,6 +58,7 @@ export function useCandidatePool(request: TripRequest, onInputsChange?: (snapsho
   useEffect(() => { alive.current = true; return () => { alive.current = false; cancelPending(); }; }, [cancelPending]);
 
   const candidateRequest: unknown = {
+    ...(request.destination_id ? { destination_id: request.destination_id } : {}),
     accommodation_place: request.accommodation_place,
     must_visit_places: request.must_visit_places ?? [],
     interests: request.interests,

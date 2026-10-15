@@ -40,6 +40,7 @@ describe("actual formal/preview/archive composition",()=>{
     const dialog=within(screen.getByRole("dialog",{name:"历史行程"}));expect(dialog.getByRole("article",{name:"历史快照详情"})).toBeTruthy();
     expect(dialog.getAllByRole("textbox").every(el=>(el as HTMLInputElement).readOnly)).toBe(true);
     expect(dialog.queryByRole("button",{name:"生成行程草案"})).toBeNull();expect(dialog.getByText(/只读存档，不覆盖/)).toBeTruthy();
+    expect(dialog.getByText("目的地：上海（旧 v1 快照，未保存地点归属）")).toBeTruthy();
     expect(dialog.getByText(/刷新不会清空或改写存档/)).toBeTruthy();expect(dialog.getByText(/存档保留了无效金额/)).toBeTruthy();
     expect([api.schedule.mock.calls.length,api.weather.mock.calls.length,api.candidates.mock.calls.length]).toEqual(counts);
     await click("关闭历史");fireEvent.change(formal.getByRole("textbox",{name:/全程其他/}),{target:{value:"0"}});expect(saved[1].snapshot.costs.other).toBe("bad");

@@ -32,7 +32,7 @@ export default function CandidatePreparation({ request, pool, restored = false }
     <div className="flex flex-wrap items-start justify-between gap-4">
       <div className="min-w-0 flex-1 basis-64">
         <h2 className="text-xl font-semibold text-[#18392f]">候选地点准备</h2>
-        <p className="mt-2 text-sm leading-6 text-[#56605c]">为整次旅行准备地点清单。必去要求始终保留；点击获取后，再按兴趣搜索上海的真实可选地点。</p>
+        <p className="mt-2 text-sm leading-6 text-[#56605c]">为整次旅行准备地点清单。必去要求始终保留；点击获取后，再按兴趣搜索所选城市的真实可选地点。</p>
       </div>
       <button type="button" disabled={!canQuery || loading} onClick={() => { void pool.query(); }}
         className="min-h-11 max-w-full rounded-xl bg-[#18392f] px-5 py-3 text-sm font-semibold text-white focus-visible:outline-2 focus-visible:outline-offset-2 disabled:cursor-not-allowed disabled:opacity-50">

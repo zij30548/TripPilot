@@ -5,6 +5,7 @@ import type { SavedDetail } from "@/lib/saved-trips";
 import { ScheduleResult } from "./schedule-preview";
 import ScheduleBudget from "./schedule-budget";
 import PlaceDetails from "../places/place-details";
+import { destination } from "@/lib/destinations";
 
 const stamp=(value:string)=>new Date(value).toLocaleString("zh-CN",{timeZone:"Asia/Shanghai",hour12:false});
 const button="min-h-11 rounded-xl border border-[#315f51]/40 bg-white px-4 py-2 text-sm text-[#18392f] disabled:opacity-40";
@@ -17,6 +18,7 @@ export function SavedTripDetails({detail,allowRestore=true}:{detail:SavedDetail;
     <p className="rounded-xl bg-amber-50 p-3 text-sm leading-6">只读存档，不覆盖当前工作草案。以下是保存时的数据；打开历史未重新查询交通、天气、营业或预约。保存时间不是核验时间，路线原查询时间在各段保留。</p>
     <section aria-label="历史确认需求" className="rounded-xl bg-[#f4f8f5] p-4 text-sm leading-7">
       <h3 className="font-semibold">保存的确认需求</h3>
+      <p>目的地：{r.destination_id ? destination(r.destination_id).name : "上海（旧 v1 快照，未保存地点归属）"}</p>
       <p>{r.start_date}—{r.end_date} · {r.travelers} 人 · 全程总预算 ¥{r.budget}（全部旅客）</p>
       <p>每日窗口 {r.daily_start_time}—{r.daily_end_time} · 旅行节奏 {({relaxed:"轻松",balanced:"均衡",packed:"紧凑"})[r.pace]}</p>
       <p>兴趣：{r.interests.join("、")||"未选择"} · 不想去：{r.avoid_places.join("、")||"未填写"}（文字未作为自动过滤条件）</p>

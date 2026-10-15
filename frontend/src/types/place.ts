@@ -1,4 +1,6 @@
+import { isRegion, type PlaceRegion } from "@/lib/destinations";
 export type Place = {
+  region?: PlaceRegion;
   id: string;
   name: string;
   address: string | null;
@@ -22,11 +24,11 @@ export function isPlace(value: unknown): value is Place {
     (place.category === null || typeof place.category === "string") &&
     typeof place.latitude === "number" && typeof place.longitude === "number" &&
     hasValidCoordinates({ latitude: place.latitude, longitude: place.longitude }) &&
-    place.source === "amap";
+    place.source === "amap" && (!("region" in place) || isRegion(place.region));
 }
 
 // User-confirmed input carries only the Place contract, not invented travel data.
 export function isConfirmedPlace(value: unknown): value is Place {
   return isPlace(value) && Object.keys(value).every((key) =>
-    ["id", "name", "address", "latitude", "longitude", "category", "source"].includes(key));
+    ["id", "name", "address", "latitude", "longitude", "category", "source", "region"].includes(key));
 }

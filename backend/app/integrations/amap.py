@@ -3,6 +3,8 @@ import logging
 import httpx
 
 from app.schemas.place import Place
+from app.destinations import DestinationId, PlaceRegion, destination_for
+from app.schemas.destination import LocatedPlace
 from app.logging_filters import install_http_log_redaction
 
 
@@ -58,7 +60,8 @@ class AmapClient:
         self._client = client
         self._key = key
 
-    async def search(self, keyword: str, city: str) -> list[Place]:
+    async def search(self, keyword: str, city: str, *, destination_id: DestinationId | None = None) -> list[Place]:
+        selected = destination_for(destination_id) if destination_id is not None else None
         for attempt in (1, 2):
             try:
                 response = await self._client.get(
@@ -66,7 +69,7 @@ class AmapClient:
                     params={
                         "key": self._key,
                         "keywords": keyword,
-                        "region": city,
+                        "region": selected.adcode if selected else city,
                         "city_limit": "true",
                         "page_size": 20,
                         "page_num": 1,
@@ -98,7 +101,22 @@ class AmapClient:
         if not isinstance(pois, list):
             raise AmapError("地点搜索服务返回的数据格式异常。")
 
-        places = [place for poi in pois if (place := _convert_poi(poi)) is not None]
+        places = []
+        for poi in pois:
+            place = _convert_poi(poi)
+            if place is None:
+                continue
+            if selected:
+                try:
+                    region = PlaceRegion.model_validate({k: poi.get(k) for k in ("citycode", "cityname", "adcode")})
+                    if not region.belongs_to(selected.id):
+                        raise ValueError("Unexpected POI region")
+                    place = LocatedPlace(**place.model_dump(), region=region)
+                except ValueError:
+                    # A city-limited query is not evidence of actual membership.
+                    # Fail this query explicitly, rather than disguise bad membership as no results.
+                    raise AmapError("地点归属缺失、矛盾或跨城，本次搜索未采用，请更换关键词或稍后重试。") from None
+            places.append(place)
         skipped = len(pois) - len(places)
         if skipped:
             logger.warning("Skipped %d invalid AMap POI records", skipped)

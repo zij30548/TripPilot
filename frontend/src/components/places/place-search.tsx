@@ -2,7 +2,8 @@
 
 import { useState, type FormEvent } from "react";
 
-export default function PlaceSearch({ loading, onSearch, initialKeyword = "" }: {
+export default function PlaceSearch({ loading, onSearch, initialKeyword = "", cityName = "上海" }: {
+  cityName?: string;
   loading: boolean;
   onSearch: (keyword: string) => void;
   initialKeyword?: string;
@@ -16,7 +17,7 @@ export default function PlaceSearch({ loading, onSearch, initialKeyword = "" }: 
 
   return (
     <form onSubmit={submit} className="space-y-3">
-      <label htmlFor="place-keyword" className="block text-sm font-medium text-[#315f51]">搜索上海地点</label>
+      <label htmlFor="place-keyword" className="block text-sm font-medium text-[#315f51]">搜索{cityName}地点</label>
       <div className="flex gap-2">
         <input id="place-keyword" value={keyword} onChange={(event) => setKeyword(event.target.value)}
           placeholder="输入地点名称" autoComplete="off"
@@ -25,7 +26,7 @@ export default function PlaceSearch({ loading, onSearch, initialKeyword = "" }: 
           {loading ? "搜索中…" : "搜索"}
         </button>
       </div>
-      <p className="text-xs leading-5 text-[#68726c]">范围固定为上海。输入关键词后点击搜索。</p>
+      <p className="text-xs leading-5 text-[#68726c]">范围固定为{cityName}。输入关键词后点击搜索。</p>
     </form>
   );
 }

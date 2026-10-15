@@ -13,12 +13,12 @@ export type WeatherForecastState = {
 const emptyState = (): WeatherForecastState => ({ status: "idle", response: null, message: null, showingPrevious: false });
 
 export function useWeatherForecast(request: WeatherForecastRequest, onInvalidate?: () => void) {
-  const { start_date, end_date } = request;
+  const { start_date, end_date, destination_id } = request;
   const valid = isWeatherForecastRequest(request);
-  const requestKey = JSON.stringify([start_date, end_date, valid]);
+  const requestKey = JSON.stringify([start_date, end_date, destination_id, valid]);
   const [inputKey, setInputKey] = useState(requestKey);
   const [state, setState] = useState<WeatherForecastState>(emptyState);
-  const input = useRef<WeatherForecastRequest | null>(valid ? { start_date, end_date } : null);
+  const input = useRef<WeatherForecastRequest | null>(valid ? { ...request } : null);
   const version = useRef(0);
   const controller = useRef<AbortController | null>(null);
   const pending = useRef(false);
@@ -45,8 +45,8 @@ export function useWeatherForecast(request: WeatherForecastRequest, onInvalidate
   useLayoutEffect(() => {
     cancelPending();
     lastValid.current = null;
-    input.current = valid ? { start_date, end_date } : null;
-  }, [start_date, end_date, valid, cancelPending]);
+    input.current = valid ? { start_date, end_date, ...(destination_id ? { destination_id } : {}) } : null;
+  }, [start_date, end_date, destination_id, valid, cancelPending]);
   useEffect(() => cancelPending, [cancelPending]);
 
   const query = useCallback(async (): Promise<boolean> => {

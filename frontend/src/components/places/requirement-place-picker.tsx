@@ -5,12 +5,14 @@ import { searchPlaces } from "@/lib/places-api";
 import type { Place } from "@/types/place";
 import PlaceDetails from "./place-details";
 import PlaceSearch from "./place-search";
+import { destination, type DestinationId } from "@/lib/destinations";
 
 type SearchState =
   | { status: "idle" | "loading" | "success" }
   | { status: "error"; message: string };
 
-export default function RequirementPlacePicker({ title, initialKeyword = "", excludedIds = [], sessionSignal, onConfirm, onCancel }: {
+export default function RequirementPlacePicker({ title, initialKeyword = "", excludedIds = [], sessionSignal, onConfirm, onCancel, destinationId }: {
+  destinationId?: DestinationId;
   title: "住宿参考点" | "必去地点";
   initialKeyword?: string;
   excludedIds?: readonly string[];
@@ -52,7 +54,7 @@ export default function RequirementPlacePicker({ title, initialKeyword = "", exc
     setSelectedId(null);
     setState({ status: "loading" });
     try {
-      const results = await searchPlaces(keyword, currentController.signal);
+      const results = await searchPlaces(keyword, currentController.signal, destinationId);
       if (sessionSignal.aborted || currentController.signal.aborted || version !== requestVersion.current) return;
       setPlaces(results);
       setState({ status: "success" });
@@ -73,10 +75,10 @@ export default function RequirementPlacePicker({ title, initialKeyword = "", exc
         </div>
         <button type="button" onClick={onCancel} className="min-h-10 rounded-lg border border-[#315f51]/30 bg-white px-3 py-2 text-sm text-[#315f51]">取消选择</button>
       </div>
-      <PlaceSearch initialKeyword={initialKeyword} loading={state.status === "loading"} onSearch={search} />
+      <PlaceSearch initialKeyword={initialKeyword} loading={state.status === "loading"} onSearch={search} cityName={destinationId ? destination(destinationId).name : "上海"} />
       <div aria-live="polite" className="my-4 text-sm leading-6 text-[#56605c]">
         {state.status === "idle" && <p>尚未搜索地点。请主动搜索后选择候选。</p>}
-        {state.status === "loading" && <p role="status">正在搜索上海地点…</p>}
+        {state.status === "loading" && <p role="status">正在搜索{destinationId ? destination(destinationId).name : "上海"}地点…</p>}
         {state.status === "error" && <p role="alert" className="text-[#a63d2d]">{state.message}</p>}
         {state.status === "success" && <p>{places.length ? `找到 ${places.length} 个候选地点，请根据名称和地址区分。` : "没有找到匹配地点，请更换关键词。"}</p>}
       </div>
