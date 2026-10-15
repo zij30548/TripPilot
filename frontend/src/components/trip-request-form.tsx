@@ -292,7 +292,7 @@ export default function TripRequestForm({ onSuccess, initialRequest, onConfirm, 
           }}><option value="" disabled>请选择城市</option>{DESTINATIONS.map(d => <option key={d.id} value={d.id}>{d.name}</option>)}</select>
           <span className="mt-2 block text-xs font-normal">切换城市会清空此编辑副本的地点，请重新确认；取消编辑不影响原工作。</span>
         </label>}
-        {onConfirm && initialRequest?.accommodation_place && !initialRequest.accommodation_place.region && <p className="text-sm text-amber-800">旧上海记录没有城市归属字段，不能当作已核验。请重新搜索确认住宿“{initialRequest.accommodation_place.name}”及必去：{initialRequest.must_visit_places?.map(p => p.name).join("、") || "无"}。</p>}
+        {onConfirm && initialRequest?.accommodation_place && !initialRequest.accommodation_place.region && <p className="text-sm text-amber-800">旧上海记录没有城市归属字段，原住宿“{initialRequest.accommodation_place.name}”及原必去“{initialRequest.must_visit_places?.map(p => p.name).join("、") || "无"}”仅供参考；本次只采用下方明确确认的地点。</p>}
         <fieldset disabled={isLoading}>
           <legend className="mb-5 flex items-center gap-3 text-sm font-bold text-[#18392f]">
             <span className="grid size-7 place-items-center rounded-full bg-[#18392f] text-xs text-white">

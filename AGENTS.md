@@ -12,7 +12,7 @@ in that order before making architectural or product decisions. Also read applic
 ## Product facts, roadmap and authorization
 
 - Verify actual HEAD, branch, worktree and relevant code; do not infer the repository state solely from conversation history or early planning documents.
-- Keep current implemented/accepted capabilities separate from long-term goals. Shanghai, 1–3 days and one accommodation reference are current version boundaries, not permanent product restrictions; nationwide, longer and media-assisted travel are not implemented merely because they appear in the roadmap.
+- Keep current implemented/accepted capabilities separate from long-term goals. Shanghai, Hangzhou or Beijing (one city per trip), 1–3 days and one accommodation reference are current version boundaries, not permanent product restrictions; nationwide, longer and media-assisted travel are not implemented merely because they appear in the roadmap. Historical acceptance records retain their then-current scope.
 - A roadmap is planning, not blanket implementation authorization. Work only on the explicitly authorized task; do not automatically begin the next item or stage.
 - In PROGRESS, start with the latest summary and stopping point. Older acceptance records, failures, test counts and then-current plans remain historical evidence; do not overwrite or reinterpret them as this round's results.
 - At each round's end update PROGRESS with actual changes, checks, evidence, unresolved items and a clear stopping point. Do not mark blocked or unverified work complete.

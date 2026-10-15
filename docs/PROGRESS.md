@@ -1,5 +1,17 @@
 # TripPilot Progress
 
+## 最新摘要（2026-10-15，destination-1 状态提示与文档补修）
+
+- **实际基线 `7f7bf3b2a4b3ee694d20c3292335d88b5bbd140d`，main，与 fetch 后 origin/main 同步。** 只补提示生命周期、对应测试及文档边界；不进入下一阶段。正式范围仍为上海／杭州／北京单城、1～3 天、单住宿；根 AGENTS 已与 README、PROJECT_CONTEXT 对齐，原历史记录保留。
+- **切城提示**：持久 notices 只记录旧依赖／费用已清空等事实；操作引导读取现有版本隔离后的草案状态，未生成提示主动生成、生成中显示等待、失败明确失败并可重试、成功移除旧生成提示。没有在成功时清空全部 notices，没有新增状态副本或改变排程／取消机制。取消编辑仍保留原草案和费用。
+- **旧 v1 提示**：原来源、时间及缺少归属的兼容说明保留；共享提示判断检查当前住宿和全部当前必去的城市归属，而非只看旧存档版本或住宿。全部重新确认后更新为已确认说明；表单原地点名单仅作历史参考，未修改旧存档。归属检查不是独立的真实性认证。
+- **本轮实际自动检查**：前端 `npm test` **56 文件／1,140 项通过**（新增 5 项，保留旧回归）；`npm run lint`、`npm run typecheck`、`npm run build -- --webpack` 及 `git diff --check` 通过。包含实际 Python→TypeScript 契约／临时数据库测试，后端源码未改，未重复整套后端测试。首次定向检查 47/48：旧断言只匹配原失败文案；已改为同时检查“本次生成失败”和主动重试语义，完整重跑通过。现有 Starlette/httpx 弃用提醒保留，未新增依赖。
+- **真实 Chrome（本轮生产构建）**：杭州 v2 副本切北京，重新确认北京饭店＋天坛公园；确认后 idle、主动查询时 loading、真实步行完整结果后 success，旧“请主动生成”消失，清空费用说明保留。再次切城编辑后取消，时间轴及请求数不变。400px 状态／时间轴可读、无横向溢出。旧上海 v1 副本真实重搜确认静安寺／武康大楼后，提示更新、生成按钮启用、原来源时间保留，无自动生成。
+- **证据**：稳定目录 [status-followup-20261015](../../trippilot-evidence/destination-1/status-followup-20261015/)，[脱敏操作与请求记录](../../trippilot-evidence/destination-1/status-followup-20261015/receipt.md)；6 张截图均逐张打开检查：[切城待生成](../../trippilot-evidence/destination-1/status-followup-20261015/01-city-confirmed-idle.png)、[生成成功](../../trippilot-evidence/destination-1/status-followup-20261015/02-city-generated-success.png)、[400px 提示](../../trippilot-evidence/destination-1/status-followup-20261015/03-success-400px.png)、[400px 草案](../../trippilot-evidence/destination-1/status-followup-20261015/04-timeline-400px.png)、[v1 确认前](../../trippilot-evidence/destination-1/status-followup-20261015/05-v1-before-reconfirmation.png)、[v1 确认后](../../trippilot-evidence/destination-1/status-followup-20261015/06-v1-after-reconfirmation.png)。本地业务请求 7 次＝2 读取＋4 POI 搜索＋1 排程；不当作上游尝试数。**模型 0、存档写入 0**；复用后端，仅重启前端。
+- **限制**：失败与晚 success/error/finally、ABA、部分地点未确认用受控测试，不冒充真实故障；本轮不重验全部城市／公交／地图组合、实体手机、满载。原 destination-1 的真实 data_error、Turbopack 及其他历史限制继续保留。知识库问答仍停用，7A-1 限定收口及全部旧模型额度不变。
+- **交付清单（11 文件）**：`AGENTS.md`、`docs/PROGRESS.md`；`frontend/src/lib/destinations.ts`、`destinations.test.tsx`、`restore-trip.ts`；`frontend/src/components/trip-request-form.tsx`；`frontend/src/components/trip/confirmed-places.tsx`、`editable-planning-session.tsx`、`planning-workspace.tsx`、`formal-planning.integration.test.tsx`、`restored-trip.integration.test.tsx`。只提交这些文件，证据保持仓库外，浏览器日志不纳入；五缓存内容哈希复核，不改密钥、数据库、后端或配置。
+- **收口／停止**：核对差异、敏感信息、暂存范围后普通提交／推送本次补修；不扩天数、媒体识别或其他功能。下方原阶段报告、验收／失败及调用台账保持历史原文。文档导航：[README](../README.md) → [PROJECT_CONTEXT](PROJECT_CONTEXT.md) → [ROADMAP](ROADMAP.md) → 本文件。
+
 ## 最新摘要（2026-10-15，目的地扩展第 1 阶段）
 
 - **基线核对：`7401083204a3161878af83b95384d7aa17bd229c`，main；开始时与 origin/main 同步。** 原五缓存及未跟踪 `.playwright-mcp/` 保留。本轮在实际仓库实现，非临时副本。

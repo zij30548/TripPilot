@@ -2,8 +2,8 @@ import { execFileSync } from "node:child_process";
 import { resolve } from "node:path";
 import { act, renderHook } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { DESTINATIONS, regionBelongsTo } from "./destinations";
-import { cityRequest, cityWeather } from "./destination.test-fixtures";
+import { DESTINATIONS, regionBelongsTo, needsDestinationPlaceConfirmation } from "./destinations";
+import { cityRequest, cityWeather, located } from "./destination.test-fixtures";
 import { forecast, deferred, tripRequest } from "./weather-schedule-check.test-fixtures";
 import { isSavedDetail, createSnapshot, type SavedDetail } from "./saved-trips";
 import { restoreSavedTrip, newWorkspaceInputs, applyEditedRequirements } from "./restore-trip";
@@ -17,6 +17,18 @@ const weather = vi.hoisted(() => vi.fn());
 vi.mock("./weather-api", async original => ({ ...await original<typeof import("./weather-api")>(), queryWeatherForecast: weather }));
 beforeEach(() => vi.resetAllMocks());
 describe("closed destination contract and archive compatibility", () => {
+  it("reconfirmation guidance follows every current role, not a historical version or just the accommodation", () => {
+    const r = { ...tripRequest(), destination_id: "shanghai" as const };
+    expect(needsDestinationPlaceConfirmation(r)).toBe(true);
+    r.accommodation_place = located(r.accommodation_place!);
+    expect(needsDestinationPlaceConfirmation(r)).toBe(true); // old required POI still lacks provenance
+    r.must_visit_places = r.must_visit_places!.map(p => located(p, "beijing"));
+    expect(needsDestinationPlaceConfirmation(r)).toBe(true); // wrong city is not confirmation
+    r.must_visit_places = r.must_visit_places.map(p => located(p));
+    expect(needsDestinationPlaceConfirmation(r)).toBe(false);
+    expect(needsDestinationPlaceConfirmation({ ...r, must_visit_places: [] })).toBe(false);
+    expect(needsDestinationPlaceConfirmation({ ...r, accommodation_place: null })).toBe(true);
+  });
   it("actual Python disk API v2 outputs pass strict TS, restore, cost projection and AI compact contracts for all cities/modes", () => {
     const backend = resolve(process.cwd(), "../backend");
     const rows: SavedDetail[] = JSON.parse(execFileSync(`${backend}/.venv/bin/python`, ["-B", "tests/export_destination_contract.py"], { cwd: backend, env: { ...process.env, PYTHONPATH: backend, PYTHONDONTWRITEBYTECODE: "1" }, encoding: "utf8" }));
@@ -57,6 +69,7 @@ describe("closed destination contract and archive compatibility", () => {
     expect(applied.inputs.request.travelers).toBe(before.request.travelers);
     expect(applied.notices.join()).toContain("目的地已变化");
     expect(applied.notices.join()).not.toContain("原估算保留");
+    expect(applied.notices.join()).not.toContain("请主动");
   });
   it("the actual weather transport preserves city in sent snapshot and rejects legacy Shanghai response", async () => {
     const { queryWeatherForecast } = await vi.importActual<typeof import("./weather-api")>("./weather-api");

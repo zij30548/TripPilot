@@ -6,7 +6,7 @@ import type { TripRequest } from "@/types/trip";
 import PlanningWorkspace, { type WorkspaceEdit } from "./planning-workspace";
 import TripRequestForm from "../trip-request-form";
 import { SavedTripDetails } from "./saved-history";
-import { destination } from "@/lib/destinations";
+import { destination, needsDestinationPlaceConfirmation } from "@/lib/destinations";
 
 type EditSession = { id: number; workspace: WorkspaceEdit; dirtyBefore: boolean };
 export type PlanningOrigin = { kind: "new" } | { kind: "history"; source: SavedDetail };
@@ -45,10 +45,15 @@ export default function EditablePlanningSession({ initial, sessionId, origin }: 
       <p>原保存时间：{new Date(origin.source.saved_at).toLocaleString("zh-CN", { timeZone: "Asia/Shanghai" })}；原生成时间：{new Date(origin.source.snapshot.schedule.generated_at).toLocaleString("zh-CN", { timeZone: "Asia/Shanghai" })}。</p>
       <p>未保存的副本编辑是临时状态，刷新会丢失并重新从原存档开始。没有自动保存；另存也不会覆盖原记录。离开提示保护本页工作状态，已保存快照不受影响。</p>
       <p>只恢复原需求、排程输入和费用原文，没有更早的候选池、排除记录、天气、AI 解读、标注、调整预览或地图绑定。主动生成会重新查询所选交通，但不会重新核验历史 POI 名称、地址或坐标。</p>
-      {origin.source.schema_version === "saved-trip-v1" && <p className="font-semibold">此为旧上海 v1 快照，未保存地点城市归属。旧可选不恢复为有效输入；请修改需求，重新搜索确认住宿及必去地点后再生成。</p>}
+      {origin.source.schema_version === "saved-trip-v1" && <>
+        <p className="font-semibold">来源是旧上海 v1 快照，原记录未保存地点城市归属；旧可选未恢复为有效输入，原存档保持不变。</p>
+        <p role="status" aria-label="历史副本地点确认状态">{needsDestinationPlaceConfirmation(inputs.request)
+          ? "当前需求仍有地点未完成目的地确认。请修改需求，重新搜索确认住宿及需要保留的必去地点后再生成。"
+          : "当前需求地点已重新确认，旧记录的兼容性限制不再阻止本副本生成；原存档未被补写或重新核验。"}</p>
+      </>}
     </section> : <section className="mb-6 rounded-2xl bg-white p-5 text-sm leading-7">
       <h1 className="text-2xl font-semibold">{inputs.request.destination_id ? destination(inputs.request.destination_id).name : "上海旧版"}旅行 · 正式规划工作区</h1>
-      <p>从本次确认的需求开始规划。请主动生成草案，再核对与保存；刷新会丢失未保存的工作，没有自动保存。</p>
+      <p>从本次确认的需求开始规划，生成、核对与保存均由你主动操作；刷新会丢失未保存的工作，没有自动保存。</p>
     </section>}
     {notices.length > 0 && <div role="status" className="mb-5 rounded-xl bg-white p-4 text-sm leading-6">{notices.map(n => <p key={n}>{n}</p>)}</div>}
     {editing && <section aria-label="编辑规划需求" className="mb-6" onChangeCapture={markDirty}>

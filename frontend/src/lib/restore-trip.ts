@@ -55,8 +55,8 @@ export function applyEditedRequirements(current: WorkspaceInputs, request: TripR
   };
   // Persistent notices describe input changes; draft guidance follows live workspace state.
   const notices: string[] = [];
-  if (cityChanged) notices.push("目的地已变化：旧城市的草案、候选及排除、地图、天气与检查、AI 结果、预览和全部费用估算已清空。请主动生成。");
-  if (resetCandidates) notices.push("住宿、必去或兴趣已变化，可选清单及本次排除选择已清空，请主动重新获取候选。");
+  if (cityChanged) notices.push("目的地已变化：旧城市的草案、候选及排除、地图、天气与检查、AI 结果、预览和全部费用估算已清空。");
+  if (resetCandidates) notices.push("住宿、必去或兴趣已变化，原可选清单及本次排除选择已清空。");
   if (resetCosts && !cityChanged) notices.push("日期或人数已变化，全部用户费用估算已清空；没有自动缩放或搬移旧餐饮费。");
   else if (homeChanged && !resetCosts) notices.push("住宿参考点已变化，住宿估算已清空；其他仍相关的原估算保留。");
   return { inputs: structuredClone({ request, settings: { ...current.settings, stays }, candidates, costs }), notices };

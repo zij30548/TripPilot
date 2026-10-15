@@ -24,6 +24,7 @@ import ScheduleAdjustment from "./schedule-adjustment";
 import CostEstimateInput from "./cost-estimate-input";
 import ItineraryQuery from "./itinerary-query";
 import { useItineraryQuery } from "@/lib/use-itinerary-query";
+import { needsDestinationPlaceConfirmation } from "@/lib/destinations";
 
 export type WorkspaceEdit = { read: () => WorkspaceInputs; invalidate: () => void; isCurrent: () => boolean };
 
@@ -74,7 +75,7 @@ export default function PlanningWorkspace({ request, initial, origin = "new", re
   return <div ref={result} tabIndex={-1} aria-label="旅行结果" className="scroll-mt-6 outline-none">
     {/* Derive guidance from the same version-guarded state as the official draft. */}
     {requirementsEdited && schedule.state.status !== "success" && <p role="status" aria-label="需求修改后的草案状态" className="mb-5 rounded-xl bg-white p-4 text-sm leading-6">
-      {schedule.state.status === "loading" ? "需求已应用，正在生成新的正式草案。" : "需求已应用，当前尚无有效正式草案；请主动重新生成。"}
+      {schedule.state.status === "loading" ? "需求已应用，正在生成新的正式草案。" : schedule.state.status === "failed" ? "本次生成失败，当前尚无有效正式草案；请核对下方错误提示后，主动重新生成。" : "需求已应用，当前尚无有效正式草案；请主动重新生成。"}
     </p>}
     <div className="mb-6 flex flex-wrap items-center justify-between gap-4">
       <p role="status" className="text-sm font-medium text-[#315f51]">{schedule.state.status === "success" ? `已有有效正式草案${schedule.state.response?.status === "complete" ? "" : "（请核对部分／未安排原因）"}，可核对费用并保存${origin === "history" ? "为新记录" : ""}。` : schedule.state.status === "loading" ? "正在生成正式草案…" : "旅行需求已确认，当前尚无有效正式草案。"}</p>
@@ -83,7 +84,7 @@ export default function PlanningWorkspace({ request, initial, origin = "new", re
         <button type="button" onClick={editRequest} className="min-h-11 rounded-full border border-[#315f51] bg-white px-5 py-2 text-sm font-semibold text-[#315f51]">修改旅行需求</button>
       </div>
     </div>
-    <p className="mb-4 text-sm leading-6">{request.must_visit_places?.length ? "已有必去地点，可直接设置并生成草案，无需先获取可选候选。" : "尚无必去地点：请先主动获取并保留至少一个可选候选，或修改需求添加必去。"} 天气、AI 与调整均为按需使用，不是生成或保存的前置条件。</p>
+    <p className="mb-4 text-sm leading-6">{origin !== "demo" && needsDestinationPlaceConfirmation(request) ? "当前地点尚未完成目的地确认，请先修改需求并确认住宿及需要保留的必去地点。" : request.must_visit_places?.length ? "已有必去地点，可直接设置并生成草案，无需先获取可选候选。" : "尚无必去地点：请先主动获取并保留至少一个可选候选，或修改需求添加必去。"} 天气、AI 与调整均为按需使用，不是生成或保存的前置条件。</p>
     <nav aria-label="规划步骤" className="mb-5 flex flex-wrap gap-2">{[["prepare", "1 · 需求与地点准备"], ["draft", "2 · 生成与查看草案"], ["review", "3 · 核对、调整与保存"]].map(([id, label]) => <button type="button" key={id} onClick={() => go(id)} className="min-h-11 rounded-xl border border-[#315f51]/30 bg-white px-4 py-2 text-sm text-[#315f51]">{label}</button>)}</nav>
     <WorkflowSection step="prepare" title="需求与地点准备">
     <ConfirmedPlaces request={request} restored={origin === "history"} demo={origin === "demo"} />

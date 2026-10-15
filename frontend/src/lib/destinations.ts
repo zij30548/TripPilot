@@ -20,3 +20,15 @@ export function regionBelongsTo(region: PlaceRegion | undefined, id: Destination
   const d = destination(id);
   return !!region && region.citycode === d.citycode && [d.name, d.official_name].includes(region.cityname) && d.district_adcodes.includes(region.adcode);
 }
+
+// Current confirmed inputs, not the source archive's version, determine the next action.
+// This uses the existing region contract; it does not independently verify a POI.
+export function needsDestinationPlaceConfirmation(request: {
+  destination_id?: DestinationId;
+  accommodation_place?: { region?: PlaceRegion } | null;
+  must_visit_places?: { region?: PlaceRegion }[];
+}): boolean {
+  const city = request.destination_id;
+  return !city || !request.accommodation_place ||
+    [request.accommodation_place, ...request.must_visit_places ?? []].some(p => !regionBelongsTo(p.region, city));
+}

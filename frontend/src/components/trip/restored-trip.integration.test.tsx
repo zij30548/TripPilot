@@ -1,12 +1,14 @@
 import { act, fireEvent, render, screen, within } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import RestoredTripPage from "./restored-trip";
-import { savedCityFixture as savedFixture } from "@/lib/restore-trip.test-fixtures";
+import { savedCityFixture as savedFixture, savedFixture as savedV1Fixture } from "@/lib/restore-trip.test-fixtures";
+import { located } from "@/lib/destination.test-fixtures";
 import { adjustmentResponse } from "@/lib/schedule-adjustment.test-fixtures";
 import { deferred, now, required } from "@/lib/weather-schedule-check.test-fixtures";
 import type { SavedDetail, SaveOperation } from "@/lib/saved-trips";
 import type { ScheduleResponse } from "@/types/schedule";
-const api=vi.hoisted(()=>({read:vi.fn(),save:vi.fn(),schedule:vi.fn(),candidates:vi.fn(),weather:vi.fn(),plan:vi.fn(),explain:vi.fn(),intent:vi.fn()}));
+const api=vi.hoisted(()=>({read:vi.fn(),save:vi.fn(),schedule:vi.fn(),candidates:vi.fn(),weather:vi.fn(),plan:vi.fn(),explain:vi.fn(),intent:vi.fn(),search:vi.fn()}));
+vi.mock("@/lib/places-api",()=>({searchPlaces:api.search}));
 vi.mock("@/lib/saved-trips",async original=>({...await original<typeof import("@/lib/saved-trips")>(),readTrip:api.read,saveTrip:api.save}));
 vi.mock("@/lib/schedule-api",async original=>({...await original<typeof import("@/lib/schedule-api")>(),querySchedulePreview:api.schedule}));
 vi.mock("@/lib/candidates-api",async original=>({...await original<typeof import("@/lib/candidates-api")>(),queryCandidates:api.candidates}));
@@ -14,7 +16,7 @@ vi.mock("@/lib/weather-api",async original=>({...await original<typeof import("@
 vi.mock("@/lib/api",async original=>({...await original<typeof import("@/lib/api")>(),planTrip:api.plan}));
 vi.mock("@/lib/explanation-api",async original=>({...await original<typeof import("@/lib/explanation-api")>(),queryExplanation:api.explain}));
 vi.mock("@/lib/adjustment-intent-api",async original=>({...await original<typeof import("@/lib/adjustment-intent-api")>(),queryAdjustmentIntent:api.intent}));
-const click=async(name:string)=>act(async()=>{fireEvent.click(screen.getByRole("button",{name}));});
+const click=async(name:string|RegExp)=>act(async()=>{fireEvent.click(screen.getByRole("button",{name}));});
 const change=(label:string|RegExp,value:string)=>fireEvent.change(screen.getByLabelText(label),{target:{value}});
 const working=()=>within(screen.getByLabelText("旅行结果"));
 const source=savedFixture(), newRecords:SavedDetail[]=[];
@@ -27,6 +29,33 @@ beforeEach(()=>{
 afterEach(()=>vi.useRealTimers());
 async function open(){const view=render(<RestoredTripPage recordId={source.id}/>);await act(async()=>{});return view;}
 describe("real restore/form/workflow composition (controlled services)",()=>{
+  it("v1 source stays historical while reconfirming current places removes the obsolete instruction; cancelling keeps current work",async()=>{
+    const old=savedV1Fixture(), original=structuredClone(old);api.read.mockResolvedValueOnce(old);await open();
+    const notice=()=>screen.getByRole("status",{name:"历史副本地点确认状态"}).textContent;
+    expect(notice()).toContain("请修改需求，重新搜索确认");
+    expect(working().queryByText(/已有必去地点，可直接/)).toBeNull();
+    expect(screen.getByRole("button",{name:"生成行程草案"})).toHaveProperty("disabled",true);
+    await click("修改旅行需求");await click("取消需求修改");expect(notice()).toContain("请修改需求");
+    await click("修改旅行需求");
+    for(const [entry,confirm,place] of [
+      ["选择住宿参考点","确认住宿参考点",old.snapshot.requirements.accommodation_place!],
+      ["添加必去地点","确认必去地点",old.snapshot.requirements.must_visit_places![0]],
+    ] as const){
+      api.search.mockResolvedValueOnce([located(place)]);await click(entry);change("搜索上海地点",place.name);
+      await click("搜索");await click(/候选 1/);await click(confirm);
+    }
+    await click("确认需求修改");
+    expect(notice()).toContain("当前需求地点已重新确认");
+    expect(screen.getByText(/来源是旧上海 v1 快照/)).toBeTruthy();
+    expect(screen.queryByText(/请修改需求，重新搜索确认/)).toBeNull();
+    expect(api.schedule).not.toHaveBeenCalled();expect(old).toEqual(original);
+    expect(screen.getByRole("button",{name:"生成行程草案"})).toHaveProperty("disabled",false);
+    await click("生成行程草案");const before=working().getByRole("list",{name:"草案时间线"}).textContent;
+    await click("修改旅行需求");await click("清除住宿参考点");await click("取消需求修改");
+    expect(notice()).toContain("当前需求地点已重新确认");
+    expect(working().getByRole("list",{name:"草案时间线"}).textContent).toBe(before);
+    expect(api.schedule).toHaveBeenCalledTimes(1);expect(old).toEqual(original);inactive();
+  });
   it("reads only once, does not mount a historical success; raw invalid/zero inputs editable without totals or saving",async()=>{
     await open();expect(api.read).toHaveBeenCalledTimes(1);inactive();expect(api.schedule).not.toHaveBeenCalled();expect(api.save).not.toHaveBeenCalled();
     expect(screen.getByRole("button",{name:"保存当前正式草案"})).toHaveProperty("disabled",true);

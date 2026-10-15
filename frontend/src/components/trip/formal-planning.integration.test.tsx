@@ -48,6 +48,18 @@ const collapse = async (step: string) => act(async () => { section(step).open = 
 const official = () => within(screen.getByRole("region", { name: "正式草案费用与预算" }));
 const timeline = () => screen.getAllByRole("list", { name: "草案时间线" })[0].textContent;
 function open(request = tripRequest()) { return render(<EditablePlanningSession sessionId="new-controlled-session" initial={newWorkspaceInputs(request)} origin={{ kind: "new" }} />); }
+async function confirmHangzhou() {
+  await click("修改旅行需求"); change("目的地", "hangzhou");
+  const r = cityRequest(tripRequest(), "hangzhou");
+  for (const [entry, confirm, place] of [
+    ["选择住宿参考点", "确认住宿参考点", r.accommodation_place!],
+    ["添加必去地点", "确认必去地点", r.must_visit_places![0]],
+  ] as const) {
+    api.search.mockResolvedValueOnce([place]); await click(entry); change("搜索杭州地点", place.name);
+    await click("搜索"); await click(/候选 1/); await click(confirm);
+  }
+  await click("确认需求修改");
+}
 beforeEach(() => {
   vi.resetAllMocks(); vi.useFakeTimers({ toFake: ["Date"] }); vi.setSystemTime(now);
   maps.length = 0; markers.length = 0; lines.length = 0;
@@ -60,6 +72,41 @@ beforeEach(() => {
 afterEach(() => vi.useRealTimers());
 
 describe("6C-1 formal homepage and stable presentation (controlled services)", () => {
+  it("city-change guidance follows idle/loading/failure/success, retains cleanup facts and survives cancelled edits", async () => {
+    open(); await confirmHangzhou();
+    const guidance = () => screen.queryByRole("status", { name: "需求修改后的草案状态" });
+    const facts = () => screen.getByText(/目的地已变化/).textContent;
+    expect(api.schedule).not.toHaveBeenCalled();
+    expect(guidance()?.textContent).toContain("请主动重新生成");
+    expect(facts()).toContain("全部费用估算已清空"); expect(facts()).not.toContain("请主动");
+    const pending = deferred<ScheduleResponse>(); api.schedule.mockReturnValueOnce(pending.promise);
+    await click("生成行程草案"); expect(guidance()?.textContent).toContain("正在生成");
+    await act(async () => pending.reject(new Error("controlled failure")));
+    expect(guidance()?.textContent).toContain("本次生成失败");
+    await click("生成行程草案"); expect(guidance()).toBeNull();
+    expect(screen.getByText(/已有有效正式草案/)).toBeTruthy(); expect(facts()).toContain("全部费用估算已清空");
+    expect(screen.queryByText(/请主动(?:重新)?生成/)).toBeNull();
+    const before = timeline(), requests = counts();
+    await click("修改旅行需求"); change("目的地", "beijing"); await click("取消需求修改");
+    expect(guidance()).toBeNull(); expect(timeline()).toBe(before); expect(counts()).toEqual(requests);
+  });
+  it.each(["success", "error"])("a late city-change generation %s/finally cannot replace newer loading/success guidance", async outcome => {
+    open(); await confirmHangzhou();
+    const old = deferred<ScheduleResponse>(), current = deferred<ScheduleResponse>();
+    api.schedule.mockReturnValueOnce(old.promise).mockReturnValueOnce(current.promise);
+    await click("生成行程草案"); const [oldBody, signal] = api.schedule.mock.calls[0];
+    change("停留分钟：同名地点", "75"); change("停留分钟：同名地点", "60");
+    expect(signal.aborted).toBe(true);
+    expect(screen.getByRole("status", { name: "需求修改后的草案状态" }).textContent).toContain("请主动重新生成");
+    await click("生成行程草案"); const [body] = api.schedule.mock.calls[1];
+    await act(async () => { if (outcome === "success") old.resolve(adjustmentResponse(oldBody)); else old.reject(new Error("obsolete")); });
+    expect(screen.getByRole("status", { name: "需求修改后的草案状态" }).textContent).toContain("正在生成");
+    expect(screen.queryByRole("list", { name: "草案时间线" })).toBeNull();
+    await act(async () => current.resolve(adjustmentResponse(body)));
+    expect(screen.queryByRole("status", { name: "需求修改后的草案状态" })).toBeNull();
+    expect(screen.getByText(/已有有效正式草案/)).toBeTruthy();
+    expect(screen.getByText(/目的地已变化/).textContent).not.toContain("请主动");
+  });
   it.each(["success", "error"])("city editing ABA rejects old search %s; cancelling keeps original draft, fee and map", async outcome => {
     open(); await click("生成行程草案"); await click("查看当天地图");
     fireEvent.change(official().getByRole("textbox", { name: /全程其他/ }), { target: { value: "25" } });
@@ -165,7 +212,8 @@ describe("6C-1 formal homepage and stable presentation (controlled services)", (
     await click("生成行程草案"); expect(guidance()?.textContent).toContain("正在生成");
     expect(guidance()?.textContent).not.toContain("请主动重新生成");
     await act(async () => pending.reject(new Error("controlled failure")));
-    expect(guidance()?.textContent).toContain("请主动重新生成");
+    expect(guidance()?.textContent).toContain("本次生成失败");
+    expect(guidance()?.textContent).toContain("主动重新生成");
     await click("生成行程草案"); expect(guidance()).toBeNull();
     expect(screen.getByText(/已有有效正式草案/)).toBeTruthy();
     expect(screen.getByText(/全部用户费用估算已清空/)).toBeTruthy();
