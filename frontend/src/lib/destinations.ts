@@ -1,9 +1,10 @@
 import definitions from "../../../shared/destinations.json";
 
-export type DestinationId = "shanghai" | "hangzhou" | "beijing";
+export const DESTINATION_IDS = ["shanghai", "hangzhou", "beijing", "guangzhou", "chengdu", "xian"] as const;
+export type DestinationId = typeof DESTINATION_IDS[number];
 export type Destination = { id: DestinationId; name: string; official_name: string; adcode: string; citycode: string; district_level: "province" | "city"; district_adcodes: string[] };
 export const DESTINATIONS = definitions as Destination[];
-export function isDestinationId(value: unknown): value is DestinationId { return DESTINATIONS.some(d => d.id === value); }
+export function isDestinationId(value: unknown): value is DestinationId { return DESTINATION_IDS.some(id => id === value); }
 export function destination(value: DestinationId): Destination {
   const result = DESTINATIONS.find(d => d.id === value);
   if (!result) throw new Error("请选择支持的目的地。");

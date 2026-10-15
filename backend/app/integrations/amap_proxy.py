@@ -104,7 +104,7 @@ def validate_proxy_query(path: str, items: Sequence[tuple[str, str]], key: str) 
     city = next((city for city in DESTINATIONS.values()
                  if params.get("keywords") in {city.name, city.official_name, city.adcode}), None)
     if city is None:
-        raise ProxyError(400, "当前地图仅开放上海、杭州和北京。")
+        raise ProxyError(400, "当前地图仅开放" + "、".join(d.name for d in DESTINATIONS.values()) + "。")
     fixed = {"subdistrict": "0", "extensions": "base", "level": city.district_level, "page": "1"}
     for name, value in fixed.items():
         if name in params and params[name] != value:

@@ -12,6 +12,7 @@ import type { ScheduleResponse } from "@/types/schedule";
 import type { AMapSDK } from "@/lib/amap-loader";
 import { drawingFixture } from "@/lib/schedule-drawing.test-fixtures";
 import { validateDrawing } from "@/lib/schedule-drawing";
+import { destination, type DestinationId } from "@/lib/destinations";
 
 const api = vi.hoisted(() => ({ search: vi.fn(), plan: vi.fn(), schedule: vi.fn(), candidates: vi.fn(), weather: vi.fn(), save: vi.fn(), model: vi.fn(), intent: vi.fn() }));
 const loader = vi.hoisted(() => ({ loadAMap: vi.fn(), getShanghaiCenter: vi.fn(), getDestinationCenter: vi.fn() }));
@@ -48,14 +49,14 @@ const collapse = async (step: string) => act(async () => { section(step).open = 
 const official = () => within(screen.getByRole("region", { name: "正式草案费用与预算" }));
 const timeline = () => screen.getAllByRole("list", { name: "草案时间线" })[0].textContent;
 function open(request = tripRequest()) { return render(<EditablePlanningSession sessionId="new-controlled-session" initial={newWorkspaceInputs(request)} origin={{ kind: "new" }} />); }
-async function confirmHangzhou() {
-  await click("修改旅行需求"); change("目的地", "hangzhou");
-  const r = cityRequest(tripRequest(), "hangzhou");
+async function confirmCity(city: DestinationId = "hangzhou") {
+  await click("修改旅行需求"); change("目的地", city);
+  const r = cityRequest(tripRequest(), city);
   for (const [entry, confirm, place] of [
     ["选择住宿参考点", "确认住宿参考点", r.accommodation_place!],
     ["添加必去地点", "确认必去地点", r.must_visit_places![0]],
   ] as const) {
-    api.search.mockResolvedValueOnce([place]); await click(entry); change("搜索杭州地点", place.name);
+    api.search.mockResolvedValueOnce([place]); await click(entry); change(`搜索${destination(city).name}地点`, place.name);
     await click("搜索"); await click(/候选 1/); await click(confirm);
   }
   await click("确认需求修改");
@@ -72,8 +73,8 @@ beforeEach(() => {
 afterEach(() => vi.useRealTimers());
 
 describe("6C-1 formal homepage and stable presentation (controlled services)", () => {
-  it("city-change guidance follows idle/loading/failure/success, retains cleanup facts and survives cancelled edits", async () => {
-    open(); await confirmHangzhou();
+  it.each(["hangzhou", "guangzhou", "chengdu", "xian"] as const)("%s guidance follows idle/loading/failure/success, retains cleanup facts and survives cancelled edits", async city => {
+    open(); await confirmCity(city);
     const guidance = () => screen.queryByRole("status", { name: "需求修改后的草案状态" });
     const facts = () => screen.getByText(/目的地已变化/).textContent;
     expect(api.schedule).not.toHaveBeenCalled();
@@ -91,7 +92,7 @@ describe("6C-1 formal homepage and stable presentation (controlled services)", (
     expect(guidance()).toBeNull(); expect(timeline()).toBe(before); expect(counts()).toEqual(requests);
   });
   it.each(["success", "error"])("a late city-change generation %s/finally cannot replace newer loading/success guidance", async outcome => {
-    open(); await confirmHangzhou();
+    open(); await confirmCity();
     const old = deferred<ScheduleResponse>(), current = deferred<ScheduleResponse>();
     api.schedule.mockReturnValueOnce(old.promise).mockReturnValueOnce(current.promise);
     await click("生成行程草案"); const [oldBody, signal] = api.schedule.mock.calls[0];
@@ -107,14 +108,14 @@ describe("6C-1 formal homepage and stable presentation (controlled services)", (
     expect(screen.getByText(/已有有效正式草案/)).toBeTruthy();
     expect(screen.getByText(/目的地已变化/).textContent).not.toContain("请主动");
   });
-  it.each(["success", "error"])("city editing ABA rejects old search %s; cancelling keeps original draft, fee and map", async outcome => {
+  it.each(["success", "error"].flatMap(outcome => ["beijing", "chengdu", "xian"].map(city => ({ outcome, city }))))("city editing via $city ABA rejects old search $outcome; cancelling keeps original draft, fee and map", async ({outcome, city}) => {
     open(); await click("生成行程草案"); await click("查看当天地图");
     fireEvent.change(official().getByRole("textbox", { name: /全程其他/ }), { target: { value: "25" } });
     const before = timeline(); await click("修改旅行需求");
     await click("更换住宿参考点"); change("搜索上海地点", "old");
     const pending = deferred<ReturnType<typeof located>[]>(); api.search.mockReturnValueOnce(pending.promise);
     await click("搜索"); const signal = api.search.mock.calls.at(-1)![1];
-    change("目的地", "beijing"); change("目的地", "shanghai");
+    change("目的地", city); change("目的地", "shanghai");
     expect(signal.aborted).toBe(true);
     await click("选择住宿参考点");
     await act(async () => { if (outcome === "success") pending.resolve([located({ ...tripRequest().accommodation_place!, name: "过期候选" })]); else pending.reject(new Error("过期错误")); });

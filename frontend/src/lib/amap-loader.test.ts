@@ -1,4 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import { DESTINATIONS } from "./destinations";
 
 const officialLoader = vi.hoisted(() => ({ load: vi.fn(), reset: vi.fn() }));
 
@@ -98,6 +99,17 @@ describe("getShanghaiCenter", () => {
     });
     return { sdk: { DistrictSearch }, search, DistrictSearch };
   }
+
+  it.each(DESTINATIONS)("uses $name identity and level, rejects another city's center without fallback", async city => {
+    const { getDestinationCenter } = await import("@/lib/amap-loader");
+    const valid = districtSDK({ districtList: [{ name: city.official_name, adcode: city.adcode, center: { lng: 120, lat: 30 } }] });
+    await expect(getDestinationCenter(valid.sdk as never, city.id)).resolves.toEqual([120, 30]);
+    expect(valid.search).toHaveBeenCalledWith(city.name, expect.any(Function));
+    expect(valid.DistrictSearch).toHaveBeenCalledWith({ level: city.district_level, subdistrict: 0, extensions: "base" });
+    const wrong = districtSDK({ districtList: [{ adcode: city.id === "shanghai" ? "510100" : "310000", center: { lng: 120, lat: 30 } }] });
+    await expect(getDestinationCenter(wrong.sdk as never, city.id)).rejects.toThrow();
+    expect(fetch).not.toHaveBeenCalled();
+  });
 
   it("uses Shanghai-only basic district data to obtain the map center", async () => {
     const { getShanghaiCenter } = await import("@/lib/amap-loader");

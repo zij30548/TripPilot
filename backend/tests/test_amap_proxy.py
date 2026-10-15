@@ -224,7 +224,7 @@ class AmapProxyTests(unittest.TestCase):
         for params in [
             {"jscode": "client-secret"}, {"JSCODE": "client-secret"}, {"securityJsCode": "client-secret"},
             {"url": "https://evil.example"}, {"target": "https://evil.example"}, {"host": "evil.example"},
-            {"keywords": "广州"}, {"extensions": "all"}, {"subdistrict": "1"}, {"level": "district"},
+            {"keywords": "深圳"}, {"extensions": "all"}, {"subdistrict": "1"}, {"level": "district"},
             {"page": "2"}, {"offset": "200"}, {"output": "xml"}, {"s": "anything"},
             {"callback": "alert(1)//"}, {"callback": "a[0]"}, {"callback": "a;run"},
             {"callback": "a\n"}, {"callback": ""}, {"callback": "a" * 129},

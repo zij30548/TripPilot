@@ -13,7 +13,7 @@ from fastapi.testclient import TestClient
 from app.api.places import get_http_client
 from app.api.amap_proxy import get_proxy_http_client
 from app.config import Settings, get_settings
-from app.destinations import DESTINATIONS, PlaceRegion
+from app.destinations import DESTINATIONS, PlaceRegion, load_destinations
 from app.integrations.amap import AmapClient, AmapError
 from app.integrations.amap_weather import convert_forecast
 from app.schemas.destination import CityScheduleRequest, CityScheduleResponse, CityCandidateRequest
@@ -44,13 +44,29 @@ def modern_snapshot(city="hangzhou", sample="complete_walk"):
 class DestinationContracts(unittest.TestCase):
     def test_codes_districts_and_no_prefix_or_name_guess(self):
         self.assertEqual({k: (d.adcode, d.citycode) for k, d in DESTINATIONS.items()},
-                         {"shanghai": ("310000", "021"), "hangzhou": ("330100", "0571"), "beijing": ("110000", "010")})
+                         {"shanghai": ("310000", "021"), "hangzhou": ("330100", "0571"), "beijing": ("110000", "010"),
+                          "guangzhou": ("440100", "020"), "chengdu": ("510100", "028"), "xian": ("610100", "029")})
         for key, d in DESTINATIONS.items():
             for district in d.district_adcodes:
                 r = PlaceRegion(citycode=d.citycode, cityname=d.official_name, adcode=district)
                 self.assertTrue(r.belongs_to(key))
                 self.assertFalse(r.model_copy(update={"adcode": d.adcode[:2]+"9999"}).belongs_to(key))
                 self.assertFalse(r.model_copy(update={"cityname": "名字含"+d.name}).belongs_to(key))
+
+    def test_definition_validation_rejects_enum_drift_duplicates_and_bad_membership(self):
+        rows = [d.model_dump(mode="json") for d in DESTINATIONS.values()]
+        self.assertEqual(load_destinations(rows), DESTINATIONS)
+        mutations = [lambda r: r.pop(), lambda r: r.append(copy.deepcopy(r[0])),
+                     lambda r: r[0].update(id="unknown"), lambda r: r[0].update(citycode=r[1]["citycode"]),
+                     lambda r: r[0].update(adcode=r[1]["adcode"]), lambda r: r[0].update(citycode="21"),
+                     lambda r: r[3].update(district_level="province"),
+                     lambda r: r[3]["district_adcodes"].append("510104"),
+                     lambda r: r[3]["district_adcodes"].append("440103"),
+                     lambda r: r[3]["district_adcodes"].remove("440100")]
+        for mutate in mutations:
+            with self.subTest(mutation=mutate):
+                broken = copy.deepcopy(rows); mutate(broken)
+                with self.assertRaises(ValueError): load_destinations(broken)
 
     def test_v1_unchanged_v2_replay_both_modes_and_strict_extra_fields(self):
         for sample in ["complete_walk", "transit_unknown_legs", "required_prefix", "three_days_blank", "no_visits"]:
@@ -135,24 +151,34 @@ class DestinationAPIs(unittest.TestCase):
             self.assertEqual(len(self.requests), 8)
 
     def test_missing_contradictory_or_foreign_region_fails_explicitly(self):
-        for mutation in [{"citycode": None}, {"adcode": "310101"}, {"cityname": "北京市"}]:
-            self.mutation = mutation
-            res = self.client.get("/places/search", params={"keyword": "上海路", "destination_id": "hangzhou"})
-            self.assertEqual(res.status_code, 502); self.assertIn("归属", res.json()["detail"])
+        for city in DESTINATIONS:
+            self.city = city
+            other = DESTINATIONS["beijing" if city != "beijing" else "shanghai"]
+            for mutation in [{"citycode": None}, {"adcode": other.district_adcodes[1]}, {"cityname": other.official_name}]:
+                self.mutation = mutation
+                res = self.client.get("/places/search", params={"keyword": "上海路", "destination_id": city})
+                self.assertEqual(res.status_code, 502); self.assertIn("归属", res.json()["detail"])
+                req = modern_snapshot(city)["schedule"]["request"]
+                req = {k: req[k] for k in ("destination_id", "accommodation_place", "must_visit_places")}
+                req["interests"] = ["摄影"]
+                response = self.client.post("/places/candidates", json=req)
+                self.assertEqual(response.status_code, 200)
+                self.assertEqual(response.json()["status"], "failed")
+                self.assertTrue(all(c["role"] == "must_visit" for c in response.json()["candidates"]))
         self.requests.clear()
-        for dest in [None, "guangzhou", ""]:
+        for dest in [None, "shenzhen", ""]:
             req = modern_snapshot()["schedule"]["request"]
             if dest is None: req.pop("destination_id")
             else: req["destination_id"] = dest
             self.assertEqual(self.client.post("/trips/schedule-preview", json=req).status_code, 422)
         self.assertEqual(self.requests, [])
 
-    def test_proxy_three_city_allowlist_no_open_target_or_district(self):
+    def test_proxy_six_city_allowlist_no_open_target_or_district(self):
         for city, d in DESTINATIONS.items():
             for name in [d.name, d.official_name, d.adcode]:
                 res = self.client.get("/_AMapService/v3/config/district", params={"key": "fixture-js", "keywords": name, "level": d.district_level})
                 self.assertEqual(res.status_code, 200, res.text)
-        for params in [{"keywords": "广州"}, {"keywords": "330102"}, {"keywords": "杭州", "level": "province"}, {"keywords": "北京", "url": "https://bad.invalid"}, {"keywords": "北京", "key": "wrong"}]:
+        for params in [{"keywords": "深圳"}, {"keywords": "440103"}, {"keywords": "成都", "level": "province"}, {"keywords": "北京", "url": "https://bad.invalid"}, {"keywords": "北京", "key": "wrong"}]:
             before = len(self.requests)
             self.assertIn(self.client.get("/_AMapService/v3/config/district", params={"key": "fixture-js", **params}).status_code, (400, 403))
             self.assertEqual(len(self.requests), before)
@@ -167,5 +193,5 @@ class DestinationAPIs(unittest.TestCase):
             self.assertEqual(res.json()["snapshot"], body["snapshot"])
         engine_for(str(self.path)).dispose(); engine_for.cache_clear()
         self.assertEqual(self.client.get("/saved-trips/"+first.json()["id"]).json(), first.json())
-        self.assertEqual(len(self.client.get("/saved-trips").json()["items"]), 4)
+        self.assertEqual(len(self.client.get("/saved-trips").json()["items"]), len(DESTINATIONS) + 1)
         self.assertEqual(self.requests, [])

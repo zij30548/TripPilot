@@ -2,7 +2,7 @@ import { execFileSync } from "node:child_process";
 import { resolve } from "node:path";
 import { act, renderHook } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { DESTINATIONS, regionBelongsTo, needsDestinationPlaceConfirmation } from "./destinations";
+import { DESTINATIONS, DESTINATION_IDS, isDestinationId, regionBelongsTo, needsDestinationPlaceConfirmation } from "./destinations";
 import { cityRequest, cityWeather, located } from "./destination.test-fixtures";
 import { forecast, deferred, tripRequest } from "./weather-schedule-check.test-fixtures";
 import { isSavedDetail, createSnapshot, type SavedDetail } from "./saved-trips";
@@ -17,6 +17,15 @@ const weather = vi.hoisted(() => vi.fn());
 vi.mock("./weather-api", async original => ({ ...await original<typeof import("./weather-api")>(), queryWeatherForecast: weather }));
 beforeEach(() => vi.resetAllMocks());
 describe("closed destination contract and archive compatibility", () => {
+  it("shared definitions and Python/TypeScript closed allowlists are identical, not widened to arbitrary strings", () => {
+    const backend = resolve(process.cwd(), "../backend");
+    const actual = JSON.parse(execFileSync(`${backend}/.venv/bin/python`, ["-B", "-c", "import json; from typing import get_args; from app.destinations import DestinationId, DESTINATIONS; print(json.dumps({'ids': get_args(DestinationId), 'rows': [d.model_dump(mode='json') for d in DESTINATIONS.values()]}))"], { cwd: backend, encoding: "utf8" }));
+    expect(actual.ids).toEqual([...DESTINATION_IDS]); expect(actual.rows).toEqual(DESTINATIONS);
+    expect(DESTINATIONS.map(d => d.id)).toEqual([...DESTINATION_IDS]);
+    expect(new Set(DESTINATION_IDS).size).toBe(6);
+    for (const id of DESTINATION_IDS) expect(isDestinationId(id)).toBe(true);
+    for (const id of ["shenzhen", "成都", "", null, {}]) expect(isDestinationId(id)).toBe(false);
+  });
   it("reconfirmation guidance follows every current role, not a historical version or just the accommodation", () => {
     const r = { ...tripRequest(), destination_id: "shanghai" as const };
     expect(needsDestinationPlaceConfirmation(r)).toBe(true);
@@ -32,7 +41,7 @@ describe("closed destination contract and archive compatibility", () => {
   it("actual Python disk API v2 outputs pass strict TS, restore, cost projection and AI compact contracts for all cities/modes", () => {
     const backend = resolve(process.cwd(), "../backend");
     const rows: SavedDetail[] = JSON.parse(execFileSync(`${backend}/.venv/bin/python`, ["-B", "tests/export_destination_contract.py"], { cwd: backend, env: { ...process.env, PYTHONPATH: backend, PYTHONDONTWRITEBYTECODE: "1" }, encoding: "utf8" }));
-    expect(rows).toHaveLength(12);
+    expect(rows).toHaveLength(DESTINATION_IDS.length * 4);
     for (const row of rows) {
       expect(isSavedDetail(row)).toBe(true);
       const { inputs } = restoreSavedTrip(row, crypto.randomUUID());
@@ -80,8 +89,8 @@ describe("closed destination contract and archive compatibility", () => {
     vi.mocked(fetch).mockResolvedValueOnce(new Response(JSON.stringify(forecast())));
     await expect(queryWeatherForecast(hangzhou.request)).rejects.toThrow("格式无效");
   });
-  it.each(["success", "error"])("weather city ABA isolates old %s/finally with identical dates and same latest city", async outcome => {
-    const a = cityWeather(forecast()), b = cityWeather(forecast(), "beijing"), pending = deferred<typeof a>();
+  it.each(["success", "error"].flatMap(outcome => (["beijing", "guangzhou", "chengdu", "xian"] as const).map(city => ({ outcome, city }))))("weather city $city ABA isolates old $outcome/finally with identical dates and same latest city", async ({ outcome, city }) => {
+    const a = cityWeather(forecast()), b = cityWeather(forecast(), city), pending = deferred<typeof a>();
     weather.mockReturnValueOnce(pending.promise).mockResolvedValueOnce(a);
     const view = renderHook(({ r }) => useWeatherForecast(r), { initialProps: { r: a.request } });
     let old!: Promise<boolean>; act(() => { old = view.result.current.query(); });

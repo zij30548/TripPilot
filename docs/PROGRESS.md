@@ -1,5 +1,17 @@
 # TripPilot Progress
 
+## 最新摘要（2026-10-15，destination-2：广州／成都／西安及城市接入校验）
+
+- **实际基线 `646f069a25b342981c86bb9f9bd74711bcef2483`，main，开始时与 origin/main 同步。** 本轮直接在实际项目实施，新增广州、成都、西安；当前六城单选、1～3天、单住宿，容量、顺序、查询预算和主动操作规则不变。知识库问答仍停用，真实模型 **0**，旧额度／台账不变。
+- **Current：限定实现与离线检查完成，真实验收有明确未通过项。** 新三城 POI、步行、天气、真实底图通过；广州／西安公交车往返成功。成都公交出程 `data_error`、草案未安排，**不能标为成都完整公交真实验收通过，更不能标为六城全链路全通过**。保留失败，不重试换样本、不放宽校验、不自动步行兜底。
+- **城市接入**：实际读取高德公开城市表（页面版本2026-01-07，获取2026-10-15，链接／ZIP哈希／区县在 [DESTINATION_2](DESTINATION_2.md)）。共享六城表＋闭合 Python Literal／TS tuple，启动校验重复、漏项、明显归属矛盾，测试实际核对跨语言枚举及完整表。公交、天气、POI、候选、地图复用原参数化链路；代理只扩表内本级城市允许值。首页与元信息由表派生，未全局替换时区、知识库或/demo。
+- **兼容与本轮检查**：新城继续 saved-trip-v2、原表／2MiB／重放／幂等不变，v1严格读取和重新确认规则不变。后端 `.venv/bin/python -B -m unittest discover -s tests -q` **456通过**；前端 `npm test -- --reporter=dot` **56文件／1,160通过**；lint、typecheck、Webpack生产构建、差异检查通过。包括六城×4种实际Python临时磁盘API输出、旧v1/v2、代理拒绝、ABA、晚成功／错误／finally、取消和动态提示回归。首轮两处测试假设修正及旧弃用提醒见报告，不删除失败边界断言。
+- **真实 Chrome（本轮生产构建）**：广州 广东迎宾馆／陈家祠，成都 天府广场／成都武侯祠博物馆，西安 西安钟楼／大雁塔；所有选中项按上游cityname/citycode/adcode核对，不声称独立实地认证。天气均覆盖10月16–17日且城市正确；广州夜79／527、西安606路参考方案已显示，未核实旅行日期／时刻运营，也未实测地铁专项。
+- **成都扩展**：默认“旅游景点”1次（原计划摄影，实际未选兴趣，偏差如实记录），18可选；步行必去1/1＋可选2/3，跨日地图／双向联动；两次预览分别取消／采用，原方案保护与候选同步通过，取消／采用无额外业务请求。仅新增2条明确验收v2存档，刷新、历史只读、独立副本主动再生／另存通过。副本切北京先取消保留，再确认清空、主动生成成功后旧操作提示消失，历史清空说明保留；400px无横向溢出，Enter地图入口通过。旧上海v1／杭州v2只读恢复正常，其他旧城及/demo为自动回归，非本轮全套真实重验。
+- **证据**：[稳定目录](../../trippilot-evidence/destination-2/)、[请求计数](../../trippilot-evidence/destination-2/requests-sanitized.json)、[验收说明](../../trippilot-evidence/destination-2/receipt.md)。20图已逐张打开；08仅有预览入口，不作为完整对比截图，操作与取消／采用另有断言。自动监听30个业务响应＋首次副本读取1次监听前完成＝31次已知操作；其中排程11、POI8、天气3、候选1、保存2、列表1、详情5。地图SDK／行政中心／瓦片另计，未逐次观测上游HTTP尝试，不冒称已验证实际尝试数。无额外模型、单段路线或Mock计划请求。
+- **文件清单（18）**：`shared/destinations.json`；`backend/app/destinations.py`、`backend/app/integrations/amap_proxy.py`；`backend/tests/test_destinations.py`、`test_amap_proxy.py`、`export_destination_contract.py`；`frontend/src/lib/destinations.ts`、`destinations.test.tsx`、`amap-loader.test.ts`；`frontend/src/components/trip/formal-planning.integration.test.tsx`；`frontend/src/app/page.tsx`、`layout.tsx`；`AGENTS.md`、`README.md`、`docs/PROJECT_CONTEXT.md`、`ROADMAP.md`、`DESTINATION_2.md`、本文件。原五缓存开工／收口SHA256一致；密钥、配置、数据库结构与旧记录不改，证据／浏览器日志不提交。
+- **Next／停止**：按授权普通提交推送这18文件后停在destination-2，保留成都公交未通过和各城非穷尽验证限制；不追加真实样本寻找成功、不自动进入天数／影像／优化或其他阶段。后续诊断须明确范围。README→PROJECT_CONTEXT→ROADMAP→本文件为当前导航；下方旧验收、失败及模型调用记录逐字节保留，不作为本轮成绩。
+
 ## 最新摘要（2026-10-15，destination-1 状态提示与文档补修）
 
 - **实际基线 `7f7bf3b2a4b3ee694d20c3292335d88b5bbd140d`，main，与 fetch 后 origin/main 同步。** 只补提示生命周期、对应测试及文档边界；不进入下一阶段。正式范围仍为上海／杭州／北京单城、1～3 天、单住宿；根 AGENTS 已与 README、PROJECT_CONTEXT 对齐，原历史记录保留。
