@@ -54,7 +54,7 @@ export function validateScheduleInput(request: TripRequest, settings: ScheduleSe
   if (required.length > 6) return "本轮最多支持 6 个已确认必去地点，请返回修改旅行需求调整。";
   if (!required.length && !optionalPlaces.length) return "请先确认必去地点，或主动获取并保留至少一个可选地点。";
   if (!required.every(isConfirmedPlace) || new Set(required.map((place) => place.id)).size !== required.length) return "已确认地点信息无效，请返回修改旅行需求重新确认。";
-  if (!scheduleDates(request.start_date, request.end_date)) return "本轮支持 1～3 天，请返回修改旅行需求调整日期。";
+  if (!scheduleDates(request.start_date, request.end_date)) return "本轮支持 1～7 天，请返回修改旅行需求调整日期。";
   const start = scheduleMinutes(scheduleClock(request.daily_start_time)); const end = scheduleMinutes(scheduleClock(request.daily_end_time));
   if (start === null || end === null || start >= end) return "每日出发与结束时间需要精确到分钟，且结束晚于出发，请返回修改旅行需求。";
   if ([...required, ...optionalPlaces].some((place) => !/^\d+$/.test(settings.stays[place.id]?.value ?? "") || Number(settings.stays[place.id].value) < 15 || Number(settings.stays[place.id].value) > 480)) return "每个地点的停留时间请输入 15～480 的整数分钟。";

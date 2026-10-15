@@ -1,13 +1,14 @@
 import math
 import re
 from datetime import date
-from typing import Literal, Self
+from typing import ClassVar, Literal, Self
 
 from pydantic import AwareDatetime, BaseModel, ConfigDict, Field, field_validator, model_validator
 
 from app.schemas.place import ConfirmedPlace
 from app.schemas.route import RouteEndpoint
 from app.schemas.transit import TransitRoute
+from app.planning_limits import MAX_TRIP_DAYS, LEGACY_MAX_TRIP_DAYS
 
 
 TransportMode = Literal["walking", "transit"]
@@ -50,6 +51,7 @@ class LunchWindow(BaseModel):
 
 class ScheduleRequest(BaseModel):
     model_config = ConfigDict(extra="forbid")
+    max_trip_days: ClassVar[int] = LEGACY_MAX_TRIP_DAYS
 
     start_date: date
     end_date: date
@@ -73,8 +75,8 @@ class ScheduleRequest(BaseModel):
 
     @model_validator(mode="after")
     def consistent_inputs(self) -> Self:
-        if not 0 <= (self.end_date - self.start_date).days <= 2:
-            raise ValueError("仅支持 1 至 3 天。")
+        if not 0 <= (self.end_date - self.start_date).days < self.max_trip_days:
+            raise ValueError(f"仅支持 1 至 {self.max_trip_days} 天。")
         start, end = clock_minutes(self.daily_start_time), clock_minutes(self.daily_end_time)
         if start >= end:
             raise ValueError("每日结束必须晚于开始。")
@@ -94,6 +96,10 @@ class ScheduleRequest(BaseModel):
             # Reuse walking's safe endpoint identity/coordinate validation.
             RouteEndpoint(place_id=place.id, longitude=place.longitude, latitude=place.latitude)
         return self
+
+
+class CurrentScheduleRequest(ScheduleRequest):
+    max_trip_days: ClassVar[int] = MAX_TRIP_DAYS
 
 
 class ScheduleEdge(BaseModel):
@@ -197,3 +203,7 @@ class ScheduleResponse(BaseModel):
     optional_results: list[OptionalResult] = Field(default_factory=list)
     rules: list[str]
     unknowns: list[str]
+
+
+class CurrentScheduleResponse(ScheduleResponse):
+    request: CurrentScheduleRequest

@@ -2,10 +2,11 @@
 
 import re
 from datetime import date, timedelta
-from typing import Literal, Self
+from typing import ClassVar, Literal, Self
 
 from pydantic import AwareDatetime, BaseModel, ConfigDict, Field, field_validator, model_validator
 from app.destinations import DestinationId, destination_for
+from app.planning_limits import MAX_TRIP_DAYS, LEGACY_MAX_TRIP_DAYS
 
 
 Precipitation = Literal["rain", "snow", "rain_snow", "none", "unknown"]
@@ -46,6 +47,7 @@ def strict_date(value: object) -> date:
 
 class WeatherRequest(BaseModel):
     model_config = ConfigDict(extra="forbid")
+    max_trip_days: ClassVar[int] = LEGACY_MAX_TRIP_DAYS
 
     start_date: date
     end_date: date
@@ -54,8 +56,8 @@ class WeatherRequest(BaseModel):
 
     @model_validator(mode="after")
     def valid_range(self) -> Self:
-        if not 0 <= (self.end_date - self.start_date).days <= 2:
-            raise ValueError("天气查询仅支持含首尾的 1 至 3 天。")
+        if not 0 <= (self.end_date - self.start_date).days < self.max_trip_days:
+            raise ValueError(f"天气查询仅支持含首尾的 1 至 {self.max_trip_days} 天。")
         return self
 
     def dates(self) -> list[date]:
@@ -63,6 +65,7 @@ class WeatherRequest(BaseModel):
 
 
 class CityWeatherRequest(WeatherRequest):
+    max_trip_days: ClassVar[int] = MAX_TRIP_DAYS
     destination_id: DestinationId
 
 
@@ -149,6 +152,7 @@ class WeatherForecastResponse(BaseModel):
 
 class CityWeatherForecastResponse(WeatherForecastResponse):
     request: CityWeatherRequest
+    days: list[WeatherDay] = Field(min_length=1, max_length=MAX_TRIP_DAYS)
     city: str
     adcode: str
 

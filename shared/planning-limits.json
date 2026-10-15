@@ -1,0 +1,14 @@
+{
+  "max_trip_days": 7,
+  "legacy_max_trip_days": 3,
+  "max_required_places": 6,
+  "max_optional_places": 3,
+  "max_required_edges": 17,
+  "max_logical_edges": 41,
+  "legacy_max_logical_edges": 29,
+  "max_started_routes": 29,
+  "max_upstream_attempts": 58,
+  "route_deadline_seconds": 20,
+  "route_concurrency": 3,
+  "route_start_interval_seconds": 0.4
+}

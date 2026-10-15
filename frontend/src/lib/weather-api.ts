@@ -9,7 +9,7 @@ export class WeatherError extends Error {
 
 // One browser request, no automatic retry; retry budgeting belongs to the adapter.
 export async function queryWeatherForecast(request: WeatherForecastRequest, signal?: AbortSignal): Promise<WeatherForecastResponse> {
-  if (!isWeatherForecastRequest(request)) throw new WeatherError("error", "请确认旅行日期为连续的 1～3 天后再查询天气。");
+  if (!isWeatherForecastRequest(request)) throw new WeatherError("error", "请确认旅行日期为连续的 1～7 天后再查询天气。");
   if (signal?.aborted) throw new DOMException("天气查询已取消。", "AbortError");
   const snapshot = { start_date: request.start_date, end_date: request.end_date, ...(request.destination_id ? { destination_id: request.destination_id } : {}) };
   const controller = new AbortController();

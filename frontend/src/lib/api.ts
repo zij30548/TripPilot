@@ -1,6 +1,8 @@
 import type { TripPlan, TripRequest } from "@/types/trip";
 import { isConfirmedPlace, type Place } from "@/types/place";
 import { isDestinationId, regionBelongsTo } from "./destinations";
+import { scheduleDates } from "@/types/schedule";
+import { MAX_TRIP_DAYS, LEGACY_MAX_TRIP_DAYS } from "./planning-limits";
 
 const PLAN_URL = "http://127.0.0.1:8000/trips/plan";
 
@@ -60,7 +62,7 @@ export function isTripRequest(value: unknown): value is TripRequest {
   }
   return isRecord(value) &&
     typeof value.start_date === "string" && typeof value.end_date === "string" &&
-    Number.isFinite(Date.parse(value.start_date)) && Number.isFinite(Date.parse(value.end_date)) &&
+    !!scheduleDates(value.start_date, value.end_date, value.destination_id ? MAX_TRIP_DAYS : LEGACY_MAX_TRIP_DAYS) &&
     isAmount(value.budget) && value.budget > 0 &&
     typeof value.travelers === "number" && Number.isInteger(value.travelers) && value.travelers > 0 &&
     typeof value.accommodation_location === "string" &&

@@ -2,13 +2,14 @@
 import json
 import math
 from types import UnionType
-from typing import Annotated, Any, Literal, Union, get_args, get_origin
+from typing import Annotated, Any, ClassVar, Literal, Union, get_args, get_origin
 
 from pydantic import AwareDatetime, BaseModel, Field, StringConstraints, TypeAdapter, model_validator
 
 from app.schemas.explanation import ScheduleSnapshot, StrictModel
-from app.schemas.schedule import ScheduleResponse
-from app.schemas.trip import TripRequest
+from app.schemas.schedule import ScheduleResponse, CurrentScheduleResponse
+from app.schemas.trip import TripRequest, CurrentTripRequest
+from app.planning_limits import MAX_TRIP_DAYS, LIMITS
 from app.services.explanation import compact_schedule, validate_snapshot
 from app.services.schedule import build_schedule
 from app.schemas.destination import CityTripRequest, CityScheduleRequest, CityScheduleResponse, core_place
@@ -67,6 +68,7 @@ class SavedCosts(StrictModel):
 
 
 class SavedSnapshot(StrictModel):
+    max_logical_edges: ClassVar[int] = LIMITS["legacy_max_logical_edges"]
     schema_version: Literal["saved-trip-v1"]
     requirements: TripRequest
     schedule: ScheduleResponse
@@ -80,8 +82,8 @@ class SavedSnapshot(StrictModel):
         # A before-model validator materializes JSON into Python objects. Parse
         # temporal scalars in JSON mode explicitly, retaining strict numeric types.
         return {**value,
-                "requirements": TripRequest.model_validate_json(json.dumps(value["requirements"]), strict=True),
-                "schedule": ScheduleResponse.model_validate_json(json.dumps(value["schedule"]), strict=True)}
+                "requirements": cls.model_fields["requirements"].annotation.model_validate_json(json.dumps(value["requirements"]), strict=True),
+                "schedule": cls.model_fields["schedule"].annotation.model_validate_json(json.dumps(value["schedule"]), strict=True)}
 
     @model_validator(mode="after")
     def consistent(self) -> "SavedSnapshot":
@@ -100,9 +102,11 @@ class SavedSnapshot(StrictModel):
         if req.travelers > 1000 or len(req.interests) > 32 or len(req.avoid_places) > 32:
             raise ValueError("Requirements exceed archive limits")
         snapshot = ScheduleSnapshot.model_validate_json(json.dumps(compact_schedule(schedule)))
+        if len(schedule.edges) > self.max_logical_edges:
+            raise ValueError("Route set exceeds this archive version")
         validate_snapshot(snapshot)  # directed references + original pure scheduling rules
         expected = build_schedule(sr, schedule.edges, schedule.generated_at)
-        if expected != schedule:
+        if expected.model_dump() != schedule.model_dump():
             raise ValueError("Full normalized schedule differs from replay")
         for edge in schedule.edges:
             if edge.status in ("ok", "same_place"):
@@ -125,12 +129,27 @@ class SavedSnapshot(StrictModel):
         return self
 
 
+class CurrentSavedCosts(SavedCosts):
+    meals: dict[str, CostText] = Field(max_length=MAX_TRIP_DAYS)
+
+
+class CurrentArchiveCore(SavedSnapshot):
+    """Internal v3 projection: same exact validation/replay, explicit new limits."""
+    schema_version: Literal["saved-trip-v3"]
+    requirements: CurrentTripRequest
+    schedule: CurrentScheduleResponse
+    costs: CurrentSavedCosts
+    max_logical_edges: ClassVar[int] = LIMITS["max_logical_edges"]
+
+
 class SavedSnapshotV2(StrictModel):
     """New city-aware wire version; validate the unchanged v1 core by projection."""
     schema_version: Literal["saved-trip-v2"]
     requirements: CityTripRequest
     schedule: CityScheduleResponse
     costs: SavedCosts
+    core_type: ClassVar[type[SavedSnapshot]] = SavedSnapshot
+    core_version: ClassVar[str] = VERSION
 
     @model_validator(mode="before")
     @classmethod
@@ -155,12 +174,20 @@ class SavedSnapshotV2(StrictModel):
         core = schedule.model_dump(mode="json")
         core["request"] = schedule.request.core().model_dump(mode="json")
         # Pure replay does not depend on city, and never certifies upstream provenance.
-        SavedSnapshot.model_validate_json(json.dumps({"schema_version": VERSION,
+        self.core_type.model_validate_json(json.dumps({"schema_version": self.core_version,
             "requirements": requirements, "schedule": core, "costs": self.costs.model_dump()}), strict=True)
         return self
 
 
-Snapshot = Annotated[SavedSnapshot | SavedSnapshotV2, Field(discriminator="schema_version")]
+class SavedSnapshotV3(SavedSnapshotV2):
+    """Seven-day city archive; v1/v2 continue their original three-day replay."""
+    schema_version: Literal["saved-trip-v3"]
+    costs: CurrentSavedCosts
+    core_type: ClassVar[type[SavedSnapshot]] = CurrentArchiveCore
+    core_version: ClassVar[str] = "saved-trip-v3"
+
+
+Snapshot = Annotated[SavedSnapshot | SavedSnapshotV2 | SavedSnapshotV3, Field(discriminator="schema_version")]
 snapshot_adapter = TypeAdapter(Snapshot)
 
 
@@ -180,7 +207,7 @@ class SavedSummary(StrictModel):
     id: RecordId
     name: Name
     saved_at: AwareDatetime
-    schema_version: Literal["saved-trip-v1", "saved-trip-v2"]
+    schema_version: Literal["saved-trip-v1", "saved-trip-v2", "saved-trip-v3"]
     start_date: str
     end_date: str
     transport_mode: Literal["walking", "transit"]

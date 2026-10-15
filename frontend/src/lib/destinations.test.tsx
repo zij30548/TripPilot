@@ -46,7 +46,7 @@ describe("closed destination contract and archive compatibility", () => {
       expect(isSavedDetail(row)).toBe(true);
       const { inputs } = restoreSavedTrip(row, crypto.randomUUID());
       expect(buildRequest(inputs.request, inputs.settings, eligibleOptional(inputs.request, inputs.candidates))).toEqual(row.snapshot.schedule.request);
-      expect(createSnapshot(inputs.request, row.snapshot.schedule, inputs.costs)).toEqual(row.snapshot);
+      expect(createSnapshot(inputs.request, row.snapshot.schedule, inputs.costs)).toEqual({ ...row.snapshot, schema_version: "saved-trip-v3" });
       expect(explanationSnapshot(row.snapshot.schedule).request.destination_id).toBe(inputs.request.destination_id);
       const wrong = structuredClone(row.snapshot.schedule); wrong.request.destination_id = "unknown" as never;
       expect(isScheduleResponse(wrong, row.snapshot.schedule.request)).toBe(false);

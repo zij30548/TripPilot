@@ -2,10 +2,13 @@ import { isTripRequest } from "./api";
 import { isScheduleResponse, scheduleClock, scheduleDates, type ScheduleResponse } from "@/types/schedule";
 import type { TripRequest } from "@/types/trip";
 import type { CostInputs } from "./schedule-costs";
+import { LEGACY_MAX_TRIP_DAYS, MAX_TRIP_DAYS, PLANNING_LIMITS } from "./planning-limits";
 
 export const ARCHIVE_VERSION = "saved-trip-v1";
 export const CITY_ARCHIVE_VERSION = "saved-trip-v2";
-export type ArchiveVersion = typeof ARCHIVE_VERSION | typeof CITY_ARCHIVE_VERSION;
+export const CURRENT_ARCHIVE_VERSION = "saved-trip-v3";
+const versions = [ARCHIVE_VERSION, CITY_ARCHIVE_VERSION, CURRENT_ARCHIVE_VERSION];
+export type ArchiveVersion = typeof ARCHIVE_VERSION | typeof CITY_ARCHIVE_VERSION | typeof CURRENT_ARCHIVE_VERSION;
 export const ARCHIVE_BYTES = 2 * 1024 * 1024;
 export type SavedSnapshot = { schema_version: ArchiveVersion; requirements: TripRequest; schedule: ScheduleResponse; costs: CostInputs };
 export type SaveOperation = { operation_id: string; name: string; snapshot: SavedSnapshot };
@@ -29,11 +32,12 @@ function bounded(value: unknown, depth = 0, count = { n: 0 }): boolean {
   return !record(value) || Object.keys(value).length <= 64 && Object.values(value).every(v => bounded(v,depth+1,count));
 }
 export function isSavedSnapshot(value: unknown): value is SavedSnapshot {
-  if (!record(value) || !exact(value,["schema_version","requirements","schedule","costs"]) || ![ARCHIVE_VERSION, CITY_ARCHIVE_VERSION].includes(value.schema_version as string) || !bounded(value) ||
-      !record(value.requirements) || !exact(value.requirements,[...reqKeys, ...(value.schema_version === CITY_ARCHIVE_VERSION ? ["destination_id"] : [])]) || !isTripRequest(value.requirements) ||
+  if (!record(value) || !exact(value,["schema_version","requirements","schedule","costs"]) || !versions.includes(value.schema_version as string) || !bounded(value) ||
+      !record(value.requirements) || !exact(value.requirements,[...reqKeys, ...(value.schema_version !== ARCHIVE_VERSION ? ["destination_id"] : [])]) || !isTripRequest(value.requirements) ||
       !record(value.schedule) || !record(value.schedule.request) || !isScheduleResponse(value.schedule,value.schedule.request as ScheduleResponse["request"])) return false;
   const r=value.requirements, s=value.schedule, q=s.request;
-  if (r.destination_id !== q.destination_id || (value.schema_version === CITY_ARCHIVE_VERSION && !r.destination_id)) return false;
+  if (r.destination_id !== q.destination_id || (value.schema_version !== ARCHIVE_VERSION && !r.destination_id)) return false;
+  if (value.schema_version !== CURRENT_ARCHIVE_VERSION && (!scheduleDates(q.start_date,q.end_date,LEGACY_MAX_TRIP_DAYS) || s.edges.length > PLANNING_LIMITS.legacy_max_logical_edges)) return false;
   if (!Number.isSafeInteger(r.travelers) || r.travelers > 1000 || r.interests.length > 32 || r.avoid_places.length > 32 ||
       r.start_date!==q.start_date || r.end_date!==q.end_date || scheduleClock(r.daily_start_time)!==q.daily_start_time || scheduleClock(r.daily_end_time)!==q.daily_end_time ||
       canonical(r.accommodation_place)!==canonical(q.accommodation_place) || canonical(r.must_visit_places)!==canonical(q.must_visit_places) ||
@@ -58,16 +62,16 @@ export function createSnapshot(requirements: TripRequest, schedule: ScheduleResp
   const req = Object.fromEntries([...reqKeys, ...(requirements.destination_id ? ["destination_id"] : [])].map(k=>[k,requirements[k as keyof TripRequest]]));
   req.daily_start_time = `${scheduleClock(requirements.daily_start_time)}:00`;
   req.daily_end_time = `${scheduleClock(requirements.daily_end_time)}:00`;
-  const snapshot = { schema_version: requirements.destination_id ? CITY_ARCHIVE_VERSION : ARCHIVE_VERSION, requirements:req, schedule: core,
+  const snapshot = { schema_version: requirements.destination_id ? CURRENT_ARCHIVE_VERSION : ARCHIVE_VERSION, requirements:req, schedule: core,
     costs: { tickets: Object.fromEntries(schedule.days.flatMap(d=>d.items.filter(i=>i.kind==="visit").map(i=>[i.place_id!,Object.hasOwn(inputs.tickets,i.place_id!)?inputs.tickets[i.place_id!]:""]))),
       meals:Object.fromEntries(schedule.days.map(d=>[d.date,inputs.meals[d.date]??""])), accommodation:inputs.accommodation, other:inputs.other } };
   if (!isSavedSnapshot(snapshot) || new TextEncoder().encode(JSON.stringify(snapshot)).length>ARCHIVE_BYTES-256) throw new Error("当前快照不完整、不一致或超过存档大小限制，未保存。费用文本每项最多 256 字。");
   return structuredClone(snapshot);
 }
 export function isSavedSummary(v: unknown, detail = false): v is SavedSummary {
-  return record(v) && exact(v,[...summaryKeys,...(detail?["snapshot"]:[])]) && id(v.id) && validSaveName(v.name) && [ARCHIVE_VERSION,CITY_ARCHIVE_VERSION].includes(v.schema_version as string) &&
+  return record(v) && exact(v,[...summaryKeys,...(detail?["snapshot"]:[])]) && id(v.id) && validSaveName(v.name) && versions.includes(v.schema_version as string) &&
     typeof v.saved_at==="string" && /^\d{4}-\d{2}-\d{2}T.*(?:Z|\+00:00)$/.test(v.saved_at) && Number.isFinite(Date.parse(v.saved_at)) &&
-    typeof v.start_date==="string" && typeof v.end_date==="string" && !!scheduleDates(v.start_date,v.end_date) &&
+    typeof v.start_date==="string" && typeof v.end_date==="string" && !!scheduleDates(v.start_date,v.end_date,v.schema_version === CURRENT_ARCHIVE_VERSION ? MAX_TRIP_DAYS : LEGACY_MAX_TRIP_DAYS) &&
     (v.transport_mode==="walking" || v.transport_mode==="transit") && ["complete","partial","unscheduled"].includes(v.status as string);
 }
 export function isSavedDetail(v: unknown): v is SavedDetail {

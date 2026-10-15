@@ -5,8 +5,8 @@ from pydantic import model_validator
 
 from app.destinations import DestinationId, PlaceRegion
 from app.schemas.place import ConfirmedPlace
-from app.schemas.trip import TripRequest
-from app.schemas.schedule import ScheduleRequest, ScheduleResponse
+from app.schemas.trip import CurrentTripRequest
+from app.schemas.schedule import CurrentScheduleRequest, ScheduleRequest, ScheduleResponse
 from app.schemas.candidates import CandidateRequest, CandidateResponse, PlaceCandidate
 
 
@@ -28,7 +28,7 @@ def core_place(place: LocatedPlace) -> dict:
     return place.model_dump(exclude={"region"})
 
 
-class CityTripRequest(TripRequest):
+class CityTripRequest(CurrentTripRequest):
     destination_id: DestinationId
     accommodation_place: LocatedPlace
     must_visit_places: list[LocatedPlace]
@@ -39,7 +39,7 @@ class CityTripRequest(TripRequest):
         return self
 
 
-class CityScheduleRequest(ScheduleRequest):
+class CityScheduleRequest(CurrentScheduleRequest):
     destination_id: DestinationId
     accommodation_place: LocatedPlace
     must_visit_places: list[LocatedPlace]
@@ -57,7 +57,7 @@ class CityScheduleRequest(ScheduleRequest):
         data["accommodation_place"] = core_place(self.accommodation_place)
         for name in ("must_visit_places", "optional_places"):
             data[name] = [core_place(p) for p in getattr(self, name)]
-        return ScheduleRequest.model_validate(data)
+        return CurrentScheduleRequest.model_validate(data)
 
 
 class CityScheduleResponse(ScheduleResponse):

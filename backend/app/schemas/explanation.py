@@ -6,8 +6,9 @@ from pydantic import AwareDatetime, BaseModel, ConfigDict, Field, StringConstrai
 
 from app.schemas.route import Latitude, Longitude, PlaceId, RouteEndpoint
 from app.destinations import DestinationId
+from app.planning_limits import MAX_TRIP_DAYS, MAX_LOGICAL_EDGES
 from app.schemas.schedule import (
-    LunchWindow, ScheduleRequest, StayDuration, TransportMode,
+    LunchWindow, ScheduleRequest, CurrentScheduleRequest, StayDuration, TransportMode,
 )
 
 CONTRACT_VERSION = "schedule-explanation-v1"
@@ -59,7 +60,7 @@ class SnapshotRequest(StrictModel):
         data = self.model_dump(mode="json", exclude={"destination_id"})
         for place in [data["accommodation_place"], *data["must_visit_places"], *data["optional_places"]]:
             place.update(address=None, category=None)
-        return ScheduleRequest.model_validate(data)
+        return CurrentScheduleRequest.model_validate(data)
 
     @model_validator(mode="after")
     def existing_rules(self) -> Self:
@@ -72,7 +73,7 @@ class SnapshotRequest(StrictModel):
 
 
 class SnapshotEdge(StrictModel):
-    id: Annotated[str, StringConstraints(pattern=r"^e(?:[0-9]|[12][0-9])$")]
+    id: Annotated[str, StringConstraints(pattern=r"^e(?:[0-9]|[1-3][0-9]|40)$")]
     origin: RouteEndpoint
     destination: RouteEndpoint
     transport_mode: TransportMode
@@ -136,15 +137,15 @@ class SnapshotOptional(StrictModel):
     place_id: PlaceId
     scheduled_date: DateText | None
     not_attempted_reason: Literal["must_incomplete"] | None
-    attempts: list[SnapshotAttempt] = Field(max_length=3)
+    attempts: list[SnapshotAttempt] = Field(max_length=MAX_TRIP_DAYS)
 
 
 class ScheduleSnapshot(StrictModel):
     generated_at: AwareDatetime
     status: Literal["complete", "partial", "unscheduled"]
     request: SnapshotRequest
-    days: list[SnapshotDay] = Field(min_length=1, max_length=3)
-    edges: list[SnapshotEdge] = Field(max_length=29)
+    days: list[SnapshotDay] = Field(min_length=1, max_length=MAX_TRIP_DAYS)
+    edges: list[SnapshotEdge] = Field(max_length=MAX_LOGICAL_EDGES)
     unscheduled: list[SnapshotUnscheduled] = Field(max_length=6)
     optional_results: list[SnapshotOptional] = Field(max_length=3)
 

@@ -8,6 +8,8 @@ import PlaceDetails from "./places/place-details";
 import RequirementPlacePicker from "./places/requirement-place-picker";
 import { validEditedRequirements } from "@/lib/restore-trip";
 import { DESTINATIONS, destination, isDestinationId, regionBelongsTo, type DestinationId } from "@/lib/destinations";
+import { MAX_TRIP_DAYS, LEGACY_MAX_TRIP_DAYS } from "@/lib/planning-limits";
+import { scheduleDates } from "@/types/schedule";
 
 const paces = [
   { value: "relaxed", label: "轻松", description: "少走一点，慢慢感受" },
@@ -59,19 +61,17 @@ const inputClassName =
 function addDays(dateValue: string, days: number) {
   if (!dateValue) return undefined;
 
-  const date = new Date(`${dateValue}T00:00:00`);
-  date.setDate(date.getDate() + days);
+  const date = new Date(`${dateValue}T00:00:00Z`);
+  date.setUTCDate(date.getUTCDate() + days);
   return [
-    date.getFullYear(),
-    String(date.getMonth() + 1).padStart(2, "0"),
-    String(date.getDate()).padStart(2, "0"),
+    date.getUTCFullYear(),
+    String(date.getUTCMonth() + 1).padStart(2, "0"),
+    String(date.getUTCDate()).padStart(2, "0"),
   ].join("-");
 }
 
 function getTripDays(startDate: string, endDate: string) {
-  const start = new Date(`${startDate}T00:00:00`);
-  const end = new Date(`${endDate}T00:00:00`);
-  return Math.round((end.getTime() - start.getTime()) / 86_400_000) + 1;
+  return scheduleDates(startDate, endDate)?.length ?? Number.NaN;
 }
 
 function splitPlaces(value: string) {
@@ -97,6 +97,7 @@ const placeButtonClass = "min-h-10 rounded-lg border border-[#315f51]/30 bg-whit
 type FormProps = { onSuccess: (plan: TripPlan) => void; initialRequest?: never; onConfirm?: never; onCancel?: never }
   | { initialRequest?: TripRequest; onConfirm: (request: TripRequest) => void; onCancel?: () => void; onSuccess?: never };
 export default function TripRequestForm({ onSuccess, initialRequest, onConfirm, onCancel }: FormProps) {
+  const maxDays = onConfirm ? MAX_TRIP_DAYS : LEGACY_MAX_TRIP_DAYS;
   const [city, setCity] = useState<DestinationId | "">(initialRequest?.destination_id ?? (onSuccess ? "shanghai" : ""));
   const cityEpoch = useRef(0);
   const renderedCityEpoch = cityEpoch.current;
@@ -193,8 +194,8 @@ export default function TripRequestForm({ onSuccess, initialRequest, onConfirm, 
 
     const tripDays = getTripDays(form.startDate, form.endDate);
     const nextDateError =
-      !Number.isFinite(tripDays) || tripDays < 1 || tripDays > 3
-        ? "目前只支持 1～3 日行程，请调整日期。" : "";
+      !Number.isFinite(tripDays) || tripDays < 1 || tripDays > maxDays
+        ? `目前只支持 1～${maxDays} 日行程，请调整日期。` : "";
     const nextTimeError =
       form.earliestStartTime >= form.latestEndTime
         ? "最晚结束时间需要晚于最早出发时间。"
@@ -271,7 +272,7 @@ export default function TripRequestForm({ onSuccess, initialRequest, onConfirm, 
           </p>
         </div>
         <span className="hidden rounded-full bg-[#edf3ef] px-3 py-1.5 text-xs font-semibold text-[#315f51] sm:block">
-          {city ? destination(city).name : "选择城市"} · 1～3 天
+          {city ? destination(city).name : "选择城市"} · 1～{maxDays} 天
         </span>
       </div>
 
@@ -325,7 +326,7 @@ export default function TripRequestForm({ onSuccess, initialRequest, onConfirm, 
                 aria-invalid={Boolean(dateError)}
                 className={inputClassName}
                 id="end-date"
-                max={addDays(form.startDate, 2)}
+                max={addDays(form.startDate, maxDays - 1)}
                 min={form.startDate || undefined}
                 name="endDate"
                 type="date"

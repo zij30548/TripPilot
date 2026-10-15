@@ -184,7 +184,8 @@ describe("schedule preview request and response contract", () => {
   it("supports exactly one to three actual calendar dates and only zero legacy seconds", () => {
     expect(scheduleDates("2026-10-10", "2026-10-10")).toEqual(["2026-10-10"]);
     expect(scheduleDates("2026-10-10", "2026-10-12")).toHaveLength(3);
-    expect(scheduleDates("2026-10-10", "2026-10-13")).toBeNull(); expect(scheduleDates("2026-02-31", "2026-03-01")).toBeNull();
+    expect(scheduleDates("2026-10-10", "2026-10-13")).toHaveLength(4);
+    expect(scheduleDates("2026-10-10", "2026-10-13", 3)).toBeNull(); expect(scheduleDates("2026-02-31", "2026-03-01")).toBeNull();
     expect(scheduleClock("09:00:00")).toBe("09:00"); expect(scheduleClock("09:00:01")).toBe("09:00:01");
   });
   it("accepts shared accommodation as a real required visit with one zero-move edge reused", () => {

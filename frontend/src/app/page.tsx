@@ -53,13 +53,13 @@ export default function Home() {
               确认想去的城市，规划属于你的行程。
             </h1>
             <p className="mt-6 max-w-xl text-base leading-7 text-[#56605c] sm:text-lg sm:leading-8">
-              从{DESTINATIONS.map(d => d.name).join("、")}选择一座城市，确认地点，主动查询真实交通，再按时间窗口生成 1～3 日草案。
+              从{DESTINATIONS.map(d => d.name).join("、")}选择一座城市，确认地点，主动查询真实交通，再按时间窗口生成 1～7 日草案。
               必去按输入顺序安排，可选每天最多补充一个。预算用于核对，旅行节奏暂不参与排程；AI 只按需解读或理解受限调整，不负责生成整份行程。
             </p>
 
             <div className="mt-9 grid max-w-xl grid-cols-3 overflow-hidden rounded-2xl border border-[#18201d]/10 bg-white/55">
               {[
-                ["1～3 天", "行程长度"],
+                ["1～7 天", "行程长度"],
                 [`${DESTINATIONS.length} 城可选`, "单城规划"],
                 ["规则排程", "规划方式"],
               ].map(([value, label], index) => (

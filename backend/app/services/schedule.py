@@ -125,6 +125,8 @@ def build_required_schedule(
                         "route_unsupported": "所需公交方案含未支持的必要路段或没有完整受支持方案，已保留此前可完成的安排。",
                         "route_budget_exhausted": "本次查询截止前未启动所需交通路段，当前无法继续核实排程。",
                     }[blocked_reason]
+                    if blocked_reason == "route_budget_exhausted" and request.max_trip_days > 3:
+                        blocked_message = "本次查询额度或搜索截止限制下未启动所需路段，当前无法继续核实排程。"
                     route_blocked = True
                     break
                 trial = prefix.copy()
@@ -179,6 +181,13 @@ OPTIONAL_MESSAGES = {
     "budget_exhausted": "本次查询截止前未启动所需路段，尚未完成当天核实。",
     "day_slot_used": "当天已选入更靠前的一个可选地点，此地点当日未尝试，可继续尝试其他日期。",
 }
+
+
+def optional_message(request: ScheduleRequest, outcome: str) -> str:
+    # Historical v1/v2 replay retains its original messages verbatim.
+    if outcome == "budget_exhausted" and request.max_trip_days > 3:
+        return "本次查询额度或搜索截止限制下未启动所需路段，尚未完成当天核实。"
+    return OPTIONAL_MESSAGES[outcome]
 
 
 def add_optional_schedule(
@@ -240,7 +249,7 @@ def add_optional_schedule(
                             chosen, outcome = True, "scheduled"
                             result.scheduled_date = baseline_day.date
             result.attempts.append(OptionalAttempt(date=baseline_day.date, outcome=outcome,
-                                                    message=OPTIONAL_MESSAGES[outcome]))
+                                                    message=optional_message(request, outcome)))
     used_ids = {item.edge_id for day in days for item in day.items if item.kind in ("walk", "transit")}
     scheduled = sum(item.kind == "visit" for day in days for item in day.items)
     total = len(request.must_visit_places) + len(request.optional_places)

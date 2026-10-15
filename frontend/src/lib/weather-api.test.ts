@@ -32,7 +32,7 @@ describe("independent weather contract and date semantics", () => {
     { start_date: ["2026-10-10"], end_date: "2026-10-11" },
   ])("rejects invalid/non-date request %j before network", async (input) => {
     vi.stubGlobal("fetch", vi.fn()); expect(isWeatherForecastRequest(input)).toBe(false);
-    await expect(queryWeatherForecast(input as unknown as WeatherForecastRequest)).rejects.toThrow("1～3 天"); expect(fetch).not.toHaveBeenCalled();
+    await expect(queryWeatherForecast(input as unknown as WeatherForecastRequest)).rejects.toThrow("1～7 天"); expect(fetch).not.toHaveBeenCalled();
   });
   it("accepts zero, negative temperatures, normal missing fields and unknown descriptions without inventing probabilities", () => {
     const data = response(); data.days[0].day = period("未列入词表的新天气", 0); data.days[0].night = { ...period(null, null), wind_direction: null, wind_power: null };

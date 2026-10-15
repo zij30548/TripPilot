@@ -6,6 +6,7 @@ from app.schemas.explanation import ModelSelection, RenderedHighlight, ScheduleS
 from app.schemas.schedule import ScheduleResponse
 from app.services.schedule import build_required_schedule, build_schedule, OPTIONAL_MESSAGES
 from app.services.schedule_routes import optional_edges, required_edges, unique_pairs
+from app.planning_limits import MAX_STARTED_ROUTES
 
 
 def compact_schedule(schedule: ScheduleResponse) -> dict[str, Any]:
@@ -46,7 +47,7 @@ def validate_snapshot(snapshot: ScheduleSnapshot) -> ScheduleResponse:
     if any(edge.transport_mode != request.transport_mode for edge in edges):
         raise ValueError("Mixed transport modes")
     # Required and optional phases use the original directed-edge planner. Exact
-    # ordered identity also checks normalized coordinates and 17/29-edge limits.
+    # ordered identity also checks normalized coordinates and the bounded edge set.
     pairs = required_edges(request)
     if len(edges) < len(pairs):
         raise ValueError("Missing required edge outcomes")
@@ -55,6 +56,8 @@ def validate_snapshot(snapshot: ScheduleSnapshot) -> ScheduleResponse:
         pairs = unique_pairs(pairs + optional_edges(request, baseline.days))
     if len(pairs) != len(edges):
         raise ValueError("Unexpected edge query set")
+    if sum(edge.status not in ("same_place", "budget_exhausted") for edge in edges) > MAX_STARTED_ROUTES:
+        raise ValueError("Too many started route outcomes")
     for index, (edge, pair) in enumerate(zip(edges, pairs, strict=True)):
         if edge.id != f"e{index}" or edge.origin != pair[0] or edge.destination != pair[1]:
             raise ValueError("Invalid directed edge identity")
@@ -122,7 +125,7 @@ def build_facts(schedule: ScheduleResponse) -> list[Fact]:
     for item in schedule.optional_results:
         if item.scheduled_date is None:
             why = ("因必去未完成，本次未试排。" if item.not_attempted_reason else
-                   "；".join(f"{attempt.date}：{OPTIONAL_MESSAGES[attempt.outcome]}" for attempt in item.attempts))
+                   "；".join(f"{attempt.date}：{attempt.message}" for attempt in item.attempts))
             add("optional", f"可选「{places[item.place_id].name}」未采用：{why}")
     return facts
 

@@ -1,4 +1,5 @@
 import { destination, isDestinationId, type DestinationId } from "@/lib/destinations";
+import { MAX_TRIP_DAYS, LEGACY_MAX_TRIP_DAYS } from "@/lib/planning-limits";
 export type WeatherForecastRequest = { start_date: string; end_date: string; destination_id?: DestinationId };
 export type WeatherFreshness = "fresh" | "stale" | "unknown";
 export type WeatherPrecipitation = "rain" | "snow" | "rain_snow" | "none" | "unknown";
@@ -63,7 +64,7 @@ export function isWeatherForecastRequest(value: unknown): value is WeatherForeca
   if (!record(value) || !exact(value, ["start_date", "end_date", ...("destination_id" in value ? ["destination_id"] : [])]) || ("destination_id" in value && !isDestinationId(value.destination_id))) return false;
   const start = dateMillis(value.start_date);
   const end = dateMillis(value.end_date);
-  return start !== null && end !== null && end >= start && end - start <= 2 * DAY_MS;
+  return start !== null && end !== null && end >= start && end - start <= ((value.destination_id ? MAX_TRIP_DAYS : LEGACY_MAX_TRIP_DAYS) - 1) * DAY_MS;
 }
 export function getWeatherDates(request: WeatherForecastRequest): string[] {
   if (!isWeatherForecastRequest(request)) return [];

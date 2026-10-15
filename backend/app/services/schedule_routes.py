@@ -12,13 +12,13 @@ from app.schemas.route import RouteEndpoint, WalkingRouteRequest, WalkingRoute
 from app.services.schedule_drawing import within_edge_limit
 from app.schemas.schedule import ScheduleDay, ScheduleEdge, ScheduleRequest, TransportMode
 from app.schemas.transit import TransitRouteRequest
+from app.planning_limits import LIMITS, MAX_LOGICAL_EDGES, MAX_STARTED_ROUTES
 
 
-ROUTE_BATCH_TIMEOUT_SECONDS = 20.0
-MAX_CONCURRENT_ROUTES = 3
+ROUTE_BATCH_TIMEOUT_SECONDS = float(LIMITS["route_deadline_seconds"])
+MAX_CONCURRENT_ROUTES = LIMITS["route_concurrency"]
 # Live 5B-1 batches hit AMap CUQPS (10021); retain batch-local launch pacing.
-MIN_ROUTE_START_INTERVAL_SECONDS = 0.4
-MAX_LOGICAL_EDGES = 29  # at most 17 required + 12 fixed-tail optional edges
+MIN_ROUTE_START_INTERVAL_SECONDS = LIMITS["route_start_interval_seconds"]
 EdgeKey = tuple[str, str, str, str, str]
 EndpointPair = tuple[RouteEndpoint, RouteEndpoint]
 
@@ -93,7 +93,7 @@ class ScheduleRouteCollector:
                             transport_mode=self.transport_mode, queried_at=datetime.now(timezone.utc), message=message)
 
     def budget_exhausted(self, index: int) -> ScheduleEdge:
-        return self.failed(index, "budget_exhausted", "本次查询截止前未启动此路段，尚未完成核实。")
+        return self.failed(index, "budget_exhausted", "本次查询额度或搜索截止限制下未启动此路段，尚未完成核实。")
 
     async def wait_to_start(self) -> bool:
         async with self.start_lock:
@@ -151,6 +151,9 @@ class ScheduleRouteCollector:
         if len(self.pairs) + len(new_pairs) > MAX_LOGICAL_EDGES:
             raise ValueError("Directed route budget exceeded")
         tasks: dict[int, asyncio.Task[ScheduleEdge]] = {}
+        # Reserve in canonical directed-edge order BEFORE any async completion.
+        # Both phases share started; local zero edges and memo hits are free.
+        remaining_slots = MAX_STARTED_ROUTES - len(self.started)
         for origin, destination in new_pairs:
             index = len(self.pairs)
             self.indices[edge_key(origin, destination, self.transport_mode)] = index
@@ -164,9 +167,10 @@ class ScheduleRouteCollector:
                     distance_meters=0 if self.transport_mode == "walking" else None, source="same_place",
                     queried_at=datetime.now(timezone.utc),
                 )
-            elif asyncio.get_running_loop().time() >= self.deadline:
+            elif remaining_slots <= 0 or asyncio.get_running_loop().time() >= self.deadline:
                 self.resolved[index] = self.budget_exhausted(index)
             else:
+                remaining_slots -= 1
                 tasks[index] = asyncio.create_task(self.query(index))
         if not tasks:
             return self.results

@@ -58,7 +58,7 @@ export default function WeatherForecast({ request, weather }: { request: Weather
     </div>
     <p className="mt-3 text-xs leading-5 text-[#68726c]">仅为市级昼夜预报，不是地点级或逐小时天气；昼夜温度不是最高／最低温。本轮提示不参与候选筛选、排程、预算或地图路线，旧 Mock 天气仍单独保留。</p>
     <p className="mt-1 text-xs leading-5 text-[#68726c]">时间均按 Asia/Shanghai（上海时间）显示。来源发布时间超过 24 小时标记陈旧，这是本产品提示规则，不是高德承诺的有效期。</p>
-    {!canQuery && <p role="alert" className="mt-4 text-sm text-[#a63d2d]">请返回修改需求，确认有效的 1～3 天旅行日期。</p>}
+    {!canQuery && <p role="alert" className="mt-4 text-sm text-[#a63d2d]">请返回修改需求，确认有效的 1～7 天旅行日期。</p>}
     <div aria-live="polite" className="mt-4 text-sm leading-6 text-[#315f51]">
       {state.status === "idle" && <p>尚未查询天气，请点击“查询天气”。</p>}
       {loading && <p role="status">正在查询{city.name}天气，请稍候。</p>}

@@ -1,9 +1,10 @@
 from datetime import date, time
-from typing import Annotated, Literal, Self
+from typing import Annotated, ClassVar, Literal, Self
 
 from pydantic import BaseModel, ConfigDict, Field, StringConstraints, field_validator, model_validator
 
 from app.schemas.place import ConfirmedPlace
+from app.planning_limits import MAX_TRIP_DAYS, LEGACY_MAX_TRIP_DAYS
 
 
 NonBlankString = Annotated[str, StringConstraints(strip_whitespace=True, min_length=1)]
@@ -12,6 +13,7 @@ Pace = Literal["relaxed", "balanced", "packed"]
 
 class TripRequest(BaseModel):
     model_config = ConfigDict(extra="forbid")
+    max_trip_days: ClassVar[int] = LEGACY_MAX_TRIP_DAYS
 
     start_date: date
     end_date: date
@@ -36,8 +38,8 @@ class TripRequest(BaseModel):
 
     @model_validator(mode="after")
     def validate_trip_window(self) -> Self:
-        if not 0 <= (self.end_date - self.start_date).days <= 2:
-            raise ValueError("行程必须为 1～3 天（包含开始和结束日期）。")
+        if not 0 <= (self.end_date - self.start_date).days < self.max_trip_days:
+            raise ValueError(f"行程必须为 1～{self.max_trip_days} 天（包含开始和结束日期）。")
         if self.daily_start_time >= self.daily_end_time:
             raise ValueError("每天结束时间必须晚于出发时间。")
         return self
@@ -60,6 +62,10 @@ class TripRequest(BaseModel):
                 and not self.must_visit_places and self.must_visit):
             raise ValueError("空的结构化必去地点列表必须对应空的必去文字列表。")
         return self
+
+
+class CurrentTripRequest(TripRequest):
+    max_trip_days: ClassVar[int] = MAX_TRIP_DAYS
 
 
 class TripRequestEcho(TripRequest):

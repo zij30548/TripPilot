@@ -5,6 +5,7 @@ from typing import Annotated, Literal
 from pydantic import Field, model_validator
 
 from app.schemas.explanation import DateText, ExplanationUsage, StrictModel
+from app.planning_limits import MAX_TRIP_DAYS
 
 VERSION = "itinerary-query-v1"
 Reason = Literal["date_ambiguous", "date_out_of_range", "multiple_requests", "unsupported"]
@@ -15,7 +16,7 @@ class ItineraryQueryRequest(StrictModel):
     request_id: Annotated[str, Field(pattern=r"^[a-zA-Z0-9_-]{1,80}$")]
     draft_version: Annotated[int, Field(ge=0, le=9_007_199_254_740_991)]
     cost_version: Annotated[int, Field(ge=0, le=9_007_199_254_740_991)]
-    dates: Annotated[list[DateText], Field(min_length=1, max_length=3)]
+    dates: Annotated[list[DateText], Field(min_length=1, max_length=MAX_TRIP_DAYS)]
     question: Annotated[str, Field(min_length=1, max_length=400)]
 
     @model_validator(mode="after")

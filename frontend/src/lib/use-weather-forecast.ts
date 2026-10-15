@@ -52,7 +52,7 @@ export function useWeatherForecast(request: WeatherForecastRequest, onInvalidate
   const query = useCallback(async (): Promise<boolean> => {
     if (pending.current) return false;
     if (!isWeatherForecastRequest(input.current)) {
-      setState({ status: "failed", response: null, message: "请确认旅行日期为连续的 1～3 天后再查询天气。", showingPrevious: false });
+      setState({ status: "failed", response: null, message: "请确认旅行日期为连续的 1～7 天后再查询天气。", showingPrevious: false });
       return false;
     }
     const snapshot = { ...input.current };

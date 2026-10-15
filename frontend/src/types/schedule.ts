@@ -2,6 +2,7 @@ import { hasValidCoordinates, isConfirmedPlace, type Place } from "./place";
 import { isDestinationId, regionBelongsTo, type DestinationId } from "@/lib/destinations";
 import type { WalkingRouteEndpoint } from "./route";
 import { isTransitRouteResponse, type TransitRoute } from "./transit";
+import { MAX_TRIP_DAYS, LEGACY_MAX_TRIP_DAYS, PLANNING_LIMITS } from "@/lib/planning-limits";
 
 export type ScheduleTransportMode = "walking" | "transit";
 export type DurationSetting = { place_id: string; minutes: number; source: "default" | "user" };
@@ -57,16 +58,16 @@ export function scheduleMinutes(value: unknown): number | null {
 // Legacy TripRequest echoes may include :00 seconds. Never silently hide nonzero seconds.
 export function scheduleClock(value: string): string { return /^\d{2}:\d{2}:00$/.test(value) ? value.slice(0, 5) : value; }
 function dateMilliseconds(value: unknown): number | null {
-  if (typeof value !== "string" || !/^\d{4}-\d{2}-\d{2}$/.test(value)) return null;
+  if (typeof value !== "string" || !/^\d{4}-\d{2}-\d{2}$/.test(value) || value.startsWith("0000")) return null;
   const parsed = Date.parse(`${value}T00:00:00Z`);
   return Number.isFinite(parsed) && new Date(parsed).toISOString().slice(0, 10) === value ? parsed : null;
 }
-export function scheduleDates(start: string, end: string): string[] | null {
+export function scheduleDates(start: string, end: string, maxDays = MAX_TRIP_DAYS): string[] | null {
   const from = dateMilliseconds(start); const to = dateMilliseconds(end);
-  if (from === null || to === null || to < from || to - from > 2 * 86_400_000) return null;
+  if (from === null || to === null || to < from || to - from > (maxDays - 1) * 86_400_000) return null;
   return Array.from({ length: (to - from) / 86_400_000 + 1 }, (_, index) => new Date(from + index * 86_400_000).toISOString().slice(0, 10));
 }
-export function isScheduleRequest(value: unknown): value is ScheduleRequest {
+export function isScheduleRequest(value: unknown, maxDays = LEGACY_MAX_TRIP_DAYS): value is ScheduleRequest {
   if (record(value) && "destination_id" in value) {
     if (!isDestinationId(value.destination_id)) return false;
     const city = value.destination_id;
@@ -75,11 +76,11 @@ export function isScheduleRequest(value: unknown): value is ScheduleRequest {
     if (places.some((p, i) => places.slice(0, i).some(q => q.id === p.id && !samePlace(p, q)))) return false;
     const { destination_id: _city, ...core } = value;
     void _city;
-    return isScheduleRequest(core);
+    return isScheduleRequest(core, MAX_TRIP_DAYS);
   }
   if (!record(value) || !exact(value, ["start_date", "end_date", "daily_start_time", "daily_end_time", "accommodation_place", "must_visit_places", "duration_settings", "lunch", ...("optional_places" in value ? ["optional_places"] : []), ...("transport_mode" in value ? ["transport_mode"] : [])]) ||
       ("transport_mode" in value && value.transport_mode !== "walking" && value.transport_mode !== "transit") ||
-      typeof value.start_date !== "string" || typeof value.end_date !== "string" || !scheduleDates(value.start_date, value.end_date) ||
+      typeof value.start_date !== "string" || typeof value.end_date !== "string" || !scheduleDates(value.start_date, value.end_date, maxDays) ||
       !isConfirmedPlace(value.accommodation_place) || !Array.isArray(value.must_visit_places) || value.must_visit_places.length > 6 ||
       !value.must_visit_places.every(isConfirmedPlace) || !Array.isArray(value.duration_settings) ||
       !record(value.lunch) || !exact(value.lunch, ["enabled", "start_time", "end_time"]) || typeof value.lunch.enabled !== "boolean") return false;
@@ -136,10 +137,11 @@ export function isScheduleResponse(value: unknown, request: ScheduleRequest): va
   if (!isScheduleRequest(request) || !record(value) || !exact(value, ["status", "generated_at", "request", "days", "unscheduled", "edges", "rules", "unknowns", "optional_results"]) ||
       (value.status !== "complete" && value.status !== "partial" && value.status !== "unscheduled") || !utc(value.generated_at) ||
       !isScheduleRequest(value.request) || !("transport_mode" in value.request) || !sameRequest(value.request, request) || !Array.isArray(value.days) || !Array.isArray(value.unscheduled) ||
-      !Array.isArray(value.edges) || value.edges.length > ((request.optional_places ?? []).length ? 29 : 17) || !Array.isArray(value.optional_results) ||
+      !Array.isArray(value.edges) || value.edges.length > ((request.optional_places ?? []).length ? (request.destination_id ? PLANNING_LIMITS.max_logical_edges : PLANNING_LIMITS.legacy_max_logical_edges) : PLANNING_LIMITS.max_required_edges) || !Array.isArray(value.optional_results) ||
       !Array.isArray(value.rules) || !value.rules.length || !value.rules.every(text) ||
       !Array.isArray(value.unknowns) || !value.unknowns.length || !value.unknowns.every(text)) return false;
   const optional = request.optional_places ?? [];
+  if (value.edges.filter(e => record(e) && e.status !== "same_place" && e.status !== "budget_exhausted").length > PLANNING_LIMITS.max_started_routes) return false;
   const mode = request.transport_mode ?? "walking";
   const movementKind = mode === "walking" ? "walk" : "transit";
   const optionalIds = new Set(optional.map((place) => place.id));

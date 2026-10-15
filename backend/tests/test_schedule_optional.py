@@ -406,11 +406,11 @@ class SharedRouteBudgetTests(unittest.IsolatedAsyncioTestCase):
         amap.walking.assert_not_called()
 
     async def test_edge_cap_guard_rejects_oversized_internal_batch_before_start(self) -> None:
-        self.assertEqual(MAX_LOGICAL_EDGES, 29)
+        self.assertEqual(MAX_LOGICAL_EDGES, 41)
         amap = AsyncMock(spec=AmapWalkingClient)
         collector = ScheduleRouteCollector(amap)
         origin = required_edges(request(1, 0))[0][0]
-        destinations = [origin.model_copy(update={"place_id": f"extra{i}", "longitude": 122.0}) for i in range(30)]
+        destinations = [origin.model_copy(update={"place_id": f"extra{i}", "longitude": 122.0}) for i in range(MAX_LOGICAL_EDGES + 1)]
         with self.assertRaises(ValueError):
             await collector.collect([(origin, destination) for destination in destinations])
         self.assertEqual(collector.pairs, [])
