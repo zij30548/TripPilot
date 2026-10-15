@@ -6,6 +6,7 @@ import httpx
 from pydantic import ValidationError
 from app.config import Settings
 from app.integrations.qwen import QwenError, beijing_endpoint, error_category, parse_content, strict_json
+from app.integrations.photo_diagnostics import record_content_rejection, record_structure, record_validation
 from app.logging_filters import install_http_log_redaction
 from app.schemas.explanation import ExplanationUsage
 from app.schemas.photo import PhotoSelection
@@ -46,7 +47,15 @@ class QwenVisionClient:
         try:
             content, usage = parse_content(data)
             return PhotoSelection.model_validate(content), usage
-        except (ValidationError, ValueError, UnicodeError, RecursionError):
+        except ValidationError as error:
+            record_validation(error)
+            raise QwenError("structure") from None
+        except QwenError as error:
+            if error.code == "structure":
+                record_content_rejection(data)
+            raise
+        except (ValueError, UnicodeError, RecursionError):
+            record_structure("content", "json_parse")
             raise QwenError("structure") from None
 
     async def _request(self, payload: dict) -> object:
@@ -66,6 +75,7 @@ class QwenVisionClient:
                     body = bytearray()
                     async for chunk in response.aiter_bytes():
                         if len(body) + len(chunk) > MAX_RESPONSE:
+                            record_structure("envelope", "length")
                             raise QwenError("structure")
                         body.extend(chunk)
                     if response.status_code != 200:
@@ -76,4 +86,5 @@ class QwenVisionClient:
         except httpx.HTTPError:
             raise QwenError("upstream") from None
         except (ValueError, UnicodeError, RecursionError):
+            record_structure("envelope", "json_parse")
             raise QwenError("structure") from None
