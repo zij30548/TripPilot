@@ -1,5 +1,20 @@
 # media-1：单照片线索与真实地点确认
 
+## 2026-10-16 验收标准定稿与新样本冻结（当前状态）
+
+基线 `f25362ee76958580c0f86c2dcbde96191be7e387`，main，与origin/main同步；没有覆盖后续提交。本轮**标准与8张实际输入已冻结，定级待核0，真实模型调用0、已授权额度0；识别质量仍未通过**。不运行已有付费验收脚本，不修改正式提示、配置、输出契约、前后端业务或存档，不进入视频。
+
+- 标准：[MEDIA_1_EVALUATION_STANDARD](MEDIA_1_EVALUATION_STANDARD.md)。清晰地标要求正确身份与城市，拒识单列漏识；有组合特征的局部允许景区级或有额外特征支持的具体地标；低信息建筑、普通场景、干扰图要求空候选。语义等价名称可接受，城市别名／高德命中／来源标题不能代替视觉判断。合理拒识不计成功识别。可执行分类及本组门槛均在看新输出前固定，结构检查与人工语义评阅分开。
+- 新集合：[photo-review-v1.json](../backend/evaluations/photo-review-v1.json)，2清晰＋2景区局部＋2模糊建筑＋1普通草地＋1受控指令图，8输入／7原图。全部原图和实际输入已逐张打开。五羊全景与局部同源相关；北京多图同Gary Todd来源，不称独立盲测或六城准确率。原拟故宫护城河图因不足以定为局部正例，在冻结前替换并保留理由。s03佛香阁、s04五羊仍有具体可见特征，因此不是“所有局部都必须拒识”。定级由本轮Codex评阅，不宣称独立人类审核。
+- 来源/处理：Commons的CC0与CC BY-SA 3.0公开照片，作者、署名要求、获取时间、页面/原图/输入SHA256、精确裁切及叠字均记录；衍生图按原许可保留。来源证明对象身份，与实际画面足以识别的层级分别记录。只做裁切/缩放/去元数据及1张受控英文叠字，没有模型生成图像；公开下载曾HTTP429，有限手动获取后完成，不是视觉接口错误。8个输入与7原图hash均未出现在本项目旧证据；不证明未进入供应商训练集。
+- 离线工具：`photo_evaluation_manifest.py`只有check/freeze/verify及评阅分类，没有send或额度初始化。复用现有纯normalize/payload，不读密钥；标签、题号、文件名、来源URL、答案不进入模型消息。冻结文件独占创建，待核、重复ID、缺许可/预期、文件或代码hash变化拒绝；不保存Base64请求正文。后续8个预定操作仅为计划，**须另获真实调用授权**，每项一次、失败计数、无自动重试，不能根据输出换图/改标/调提示。
+- 冻结证据：[standards-freeze-20261016](../../trippilot-evidence/media-1/standards-freeze-20261016/)，含`protocol.json`、`manifest.json`、`transforms.json`、来源页、原图/输入、处理脚本及`receipt.json`。协议SHA256 `c803d2f2b53174c25e7367a279f5906dbcc55ff54b9671dad18eeb2833204bfa`，清单SHA256 `4f5f47e86c9319ed9bbce0d688920f1123f4b0b965a925200e135e458b8eea3b`。协议绑定原两轮台账及完整请求哈希；旧12/12＋12/12不变，没有本轮调用台账或识别输出。
+- 实际检查：`.venv/bin/python -B -m unittest tests.test_photo_evaluation_manifest -v` **9通过**；真实本地清单check、freeze及verify通过；文档链接/命令、敏感内容和`git diff --check`核对。测试用独立临时文件并阻断socket/httpx发送；覆盖标签不入payload、待核不能冻结、文件/代码/旧证据篡改、旧分混入拒绝、合理拒识与漏识分开、非法结构不修补。本轮无业务源码变化，未重跑前后端整套测试/构建，未启动浏览器或业务接口，没有高德/千问调用。
+- 保护：开工142份既有证据/浏览器日志/数据库/五缓存逐文件SHA256不变；旧api02仍按旧拒识标准失败/阻塞，旧api06具体结构原因未知。成都公交data_error、旧质量失败及其他历史限制全部保留，不用新标准重算旧成绩。
+- 交付10文件：`backend/evaluations/photo-review-v1.json`、`backend/tools/photo_evaluation_manifest.py`、`backend/tests/test_photo_evaluation_manifest.py`、`docs/MEDIA_1_EVALUATION_STANDARD.md`、本文件、`docs/PROGRESS.md`、`README.md`、`AGENTS.md`、`docs/PROJECT_CONTEXT.md`、`docs/ROADMAP.md`。仅普通提交/推送上述文件，图片/证据/环境/数据库/浏览器日志/缓存不入库。
+
+停止在**评测准备完成、等待新的明确复验授权**；本轮无新识别成绩，不宣布media-1限定验收或整体质量通过。以下原标准、成绩、调用台账与当时停止点完整保留。
+
 ## 2026-10-16 城市别名补修与局部图标准审查（当前状态）
 
 基线 `43e405edd56a218cda74841cab82916672b2e272`，main，fetch后与origin/main一致。**城市语言衔接已修复；历史模型结果回放＋真实高德确认流程通过；识别质量仍未完成验收。** 本轮真实模型调用 **0**，不改提示、输出契约、模型配置、后端业务、存档或城市范围。下面两轮12/12及原评分／阻塞逐字保留，不把回放当作新的实时识别或旧Chrome失败重判。
