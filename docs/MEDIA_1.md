@@ -1,5 +1,74 @@
 # media-1：单照片线索与真实地点确认
 
+## 2026-10-16 限定收口与演示整理（当前状态）
+
+实际核对基线 `2b1d5689d46571090d1945be13fcff6fcbeac588`，`main`，开工 fetch 后与 `origin/main` 同步。此节是只读证据审查和文档收口，**本轮模型调用0、外部业务调用0**；未启动服务、操作浏览器、查询高德或写入存档，未运行付费验收工具。下方所有历史原文、当时的停止点、失败、评分及台账保留；历史标题中的“当前状态”不覆盖本节。
+
+**结论：media-1按单照片地点线索辅助的限定范围收口。照片提供一个可能地点或拒识；用户须主动搜索真实POI、核对并明确确认，才能加入必去。识别可能出错，不保证任意照片准确定位。** 在这个边界内，没有发现未解决的当前业务阻塞或阻止收口的关键证据缺口；不等于全国可靠识别、六城总体准确率、公开上线准入或所有历史失败消失。
+
+### 证据索引与版本适用性
+
+以下记录均产生于2026-10-16上海日期。本轮只重新读取、核对已有文件；既有测试结果不是本轮重跑结果。证据在仓库外，不随文档提交：
+
+| 索引 | 对应交付／验证方式 | 可核验记录与范围 |
+| --- | --- | --- |
+| E1 | `9a4891b`，初版真实模型＋真实 Chrome／高德 | [原 receipt](../../trippilot-evidence/media-1/receipt.json)、[原协议](../../trippilot-evidence/media-1/protocol.json)、[原台账](../../trippilot-evidence/media-1/calls.jsonl)。12次＝8 API＋4 Chrome；API质量4/8、结构7/8，流程完成不覆盖质量失败。01–15截图；含真实照片确认后的步行草案与新增1条v3存档、刷新回看。实时UI与提交版之间另有两项离线守卫补强，见[post-validation](../../trippilot-evidence/media-1/post-validation.json)及原`frozen-ui/`，不冒称补强后又跑过该轮真实流程。 |
+| E2 | `85a8f66`，取消／容量与诊断受控测试 | [离线补修 receipt](../../trippilot-evidence/media-1/offline-repair-20261016/receipt.json)。照片27项、完整后端491项为当轮结果；覆盖上传／解码／发送后的断开、任务取消、异常、容量释放及白名单诊断；不是实际供应商取消计费测试。 |
+| E3 | `43e405e`，保守v2真实模型＋Chrome | [保守版 receipt](../../trippilot-evidence/media-1/conservative-validation/receipt.json)、[协议](../../trippilot-evidence/media-1/conservative-validation/protocol.json)、[台账](../../trippilot-evidence/media-1/conservative-validation/calls.jsonl)。12次＝10 API＋2 Chrome；API9/10、Chrome1/2仍按原标准未通过。chrome02中文线索→真实POI→编辑确认→取消，在400px及Enter操作下保留原工作；chrome01英文城市门控当时阻塞，不改判。 |
+| E4 | `f25362e`，历史模型输出回放＋真实 Chrome／高德 | [别名补修 receipt](../../trippilot-evidence/media-1/city-alias-repair-20261016/receipt.json)、[收尾版本](../../trippilot-evidence/media-1/city-alias-repair-20261016/closeout.json)。原`name/city/status`不变，仅绑定当次请求身份；2次浏览器内回放、真实模型0。真实POI3次、排程1次用于准备／验证原工作；英文上海可搜索、预览、确认，英文广州跨城仍阻止，取消保留原草案／费用／地图。前端54项定向、1234项全量、回放工具3项及lint/typecheck/Webpack为当轮结果。 |
+| E5 | `cda61d4`准备、`2b1d568`交付，固定版本真实接口复验 | [冻结标准](MEDIA_1_EVALUATION_STANDARD.md)、[固定复验报告](MEDIA_1_FIXED_VALIDATION.md)、[结果](../../trippilot-evidence/media-1/fixed-validation-20261016/results.json)、[逐图评阅](../../trippilot-evidence/media-1/fixed-validation-20261016/reviews.json)、[台账](../../trippilot-evidence/media-1/fixed-validation-20261016/calls.jsonl)。新8图每图一次；4次识别、4次合理拒识、结构8/8，限定门槛通过。没有Chrome或高德，不替代页面流程验证；当轮照片51项受控回归包含取消容量和安全诊断。 |
+
+版本差异已用 `git diff --name-only` 核对 `9a4891b..85a8f66..43e405e..f25362e..2b1d568`：
+
+- E2改变照片接口断开监听及安全诊断，不改变真实POI确认、排程或存档；解码线程实际结束前不释放单进程容量，观察到断开不再发起模型请求。已发送请求仍无法保证停止处理／计费。
+- E3改变照片提示、输出契约和页面解析：由多候选／自由依据变为v2恰好一个名称／城市或空候选。因此E1的旧识别展示和质量成绩**不能当作当前v2验收**；当前v2由E3、E4、E5分别覆盖真实识别／编辑、语言衔接和固定样本质量。
+- E4只补照片专用确定性别名解析及页面接入，不放宽真实POI行政归属；E4之后至本基线，`backend/app`与`frontend/src`均无差异。E4的页面证据适用于当前实现；E5沿用相同正式提示、Schema和图片处理。
+- 从E1交付到本基线，需求表单、真实地点选择器、PlanningWorkspace、排程、费用及保存读取源码未改；`createSnapshot`仍只白名单投影正式需求／排程／费用。E1经明确确认后的POI边界不带照片字段，因此其真实生成和v3保存回看证据仍适用。此判断不把E1的旧照片输出重新认可为v2输出。
+- E1实测后两项补强仅严格拒绝非字符串状态、阻止旧搜索取消回调关闭新会话；其版本差异已留档，后续E3／E4的编辑与取消证据及受控测试承接这些守卫。不是忽略“实测版与提交版不同”。
+
+这是**分层、跨版本证据复用**，不是“同一最终版本一次性全链路真实验收通过”。
+
+### 限定验收矩阵
+
+| 项目／实现位置 | 验证方式、证据与版本 | 当前适用依据 | 未验证范围与限制 |
+| --- | --- | --- | --- |
+| 上传格式／资源：[photo服务](../backend/app/services/photo.py)、[photo接口](../backend/app/api/photo.py) | E1/E3真实上传；[上传测试](../backend/tests/test_photo.py)、[生命周期测试](../backend/tests/test_photo_lifecycle.py)、[诊断测试](../backend/tests/test_photo_diagnostics.py)及E2/E5结果 | 实际内容解码JPEG/PNG/静态WebP；原始体≤5MiB、≤2000万像素、转正去元数据、长边≤2048，仅内存处理。E2取消修复未被覆盖，E5保留回归；单进程1张、无自动重试 | 恶意／动画／超限／断开主要为受控测试；非公开多用户安全审计、非跨实例限流，不承诺取消上游计费 |
+| 主动识别／单线索或拒识：[PhotoPlacePicker](../frontend/src/components/places/photo-place-picker.tsx)、[photo-api](../frontend/src/lib/photo-api.ts)、[Schema](../backend/app/schemas/photo.py)、[视觉适配](../backend/app/integrations/qwen_vision.py) | E3真实v2；E5真实8图；[组件测试](../frontend/src/components/places/photo-place-picker.test.tsx)、[解析测试](../frontend/src/lib/photo-api.test.ts) | 选文件只本地预览；点击才上传；possible恰1项，uncertain/unrecognized无可操作候选。没有basis、坐标或POI ID；E4后业务未改 | 结构合法不等于识别正确；不保证任意图，不以空候选全拒识替代正例识别 |
+| 六城别名／未知／跨城：[photo-city](../frontend/src/lib/photo-city.ts)、同上选择器 | E4历史结果回放＋真实高德，7张图及receipt；[六城别名测试](../frontend/src/lib/photo-city.test.ts)、组件ABA测试 | 精确中文／官方名／闭合英文表，trim与英文大小写，西安三拼写；未知／混写拒绝，解析ID不符仍禁止。保留原城市文本；不影响citycode/cityname/adcode检查 | 真实页面只覆盖Shanghai／Guangzhou语言衔接；其他别名／未知／晚响应为受控测试，不是六城照片真实专项 |
+| 主动搜索→预览→明确确认：[地点选择器](../frontend/src/components/places/requirement-place-picker.tsx)、[需求表单](../frontend/src/components/trip-request-form.tsx) | E1真实链路；E3 chrome02；E4 [预览图](../../trippilot-evidence/media-1/city-alias-repair-20261016/city-alias-02-preview-400.png)／[确认图](../../trippilot-evidence/media-1/city-alias-repair-20261016/city-alias-03-edit-confirmed-400.png) | 当前代码保留独立搜索和确认动作；线索仅预填关键词，POI ID／坐标／地址来自真实搜索，预览不保存，明确确认只加入编辑中的必去 | 英文空结果后编辑关键词为受控覆盖；没有模型翻译或答案映射。高德同名命中不能证明照片与POI匹配，仍需用户核对 |
+| 编辑取消／去重／六上限／旧响应：[表单](../frontend/src/components/trip-request-form.tsx)、照片选择器及[测试](../frontend/src/components/places/photo-place-picker.test.tsx) | E1真实重复ID禁用；E3/E4真实编辑取消；E4 [地图](../../trippilot-evidence/media-1/city-alias-repair-20261016/city-alias-04-cancel-map-400.png)、[费用](../../trippilot-evidence/media-1/city-alias-repair-20261016/city-alias-05-cancel-cost-400.png)、[时间轴](../../trippilot-evidence/media-1/city-alias-repair-20261016/city-alias-07-original-timeline-400.png) | 明确POI归属＋ID去重；6项入口／提交守卫；Abort＋单调版本＋会话检查；更图／同文件重选／切城ABA／关闭／取消清理对象URL和请求。表单取消不提交正式状态 | 六上限、晚success/error/finally、卸载及真实故障隔离以受控测试证明，不称现场制造高德／模型故障 |
+| 确认地点进入规划／存档：[PlanningWorkspace](../frontend/src/components/trip/planning-workspace.tsx)、[保存投影](../frontend/src/lib/saved-trips.ts) | E1 receipt中真实东方明珠POI、往返各363秒→7分钟、09:07–10:07访问、10:14返程；[生成图](../../trippilot-evidence/media-1/04-photo-place-schedule.png)、[v3详情](../../trippilot-evidence/media-1/13-saved-v3-detail.png)、[刷新历史](../../trippilot-evidence/media-1/14-refreshed-history.png) | 确认后的Place及下游源码从E1至今未变；v3只存需求／正式排程／费用，不存图像、线索或照片状态。E4取消证据补验当前输入边界 | 不是当前v2全链路重新实测；照片专项未重跑全部六城、七日、公交及旧v1/v2历史流程；其兼容沿用既有受控回归／阶段验收 |
+| 窄屏与键盘：照片／地点选择器、表单 | E3 400px真实中文识别＋Enter搜索确认；E4 400px英文回放＋真实搜索＋Enter确认取消（上述02–07图与receipt） | 当前页面代码等同E4交付；截图能见预览未保存、确认列表、跨城禁用、取消后完整地图及费用；本轮重开已有图检查，未操作页面 | 只证明桌面Chrome 400px和已记录基本Enter操作；实体手机、全部辅助技术／浏览器兼容未验收。旧09仅预览、保守01/02局部图不用于超范围证明 |
+| 识别质量：[冻结标准](MEDIA_1_EVALUATION_STANDARD.md)、[固定复验](MEDIA_1_FIXED_VALIDATION.md) | E5实际8/8调用：清晰2/2、局部2/2、低信息／普通／干扰拒识4/4、结构8/8，4识别＋4拒识；不新增本轮成绩 | 正式提示／模型／Schema与E5一致；本轮核对执行协议5个文件hash及结果／评阅hash一致，没有事后扩标签、合并旧成功或重判失败 | 8输入来自7原图，有同源关联；正例仅北京／广州，每图一次、执行者评阅非独立盲评。合理拒识不算识别；内部模型部署不因返回别名相同而获认证 |
+
+### 历史失败、当前限制与阻塞的区分
+
+- **历史失败保留**：原轮12/12、保守轮12/12与固定新8/8调用台账及成绩分别独立。旧api02继续按旧冻结拒识标准失败／阻塞，不以新身份层级标准回算；旧api06非法原文未留存，**具体结构原因仍未知**。旧英文门控失败原判不变，但当前缺陷已由E4修复并有适用证据，不能因此写成现在仍无法搜索英文线索。
+- **当前已知限制**：识别可能出错；照片线索不是认证，城市别名和高德同名命中都不证明照片匹配。样本规模、关联性和城市覆盖有限，不承诺通用视觉定位。六城单城、1～7天、单住宿、6必去／3可选、成都公交data_error、实体手机、真实地铁／换乘、真实故障及Turbopack等原有限制按各阶段记录继续保留，不能借本次文档审查宣布全部重验。
+- **当前业务阻塞**：在单照片线索→用户核对真实POI→明确确认的限定范围内，本次未发现需要停止收口的未解决阻塞。它是当前证据审查结论，不是消除所有模型误识风险或重新判定旧批通过。
+- **上线与授权**：缺少账号／数据隔离、公开上传治理、全局配额、运维与部署等工作，限定收口不等于可以公开上线。既有12/12＋12/12＋8/8均已用尽，本轮授权与实际模型调用均0；后续实时识别、演示或评测需要新的明确授权，不能复用旧额度。
+
+### 约3分钟演示脚本（只编写，未执行）
+
+采用**静态历史证据讲解**：本地图片查看器打开下列既有截图，文本编辑器打开已有脱敏结果；不启动服务、不运行回放工具、不点击真实识别或搜索。每屏说明其来源／版本，保留E4截图的黄色“历史模型结果回放（非实时识别）”标记。初版截图若出现旧自由依据，不把它作为当前输出形式演示。
+
+| 时间 | 讲解动作与材料 | 必须说清楚 |
+| --- | --- | --- |
+| 0:00–0:30 | 用E4 [01线索图](../../trippilot-evidence/media-1/city-alias-repair-20261016/city-alias-01-english-ready.png)指示选图入口和本地预览；解释真实操作会先选一张图，再主动点击识别 | 本次是历史截图，不发生上传。产品点击识别才发千问；JPEG/PNG/静态WebP、5MiB／2000万像素；用户不要上传敏感照片 |
+| 0:30–1:00 | 展示E5 [results.json](../../trippilot-evidence/media-1/fixed-validation-20261016/results.json)中s01与s07的既有语义结果：一个可能地点、一个空候选拒识 | 这是2026-10-16固定API复验的真实旧输出，不是当前实时回答。程序只显示线索／固定未核实提示；拒识不造地点。没有现场识别准确率承诺 |
+| 1:00–1:25 | 对比E4 01上海和[06广州跨城图](../../trippilot-evidence/media-1/city-alias-repair-20261016/city-alias-06-cross-city-400.png) | 语言别名只统一表达，不认证地点；未知城市或与表单城市不同不能从照片线索搜索，不自动切城 |
+| 1:25–2:05 | 依次展示E4 02预览、03确认列表 | 当时模型结果是历史回放，高德搜索是真实主动查询。用户核对名称、地址、城市，再明确确认；同名命中不是照片匹配证明。预览未确认不保存；确认先加入编辑列表，不自动生成 |
+| 2:05–2:40 | 展示E4 04地图、05费用、07时间轴 | 取消整次需求编辑后，原1必去、正式草案、100元用户估算及地图保留；这是历史取消证据。若用户确认需求修改，则依原规则使草案失效，之后需主动生成，不在本次演示执行 |
+| 2:40–3:00 | 展示E1 13历史详情并说明它与E4不是同一轮 | 已确认真实POI可用于规划及另存v3；存的是需求／行程／费用，不是照片或模型答案。E1存档链路旧证据由源码未变化支撑复用；今天没有新写入，也没有一套最终版全链路现场重验 |
+
+面试说明：**模型负责提供线索，程序负责结构、城市、请求版本和事务状态保护，用户负责核对并确认真实地点。** 模型质量用固定图逐项评审，业务流程用真实Chrome／高德与受控竞态分别验证，范围限制单独写清；程序校验不能证明视觉识别正确。确认后的Place复用原规划与存档链路，避免把不可信模型输出直接变成排程事实。旧证据只有相关实现未变或有后续补证时才复用，不拼接成绩。
+
+### 本轮检查、交付与停止
+
+仅更新6份文档：`docs/MEDIA_1.md`、`docs/PROGRESS.md`、`README.md`、`docs/PROJECT_CONTEXT.md`、`docs/ROADMAP.md`、`AGENTS.md`。检查本地链接／锚点、版本与表述、文档差异／敏感信息、历史正文保留，以及198份旧证据／日志／数据库／五缓存内容hash；不修改冻结标准、样本清单、协议、台账或任何旧证据。本轮重开E4全部7图及E1生成／存档2图进行静态核对，没有新增截图、评分、业务测试或构建成绩。
+
+按授权仅普通提交／推送本轮文档，缓存、数据库、图片、证据、环境和浏览器日志不纳入。**停在media-1限定收口；下一步仅建议规划视频阶段，尚未开始实施，也不进行数据库迁移。** 路线图不是实施授权，知识库生成式问答继续停用。以下全部历史原文保留。
+
 ## 2026-10-16 固定版本真实复验（当前状态）
 
 基线 `cda61d4f879fdac6a8ee2f949b012cafbe2f0959`，main，与origin/main同步开工。用户新授权8次，仅冻结s01–s08；实际**8/8**，每项一次，0重试/探测/Chrome/高德/评分模型。正式提示、模型、Schema、处理和冻结文件未变，原离线协议的授权0/调用0保留为准备阶段历史。
