@@ -7,6 +7,7 @@ import type { Pace, TripPlan, TripRequest } from "@/types/trip";
 import PlaceDetails from "./places/place-details";
 import RequirementPlacePicker from "./places/requirement-place-picker";
 import PhotoPlacePicker from "./places/photo-place-picker";
+import VideoFramePicker from "./places/video-frame-picker";
 import { validEditedRequirements } from "@/lib/restore-trip";
 import { DESTINATIONS, destination, isDestinationId, regionBelongsTo, type DestinationId } from "@/lib/destinations";
 import { MAX_TRIP_DAYS, LEGACY_MAX_TRIP_DAYS } from "@/lib/planning-limits";
@@ -116,10 +117,21 @@ export default function TripRequestForm({ onSuccess, initialRequest, onConfirm, 
   const [picker, setPicker] = useState<PickerSession | null>(null);
   const pickerSession = useRef<PickerSession | null>(null);
   const pickerVersion = useRef(0);
+  const [videoSession, setVideoSession] = useState<{version:number;controller:AbortController}|null>(null);
+  const videoRef = useRef<typeof videoSession>(null);
+  const videoVersion = useRef(0);
   const [submission, setSubmission] = useState<SubmissionState>({ status: "idle" });
   const submitting = useRef(false);
   const alive = useRef(true);
-  useEffect(() => { alive.current = true; return () => { alive.current = false; pickerSession.current?.controller.abort(); pickerSession.current = null; pickerVersion.current++; }; }, []);
+  useEffect(() => {
+    alive.current = true;
+    const videoClock = videoVersion;
+    return () => {
+      alive.current = false;
+      pickerSession.current?.controller.abort(); pickerSession.current = null; pickerVersion.current++;
+      videoRef.current?.controller.abort(); videoRef.current = null; videoClock.current++;
+    };
+  }, []);
   const isLoading = submission.status === "loading";
   const replacingMustVisitId = picker?.target.role === "must_visit" ? picker.target.replacingId : undefined;
   const excludedPlaceIds = picker?.target.role === "must_visit"
@@ -134,9 +146,22 @@ export default function TripRequestForm({ onSuccess, initialRequest, onConfirm, 
     setPlaceError("");
   }
 
+  function closeVideo() {
+    videoRef.current?.controller.abort(); videoRef.current=null; videoVersion.current++;
+    setVideoSession(null);
+  }
+
+  function openVideo() {
+    if (!alive.current || submitting.current || renderedCityEpoch !== cityEpoch.current) return;
+    closePicker(); closeVideo();
+    const session={version:++videoVersion.current,controller:new AbortController()};
+    videoRef.current=session;setVideoSession(session);
+  }
+
   function openPicker(target: PickerTarget, initialKeyword = "", photo = false) {
     if (!alive.current || submitting.current) return;
     if (onConfirm && !city) { setPlaceError("请先选择目的地。"); return; }
+    closeVideo();
     pickerSession.current?.controller.abort();
     const session: PickerSession = {
       version: ++pickerVersion.current, target, initialKeyword, photo, controller: new AbortController(),
@@ -231,6 +256,7 @@ export default function TripRequestForm({ onSuccess, initialRequest, onConfirm, 
     if (onConfirm) {
       if (!validEditedRequirements(tripRequest)) { setPlaceError("请检查预算、人数、地点与时间后再确认需求。"); return; }
       closePicker();
+      closeVideo();
       submitting.current = true;
       try { onConfirm(structuredClone(tripRequest)); } finally { submitting.current = false; }
       return;
@@ -280,6 +306,9 @@ export default function TripRequestForm({ onSuccess, initialRequest, onConfirm, 
         </span>
       </div>
 
+      {videoSession && <VideoFramePicker key={videoSession.version} sessionSignal={videoSession.controller.signal} onClose={()=>{
+        if(alive.current && videoRef.current===videoSession && !videoSession.controller.signal.aborted) closeVideo();
+      }} />}
       {picker?.photo && city ? <PhotoPlacePicker key={picker.version} destinationId={city} sessionSignal={picker.controller.signal}
         excludedIds={excludedPlaceIds} onConfirm={place => confirmPlace(picker, place)} onCancel={closePicker} /> : picker && <RequirementPlacePicker key={picker.version}
         destinationId={onConfirm && city ? city : undefined}
@@ -293,7 +322,7 @@ export default function TripRequestForm({ onSuccess, initialRequest, onConfirm, 
         {onConfirm && <label className="block text-sm font-medium">目的地 *
           <select aria-label="目的地" required value={city} className={inputClassName} onChange={event => {
             if (!isDestinationId(event.target.value)) return;
-            cityEpoch.current++; closePicker(); setCity(event.target.value); setAccommodationPlace(null); setMustVisitPlaces([]);
+            cityEpoch.current++; closePicker(); closeVideo(); setCity(event.target.value); setAccommodationPlace(null); setMustVisitPlaces([]);
             setSubmission({ status: "idle" });
           }}><option value="" disabled>请选择城市</option>{DESTINATIONS.map(d => <option key={d.id} value={d.id}>{d.name}</option>)}</select>
           <span className="mt-2 block text-xs font-normal">切换城市会清空此编辑副本的地点，请重新确认；取消编辑不影响原工作。</span>
@@ -526,6 +555,7 @@ export default function TripRequestForm({ onSuccess, initialRequest, onConfirm, 
             </ul>}
             <button type="button" className={`${placeButtonClass} mt-3`} disabled={!!onConfirm && mustVisitPlaces.length >= 6} onClick={() => openPicker({ role: "must_visit" })}>添加必去地点</button>
             {onConfirm && <button type="button" className={`${placeButtonClass} mt-3 ml-2`} disabled={!city || mustVisitPlaces.length >= 6} onClick={() => openPicker({ role: "must_visit" }, "", true)}>从照片发现必去地点</button>}
+            {onConfirm && <button type="button" className={`${placeButtonClass} mt-3 ml-2`} onClick={openVideo}>短视频画面准备</button>}
             {onConfirm && mustVisitPlaces.length >= 6 && <p className="mt-2 text-xs">已达六个必去地点上限；请先移除再添加。</p>}
           </section>
 
@@ -617,7 +647,7 @@ export default function TripRequestForm({ onSuccess, initialRequest, onConfirm, 
           <p className="mt-3 text-center text-xs leading-5 text-[#8a8f8c]">
             {onConfirm ? "这里只应用需求，不查询或生成行程。确认后请主动生成新草案。" : "当前返回固定上海两日 Mock 示例，暂不按你的需求调整行程。"}
           </p>
-          {onCancel ? <button type="button" onClick={() => { if (!alive.current) return; closePicker(); onCancel(); }} className="mt-4 min-h-11 w-full rounded-xl border px-4 py-2">取消需求修改</button>
+          {onCancel ? <button type="button" onClick={() => { if (!alive.current) return; closePicker(); closeVideo(); onCancel(); }} className="mt-4 min-h-11 w-full rounded-xl border px-4 py-2">取消需求修改</button>
             : <p className="mt-1 text-center text-xs leading-5 text-[#8a8f8c]">{onConfirm ? "尚未生成草案。确认需求不会自动查询交通、候选或天气；刷新会清空未保存的工作。预算用于费用核对，节奏暂不参与排程。" : "已确认地点在返回修改需求时保留，刷新页面后清空。尚未用于安排当前 Mock 行程，也不会自动绑定活动。"}</p>}
         </div>
       </form>

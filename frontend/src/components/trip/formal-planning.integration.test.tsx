@@ -15,6 +15,8 @@ import { validateDrawing } from "@/lib/schedule-drawing";
 import { destination, type DestinationId } from "@/lib/destinations";
 
 const api = vi.hoisted(() => ({ search: vi.fn(), plan: vi.fn(), schedule: vi.fn(), candidates: vi.fn(), weather: vi.fn(), save: vi.fn(), model: vi.fn(), intent: vi.fn() }));
+const video = vi.hoisted(() => ({ extract: vi.fn() }));
+vi.mock("@/lib/video-api", async original => ({ ...await original<typeof import("@/lib/video-api")>(), extractVideo: video.extract }));
 const loader = vi.hoisted(() => ({ loadAMap: vi.fn(), getShanghaiCenter: vi.fn(), getDestinationCenter: vi.fn() }));
 vi.mock("@/lib/amap-loader", () => loader);
 const maps: TestMap[] = [], markers: TestMarker[] = [];
@@ -73,6 +75,23 @@ beforeEach(() => {
 afterEach(() => vi.useRealTimers());
 
 describe("6C-1 formal homepage and stable presentation (controlled services)", () => {
+  it("media-2A controlled extraction and cancelled editing preserve formal timeline, costs, map and all business request counts", async () => {
+    vi.stubGlobal("URL", class extends URL { static createObjectURL = vi.fn(() => "blob:controlled"); static revokeObjectURL = vi.fn(); });
+    try {
+      video.extract.mockResolvedValue({contract_version:"video-frames-v1",request_id:"r",duration_seconds:2,width:320,height:180,rotation_degrees:0,sample_count:1,
+        frames:[{index:1,target_seconds:1,width:320,height:180,jpeg_base64:btoa("controlled")} ]});
+      open(); await click("生成行程草案"); await click("查看当天地图");
+      fireEvent.change(official().getByRole("textbox", {name:/全程其他/}), {target:{value:"25"}});
+      const before=timeline(), calls=counts(), map=maps[0];
+      await click("修改旅行需求"); await click("短视频画面准备");
+      fireEvent.change(screen.getByLabelText(/选择一个短视频/),{target:{files:[new File(["controlled"],"test.mp4")]}});
+      expect(video.extract).not.toHaveBeenCalled(); await click("提取画面"); await click(/放大画面1/);
+      await click("取消需求修改");
+      expect(timeline()).toBe(before); expect(counts()).toEqual(calls);expect(video.extract).toHaveBeenCalledOnce();
+      expect(official().getByRole("textbox",{name:/全程其他/})).toHaveProperty("value","25");
+      expect(maps).toHaveLength(1);expect(maps[0]).toBe(map);expect(map.destroy).not.toHaveBeenCalled();
+    } finally { vi.unstubAllGlobals(); }
+  });
   it.each(["hangzhou", "guangzhou", "chengdu", "xian"] as const)("%s guidance follows idle/loading/failure/success, retains cleanup facts and survives cancelled edits", async city => {
     open(); await confirmCity(city);
     const guidance = () => screen.queryByRole("status", { name: "需求修改后的草案状态" });
