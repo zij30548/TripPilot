@@ -5,6 +5,7 @@ import TripRequestForm from "../trip-request-form";
 import * as requirementPicker from "./requirement-place-picker";
 import { parsePhotoResult, type PhotoResult } from "@/lib/photo-api";
 import { cityRequest, located } from "@/lib/destination.test-fixtures";
+import { DESTINATION_IDS } from "@/lib/destinations";
 import { tripRequest, deferred } from "@/lib/weather-schedule-check.test-fixtures";
 const mock = vi.hoisted(() => ({ recognize: vi.fn(), search: vi.fn(), create: vi.fn(), revoke: vi.fn() }));
 vi.mock("@/lib/photo-api", async original => ({ ...await original<typeof import("@/lib/photo-api")>(), recognizePhoto: mock.recognize }));
@@ -37,9 +38,28 @@ describe("photo clues are not confirmed POIs", () => {
     expect(screen.queryByRole("button",{name:"用此线索准备搜索"})).toBeNull();
     expect(mock.search).not.toHaveBeenCalled();expect(confirm).not.toHaveBeenCalled();
   });
-  it.each(["北京","深圳",null])("mismatch/unsupported/unknown city %s never searches", async city => {
+  it.each(["北京","Beijing"," Guangzhou ","Xi’an","深圳","Shanghai / Beijing",null])("mismatch/unsupported/unknown city %s never searches", async city => {
     mock.recognize.mockResolvedValue(response(city));mount();selectFile();fireEvent.click(screen.getByRole("button",{name:"识别照片"}));
     await screen.findByText("可能地点：测试景点");expect(screen.getByRole("button",{name:"用此线索准备搜索"}).hasAttribute("disabled")).toBe(true);expect(mock.search).not.toHaveBeenCalled();
+  });
+  it.each(DESTINATION_IDS)("English clue for %s preserves raw text and only prepares explicit search", async id => {
+    const english = {shanghai:" Shanghai ",hangzhou:"HANGZHOU",beijing:"Beijing",guangzhou:"Guangzhou",chengdu:"Chengdu",xian:"Xi’an"}[id];
+    mock.recognize.mockResolvedValue({...response(english),destination_id:id});
+    const confirm=vi.fn();render(<PhotoPlacePicker destinationId={id} sessionSignal={new AbortController().signal} excludedIds={[]} onConfirm={confirm} onCancel={vi.fn()}/>);
+    selectFile();fireEvent.click(screen.getByRole("button",{name:"识别照片"}));
+    await screen.findByText("可能地点：测试景点");
+    expect(screen.getByText(/可能城市：/).textContent).toBe(`可能城市：${english}`);
+    const prepare=screen.getByRole("button",{name:"用此线索准备搜索"});expect(prepare.hasAttribute("disabled")).toBe(false);
+    fireEvent.click(prepare);expect(mock.search).not.toHaveBeenCalled();expect(confirm).not.toHaveBeenCalled();
+  });
+  it("English landmark keyword is not translated; empty results allow explicit editing", async()=>{
+    mock.recognize.mockResolvedValue({...response("Shanghai"),clues:[{name:"Oriental Pearl Tower",city:"Shanghai"}]});
+    mock.search.mockResolvedValue([]);const {confirm}=mount();selectFile();fireEvent.click(screen.getByRole("button",{name:"识别照片"}));
+    await screen.findByText("可能地点：Oriental Pearl Tower");fireEvent.click(screen.getByRole("button",{name:"用此线索准备搜索"}));
+    const input=screen.getByLabelText("搜索上海地点") as HTMLInputElement;expect(input.value).toBe("Oriental Pearl Tower");
+    fireEvent.click(screen.getByRole("button",{name:"搜索"}));
+    await screen.findByText(/没有找到/);expect(mock.search.mock.calls[0][0]).toBe("Oriental Pearl Tower");
+    expect(confirm).not.toHaveBeenCalled();fireEvent.change(input,{target:{value:"用户自选关键词"}});expect(input.value).toBe("用户自选关键词");
   });
   it.each(["success","error"])("file ABA isolates late %s and finally; duplicate clicks and same file reselection", async kind => {
     const pending=deferred<PhotoResult>();mock.recognize.mockReturnValueOnce(pending.promise);const {confirm}=mount();const f=file();selectFile(f);
@@ -61,7 +81,7 @@ describe("photo clues are not confirmed POIs", () => {
     expect(parsePhotoResult(response(),"r","shanghai")).toEqual(response());
     mount();selectFile(new File(["bad"],"bad.svg",{type:"image/svg+xml"}));expect(screen.getByRole("alert").textContent).toContain("5 MiB");expect(mock.recognize).not.toHaveBeenCalled();
   });
-  it("form photo entry blocks submission draft; city change aborts; cancel editing leaves original immutable", async()=>{
+  it.each(["success","error"])("English city ABA isolates late %s/finally; cancel editing leaves original immutable", async kind=>{
     const initial=cityRequest(tripRequest(),"shanghai"), original=structuredClone(initial), confirm=vi.fn(),cancel=vi.fn();
     const pending=deferred<PhotoResult>();mock.recognize.mockReturnValue(pending.promise);
     render(<TripRequestForm initialRequest={initial} onConfirm={confirm} onCancel={cancel}/>);
@@ -69,7 +89,13 @@ describe("photo clues are not confirmed POIs", () => {
     fireEvent.click(screen.getByRole("button",{name:"确认需求修改"}));expect(confirm).not.toHaveBeenCalled();
     fireEvent.change(screen.getByRole("combobox",{name:"目的地"}),{target:{value:"beijing"}});expect(mock.recognize.mock.calls[0][3].aborted).toBe(true);
     fireEvent.change(screen.getByRole("combobox",{name:"目的地"}),{target:{value:"shanghai"}});
-    await act(async()=>pending.resolve(response()));expect(screen.queryByText(/可能地点：/)).toBeNull();
+    const current=deferred<PhotoResult>();mock.recognize.mockReturnValueOnce(current.promise);
+    fireEvent.click(screen.getByRole("button",{name:"从照片发现必去地点"}));selectFile();fireEvent.click(screen.getByRole("button",{name:"识别照片"}));
+    await act(async()=>{if(kind==="success")pending.resolve(response("Shanghai"));else pending.reject(new Error("old city failure"));});
+    expect(screen.queryByText(/可能地点：/)).toBeNull();expect(screen.queryByText("old city failure")).toBeNull();
+    expect(screen.getByRole("button",{name:"正在识别…"}).hasAttribute("disabled")).toBe(true);
+    await act(async()=>current.resolve(response("SHANGHAI")));await screen.findByText("可能城市：SHANGHAI");
+    expect(screen.getByRole("button",{name:"用此线索准备搜索"}).hasAttribute("disabled")).toBe(false);
     fireEvent.click(screen.getByRole("button",{name:"取消需求修改"}));expect(cancel).toHaveBeenCalledOnce();expect(initial).toEqual(original);
   });
   it("six required blocks entry without changing existing requirements",()=>{

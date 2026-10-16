@@ -1,7 +1,8 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { DESTINATIONS, destination, type DestinationId } from "@/lib/destinations";
+import { destination, type DestinationId } from "@/lib/destinations";
+import { resolvePhotoCity } from "@/lib/photo-city";
 import { recognizePhoto, type PhotoResult } from "@/lib/photo-api";
 import type { Place } from "@/types/place";
 import RequirementPlacePicker from "./requirement-place-picker";
@@ -66,10 +67,11 @@ export default function PhotoPlacePicker({ destinationId, sessionSignal, exclude
     {error && <p role="alert" className="text-sm text-red-800">{error}</p>}
     {result && <div className="space-y-3" aria-live="polite"><p className="text-sm">{result.status === "unrecognized" ? "未识别出可用地标，请改用普通手动搜索。" : result.status === "uncertain" ? "无法确定照片中地点的身份，未提供具体候选；请改用普通手动搜索。" : "以下仅是可能地点，不代表照片与地点已核实。"} 仍需核对高德地址并明确确认；识别不会直接加入必去。</p>
       {result.clues.map((clue, index) => {
-        const clueCity = DESTINATIONS.find(d => clue.city === d.name || clue.city === d.official_name);
-        const matches = clueCity?.id === destinationId;
+        const clueCity = resolvePhotoCity(clue.city);
+        const matches = clueCity === destinationId;
         return <div className="space-y-2 rounded-lg border bg-white p-3" key={index}>
           <p className="font-medium">可能地点：{clue.name}</p><p className="text-sm">可能城市：{clue.city ?? "不明"}</p>
+          {clueCity && <p className="text-sm">城市名称对应：{destination(clueCity).name}（仅统一名称表达，未核实地点）</p>}
           <p className="text-sm text-amber-800">模型线索，未经核实。高德同名结果不代表照片匹配。</p>
           {!matches && <p className="text-sm text-amber-800">{clue.city === null ? "城市不明，不能据此搜索加入；请关闭后手动搜索核对。" : clueCity ? "与当前城市不匹配，不搜索同名地点，也不自动切城。" : "不在当前六城支持范围，不能加入；若城市表述不明确，请走普通手动搜索。"}</p>}
           <button type="button" className={button} disabled={!matches} onClick={() => {
