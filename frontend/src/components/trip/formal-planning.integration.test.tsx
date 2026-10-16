@@ -15,8 +15,9 @@ import { validateDrawing } from "@/lib/schedule-drawing";
 import { destination, type DestinationId } from "@/lib/destinations";
 
 const api = vi.hoisted(() => ({ search: vi.fn(), plan: vi.fn(), schedule: vi.fn(), candidates: vi.fn(), weather: vi.fn(), save: vi.fn(), model: vi.fn(), intent: vi.fn() }));
-const video = vi.hoisted(() => ({ extract: vi.fn() }));
+const video = vi.hoisted(() => ({ extract: vi.fn(), recognize: vi.fn() }));
 vi.mock("@/lib/video-api", async original => ({ ...await original<typeof import("@/lib/video-api")>(), extractVideo: video.extract }));
+vi.mock("@/lib/photo-api", async original => ({ ...await original<typeof import("@/lib/photo-api")>(), recognizePhoto: video.recognize }));
 const loader = vi.hoisted(() => ({ loadAMap: vi.fn(), getShanghaiCenter: vi.fn(), getDestinationCenter: vi.fn() }));
 vi.mock("@/lib/amap-loader", () => loader);
 const maps: TestMap[] = [], markers: TestMarker[] = [];
@@ -75,6 +76,18 @@ beforeEach(() => {
 afterEach(() => vi.useRealTimers());
 
 describe("6C-1 formal homepage and stable presentation (controlled services)", () => {
+  it("media-2B confirmed frame POI stays transactional: cancel retains official draft, fees, map and request counts", async()=>{
+    vi.stubGlobal("URL", class extends URL { static createObjectURL=vi.fn(()=>"blob:controlled");static revokeObjectURL=vi.fn(); });
+    try{
+      video.extract.mockResolvedValue({contract_version:"video-frames-v1",request_id:"r",duration_seconds:2,width:320,height:180,rotation_degrees:0,sample_count:1,frames:[{index:1,target_seconds:1,width:320,height:180,jpeg_base64:btoa("controlled")}]});
+      video.recognize.mockResolvedValue({contract_version:"photo-landmark-v2",request_id:"r",destination_id:"shanghai",status:"possible",clues:[{name:"受控新地点",city:"Shanghai"}],model:"qwen3-vl-plus",usage:{input_tokens:1,output_tokens:1}});
+      open();await click("生成行程草案");await click("查看当天地图");fireEvent.change(official().getByRole("textbox",{name:/全程其他/}),{target:{value:"25"}});
+      const before=timeline(), map=maps[0], calls=counts();await click("修改旅行需求");await click("短视频画面准备");fireEvent.change(screen.getByLabelText(/选择一个短视频/),{target:{files:[new File(["v"],"sample.mp4")]}});
+      await click("提取画面");await click(/放大画面1/);expect(video.recognize).not.toHaveBeenCalled();await click("识别选中画面");await click("用此线索准备搜索");expect(counts()).toEqual(calls);
+      api.search.mockResolvedValueOnce([{...required,id:"frame-new",name:"受控新地点"}]);await click("搜索");await click(/候选 1/);await click("确认必去地点");await click("取消需求修改");
+      expect(timeline()).toBe(before);expect(counts()).toEqual({...calls,search:calls.search+1});expect(maps).toHaveLength(1);expect(maps[0]).toBe(map);expect(map.destroy).not.toHaveBeenCalled();expect(official().getByRole("textbox",{name:/全程其他/})).toHaveProperty("value","25");expect(video.recognize).toHaveBeenCalledOnce();
+    }finally{vi.unstubAllGlobals();}
+  });
   it("media-2A controlled extraction and cancelled editing preserve formal timeline, costs, map and all business request counts", async () => {
     vi.stubGlobal("URL", class extends URL { static createObjectURL = vi.fn(() => "blob:controlled"); static revokeObjectURL = vi.fn(); });
     try {

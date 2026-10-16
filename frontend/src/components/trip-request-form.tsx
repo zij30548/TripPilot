@@ -306,11 +306,18 @@ export default function TripRequestForm({ onSuccess, initialRequest, onConfirm, 
         </span>
       </div>
 
-      {videoSession && <VideoFramePicker key={videoSession.version} sessionSignal={videoSession.controller.signal} onClose={()=>{
+      {videoSession && <VideoFramePicker key={videoSession.version} sessionSignal={videoSession.controller.signal}
+        destinationId={city || undefined} excludedIds={mustVisitPlaces.map(p=>p.id)} onConfirm={place=>{
+          if(!alive.current||submitting.current||videoRef.current!==videoSession||videoSession.controller.signal.aborted||renderedCityEpoch!==cityEpoch.current)return;
+          if(!city||!regionBelongsTo(place.region,city)){setPlaceError("地点城市归属不符，请重新搜索确认。");return;}
+          if(mustVisitPlaces.length>=6){setPlaceError("本阶段最多六个必去地点，请先移除一个。");return;}
+          if(mustVisitPlaces.some(p=>p.id===place.id)){setPlaceError("该 POI 已在必去地点中，请选择其他地点。");return;}
+          closeVideo();setMustVisitPlaces(current=>[...current,place]);setSubmission({status:"idle"});
+        }} onClose={()=>{
         if(alive.current && videoRef.current===videoSession && !videoSession.controller.signal.aborted) closeVideo();
       }} />}
       {picker?.photo && city ? <PhotoPlacePicker key={picker.version} destinationId={city} sessionSignal={picker.controller.signal}
-        excludedIds={excludedPlaceIds} onConfirm={place => confirmPlace(picker, place)} onCancel={closePicker} /> : picker && <RequirementPlacePicker key={picker.version}
+        excludedIds={excludedPlaceIds} capacityAvailable={mustVisitPlaces.length<6} onConfirm={place => confirmPlace(picker, place)} onCancel={closePicker} /> : picker && <RequirementPlacePicker key={picker.version}
         destinationId={onConfirm && city ? city : undefined}
         title={picker.target.role === "accommodation" ? "住宿参考点" : "必去地点"}
         initialKeyword={picker.initialKeyword}
