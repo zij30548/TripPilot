@@ -20,7 +20,16 @@ export const FRONTEND_ORIGIN = "http://127.0.0.1:3101";
 const marker = "release-1c-controlled-only";
 const hash = (value) => createHash("sha256").update(value).digest("hex");
 const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
-const endpoints = [
+// Synthetic transport fixtures only. The server records equality booleans,
+// never Cookie, Origin or CSRF header values from a request.
+export const SYNTHETIC_AUTH_HEADERS = Object.freeze({
+  cookie: "forwarding_probe=controlled-not-a-session",
+  origin: FRONTEND_ORIGIN,
+  "x-csrf-token": "controlled-not-a-csrf-token",
+});
+export const CONTROLLED_ENDPOINTS = [
+  ["GET", "/auth/session"], ["POST", "/auth/login"],
+  ["POST", "/auth/logout"], ["GET", "/usage"],
   ["GET", "/places/search"], ["POST", "/places/candidates"],
   ["POST", "/trips/schedule-preview"], ["POST", "/weather/forecast"],
   ["POST", "/trips/schedule-explanation"], ["POST", "/trips/adjustment-intent"],
@@ -41,6 +50,11 @@ export async function startControlledBackend({ port = BACKEND_PORT } = {}) {
       path: url.pathname, method: req.method, query: [...url.searchParams],
       bytes: 0, sha256: null, completed_upload: false, response_finished: false,
       response_close_count: 0, upload_aborted: false,
+      authentication_headers: {
+        cookie_matches: req.headers.cookie === SYNTHETIC_AUTH_HEADERS.cookie,
+        origin_matches: req.headers.origin === SYNTHETIC_AUTH_HEADERS.origin,
+        csrf_matches: req.headers["x-csrf-token"] === SYNTHETIC_AUTH_HEADERS["x-csrf-token"],
+      },
     };
     records.push(record);
     const digest = createHash("sha256");
@@ -138,7 +152,7 @@ async function cancellationProbe(origin, backend, phase, media) {
   const id = `cancel-${media}-${phase}`;
   const maxBytes = media === "landmark" ? 5 * MIB : 20 * MIB;
   const req = httpRequest(`${origin}/api/media/${media}?probe_id=${id}&probe_wait_ms=40000`, {
-    method: "POST", headers: { "content-type": "application/octet-stream", "content-length": String(maxBytes), "x-forwarding-probe": id },
+    method: "POST", headers: { ...SYNTHETIC_AUTH_HEADERS, "content-type": "application/octet-stream", "content-length": String(maxBytes), "x-forwarding-probe": id },
   });
   req.on("error", () => {});
   req.on("response", (res) => res.resume());
@@ -150,6 +164,7 @@ async function cancellationProbe(origin, backend, phase, media) {
   req.destroy();
   await until(() => record.response_close_count === 1, `${id}: backend connection did not close on client cancellation`, 5000);
   assert.equal(record.response_finished, false);
+  assert.deepEqual(record.authentication_headers, { cookie_matches: true, origin_matches: true, csrf_matches: true });
   assert.equal(backend.records.filter((x) => x.id === id).length, 1, `${id}: duplicate upstream dispatch`);
   if (phase === "upload") assert.equal(record.completed_upload, false);
   return { id, observed_backend_close_count: record.response_close_count, completed_upload: record.completed_upload, received_bytes: record.bytes };
@@ -164,14 +179,16 @@ export async function verifyForwarding(backend, origin = FRONTEND_ORIGIN) {
     const separator = path.includes("?") ? "&" : "?";
     const res = await fetch(`${origin}${path}${separator}probe_id=${id}`, {
       method, body, redirect: "manual", cache: "no-store",
-      headers: { "content-type": body instanceof Uint8Array ? "application/octet-stream" : "application/json", "x-forwarding-probe": id },
+      headers: { ...SYNTHETIC_AUTH_HEADERS, "content-type": body instanceof Uint8Array ? "application/octet-stream" : "application/json", "x-forwarding-probe": id },
     });
     assert.equal(res.status, status, id);
     assert.equal(res.headers.get("x-controlled-forwarding"), marker, `${id}: wrong/uncontrolled backend`);
     assert.match(res.headers.get("cache-control") ?? "", /no-store/, `${id}: no-store missing`);
+    const record = backend.records.findLast((entry) => entry.id === id);
+    assert.deepEqual(record.authentication_headers, { cookie_matches: true, origin_matches: true, csrf_matches: true }, `${id}: authentication headers changed`);
     return res;
   };
-  for (const [index, [method, path]] of endpoints.entries()) {
+  for (const [index, [method, path]] of CONTROLLED_ENDPOINTS.entries()) {
     const id = `endpoint-${index + 1}`;
     const response = await probe(id, `/api${path}${path === "/knowledge/search" ? "?probe_echo=1" : ""}`, {
       method, body: method === "POST" ? JSON.stringify({ controlled: true }) : undefined,
@@ -183,7 +200,7 @@ export async function verifyForwarding(backend, origin = FRONTEND_ORIGIN) {
     assert.equal(record.method, method);
     if (method === "POST") assert.equal(record.sha256, hash(JSON.stringify({ controlled: true })));
     if (path === "/knowledge/answer") assert.equal(result.detail.code, "knowledge_answer_disabled");
-    checks.push({ id, method, path, status: response.status });
+    checks.push({ id, method, path, status: response.status, authentication_headers_verified: true });
   }
   for (const [id, path] of [
     ["health", "/api/health"], ["saved-list", "/api/saved-trips"],

@@ -1,5 +1,17 @@
 # TripPilot Progress
 
+## 最新摘要（2026-10-18，上线前依赖安全补修）
+
+- **实际基线 `0e0cad1b2433a2f2c9de4824e33274cbd10d84aa`，main，开工fetch同步。Current：兼容依赖补丁及受控生产回归完成；停在本轮，不改云服务器、不发布公网。** 真实千问／高德／其他外部业务调用 **0**，不使用任何历史额度。原release-1E身份／持久次数保护、知识问答停用及媒体限定结论保持。
+- **版本／审计**：Next与eslint-config-next **16.3.3→16.3.8**，Sharp **0.35.4→0.35.5**（librsvg2.63.2），source-map-js **1.2.1→1.2.2**，brace-expansion **1.1.18/5.0.9→1.1.21/5.0.12**，配套平台包同步。无Next14降级、force、peer覆盖或不兼容overrides。完整npm audit **9（8high/1critical）→5high**，生产 **3（2high/1critical）→0**；保留前后完整JSON／树／路径。告警为包条目及传播，不冒称9处已证实可利用漏洞。
+- **残留／安装策略**：5high均为 `eslint-config-next→@next/eslint-plugin-next→fast-glob→micromatch→braces3.0.3` 同一开发链，官方尚无补丁；仅可信代码与glob构建，不开放用户构建，当前未发现网页业务触发路径，不独立阻断受控部署准备但必须跟进，不宣称整体安全。ESLint9 EOL另列维护风险，现有插件peer不兼容10，不强行升级。审阅unrs/napi恢复安装与下载逻辑后显式deny unrs-resolver和可选fsevents脚本，项目strict-allow-scripts，未全局批准。普通干净npm ci成功，无未审查脚本，原生resolver／Sharp可用；Linux锁包已核对但未冒称Ubuntu实测。
+- **实际检查**：本轮前端完整 **70文件／1,346通过**，lint、typecheck、Webpack通过；转发Node **6通过**（原5＋身份/额度/安全头记录新1），补齐至19业务资源／22rewrite；真实TCP受控验证 **40检查／40dispatch通过**，含5MiB照片／20MiB视频及+1、5MiB响应哈希、31,010ms处理、4种上传中／后取消后端连接关闭、错误与固定路径限制。Cookie／Origin／CSRF仅保存合成匹配布尔值。后端源码未改，未重跑后端完整测试；Python→TS子检查仍-B，历史httpx提醒保留。
+- **Chrome／证据**：Next16.3.8生产构建 `4jccwg0Ujfa_UZ6U8lojf`＋独立临时真实身份／额度SQLite，严格受控POI／步行上游，无真实fallback。Enter登录→确认合成地点→主动生成1/1→费用0/40/300/0核对¥340；分区／费用编辑及需求编辑取消保留工作、不增加请求。无CSRF直接POST403，退出清空、历史GET401；400px宽度400无横溢，键盘可用。观察8次同源fetch与4次受控发送（POI2/路线2）分别记录，非高德实际尝试数。4图逐张打开；[稳定证据](../../trippilot-evidence/dependency-security/batch-20261018.zdwoSe/)、[浏览器收据](../../trippilot-evidence/dependency-security/batch-20261018.zdwoSe/browser-receipt.json)。第一次精确文本定位超时但生成成功，改定位读取同一结果，未重复生成；收据动态import不受支持后另行脱敏记录，不隐藏工具问题。
+- **保护／恢复**：临时账号已禁用／撤销、凭据已删除，验收服务关闭；普通8000未改，前端使用8000目标重新构建并恢复3000。第二构建不冒称再全套Chrome重验。原五缓存、旧库、默认额度库及锚SHA256均与开工一致，原环境、旧证据及浏览器日志保留。本机Node24.20.0/npm11.19.0/macOS arm64，与用户Ubuntu/Node24.22.0/npm11.19.1不同；未验证1.6GiB服务器构建内存、Linux运行或公网HTTPS/Nginx。
+- **交付／停止**：[DEPENDENCY_SECURITY](DEPENDENCY_SECURITY.md)记录官方公告／条件、残留5项逐项风险、ESLint与脚本策略、准确命令、服务器fast-forward/npm ci/原生包/audit/构建步骤及部署缺口。9个审查文件：README、PROJECT_CONTEXT、PROGRESS、本报告、package.json、package-lock.json、frontend/.npmrc、两份转发工具/测试；仅普通commit/push，不提交环境／数据库／截图／日志／缓存。**停在本次依赖安全补修，不进入部署或新增功能；不等同全部上线安全门槛通过。**
+
+当前导航：[README](../README.md) → [PROJECT_CONTEXT](PROJECT_CONTEXT.md) → [ROADMAP](ROADMAP.md) → 本页 → [依赖安全补修](DEPENDENCY_SECURITY.md)。以下旧成绩、限制、失败和停止点均保留历史含义，不是本轮重跑或新授权。
+
 ## 最新摘要（2026-10-18，release-1E：业务调用限额与费用保护）
 
 - **实际基线 `24bcf7e47ca99790217e65faf2a1d3b8c565c901`，main，开工与收口fetch同步。Current：单机邀请内测所需的持久业务次数保护及本人额度入口完成；不是精确人民币上限，也不是全部公网准入。** 本轮真实千问／高德／其他业务外部调用 **0**；不新增模型授权，不恢复知识问答，不改排程或存档契约。

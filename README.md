@@ -50,7 +50,7 @@ release-1E 增加独立持久业务额度：实际上游尝试／媒体任务同
 
 | 部分 | 当前实现与职责 |
 | --- | --- |
-| 前端 | Next.js **16.3.3** App Router、React **19.2.8**、TypeScript、Tailwind CSS **4**；React Hook/ref 管理会话与请求版本，原生 fetch，无额外全局状态库 |
+| 前端 | Next.js **16.3.8** App Router、React **19.2.8**、TypeScript、Tailwind CSS **4**；React Hook/ref 管理会话与请求版本，原生 fetch，无额外全局状态库 |
 | 接口寻址 | 浏览器固定同源路径；Next 内置 rewrite 转发至服务端 `TRIPPILOT_BACKEND_ORIGIN`，固定资源白名单、不重试、不解析媒体正文；构建和启动目标必须一致 |
 | 后端 | Python **>=3.13**、FastAPI、Pydantic/pydantic-settings、httpx；`api` 接口、`schemas` 契约、`integrations` 上游适配、`services` 规则与检索 |
 | 真实数据 | 高德 Web Service 提供 POI、步行、公交参考与天气；JS API 2.0 提供底图，官方 loader + 受限后端安全代理 |
@@ -140,6 +140,8 @@ cd frontend
 npm ci
 npm run dev -- --webpack
 ```
+
+安装使用npm11的项目脚本策略：`unrs-resolver`恢复下载脚本及可选`fsevents`的安装脚本权限显式拒绝，未知安装脚本严格报错，不全局批准；保留optional预编译依赖。依赖补修后完整audit仍有同一`braces`开发链的5项high，生产audit为0；另有ESLint9 EOL维护风险。不要使用`audit fix --force`、Next14降级或强行忽略peer来清零。具体版本、官方公告、原生模块及服务器同步检查见[依赖安全补修](docs/DEPENDENCY_SECURITY.md)，不代表全部上线门槛通过。
 
 打开 `http://localhost:3000` 或 `http://127.0.0.1:3000`。浏览器使用页面同源 `/api/*`；开发服务端默认转发到本机8000。FastAPI原有CORS不放宽，生产也不应改成 `*`；同源转发不依赖浏览器跨域访问后端。
 

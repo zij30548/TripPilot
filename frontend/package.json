@@ -2,6 +2,10 @@
   "name": "frontend",
   "version": "0.1.0",
   "private": true,
+  "allowScripts": {
+    "fsevents": false,
+    "unrs-resolver": false
+  },
   "scripts": {
     "dev": "next dev",
     "build": "next build",
@@ -12,7 +16,7 @@
   },
   "dependencies": {
     "@amap/amap-jsapi-loader": "^1.0.1",
-    "next": "16.3.3",
+    "next": "16.3.8",
     "react": "19.2.8",
     "react-dom": "19.2.8"
   },
@@ -26,7 +30,7 @@
     "@types/react-dom": "^19",
     "@vitejs/plugin-react": "^5.2.0",
     "eslint": "^9",
-    "eslint-config-next": "16.3.3",
+    "eslint-config-next": "16.3.8",
     "jsdom": "^30.1.1",
     "tailwindcss": "^4",
     "typescript": "^5",

@@ -2,9 +2,42 @@ import assert from "node:assert/strict";
 import { createHash } from "node:crypto";
 import { request } from "node:http";
 import { test } from "node:test";
-import { MIB, startControlledBackend, until, verifyForwarding } from "./verify-forwarding.mjs";
+import { CONTROLLED_ENDPOINTS, MIB, SYNTHETIC_AUTH_HEADERS, startControlledBackend, until, verifyForwarding } from "./verify-forwarding.mjs";
 
 const digest = (body) => createHash("sha256").update(body).digest("hex");
+
+test("all current resources include identity and usage; authentication transport evidence contains only booleans", async () => {
+  const identityAndUsage = [
+    ["GET", "/auth/session"], ["POST", "/auth/login"],
+    ["POST", "/auth/logout"], ["GET", "/usage"],
+  ];
+  assert.equal(CONTROLLED_ENDPOINTS.length, 19);
+  assert.equal(new Set(CONTROLLED_ENDPOINTS.map(([method, path]) => `${method} ${path}`)).size, 19);
+  for (const endpoint of identityAndUsage) assert.ok(CONTROLLED_ENDPOINTS.some(([method, path]) => method === endpoint[0] && path === endpoint[1]));
+  const backend = await startControlledBackend({ port: 0 });
+  try {
+    for (const [method, path] of identityAndUsage) {
+      const response = await fetch(`http://127.0.0.1:${backend.port}${path}`, { method, headers: SYNTHETIC_AUTH_HEADERS });
+      assert.equal(response.status, 200);
+      const result = await response.json();
+      assert.equal(result.method, method);
+      assert.equal(result.path, path);
+      assert.deepEqual(result.authentication_headers, { cookie_matches: true, origin_matches: true, csrf_matches: true });
+    }
+    const unexpected = "private-value-must-not-be-recorded";
+    const response = await fetch(`http://127.0.0.1:${backend.port}/auth/session`, {
+      headers: { cookie: unexpected, origin: "http://different.invalid", "x-csrf-token": unexpected },
+    });
+    assert.deepEqual((await response.json()).authentication_headers, { cookie_matches: false, origin_matches: false, csrf_matches: false });
+    const receipt = JSON.stringify(backend.records);
+    for (const value of [...Object.values(SYNTHETIC_AUTH_HEADERS), unexpected]) assert.equal(receipt.includes(value), false);
+    for (const record of backend.records) {
+      assert.deepEqual(Object.keys(record.authentication_headers).sort(), ["cookie_matches", "csrf_matches", "origin_matches"]);
+      assert.ok(Object.values(record.authentication_headers).every(value => typeof value === "boolean"));
+      assert.equal(Object.hasOwn(record, "headers"), false);
+    }
+  } finally { await backend.close(); }
+});
 
 test("controlled backend records exact bytes/hash and enforces media boundaries without retaining bodies", async () => {
   const backend = await startControlledBackend({ port: 0 });

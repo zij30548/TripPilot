@@ -52,7 +52,7 @@ media-1 的视觉能力独立于下列三个行程功能：仅显式上传一张
 
 ## 实际技术与数据边界
 
-- 前端：Next.js 16.3.3 App Router、React 19.2.8、TypeScript、Tailwind 4；本地 Hook/ref + fetch，无全局状态库。修改前阅读 `frontend/AGENTS.md` 和该版本本地 Next 文档。
+- 前端：Next.js 16.3.8 App Router、React 19.2.8、TypeScript、Tailwind 4；本地 Hook/ref + fetch，无全局状态库。修改前阅读 `frontend/AGENTS.md` 和该版本本地 Next 文档。2026-10-18依赖安全补修同步eslint-config-next和兼容传递补丁；生产npm audit为0，完整audit仍有未修复braces开发链5项high及另列的ESLint9 EOL维护风险。安装脚本使用项目严格拒绝策略，详见[DEPENDENCY_SECURITY](DEPENDENCY_SECURITY.md)，不等于完整安全或公网验收。
 - 部署寻址：共享 `api-endpoints.ts`，服务端 `TRIPPILOT_BACKEND_ORIGIN` 只允许规范HTTP(S) origin；只转发固定业务资源和一个地图路径。Next75秒代理空闲超时／21MiB请求克隆缓冲，不替代业务端的大小／总截止／取消规则。目标写入构建清单，生产缺配置或启动不一致明确失败；不是运行时任意URL代理或公开上线网关。`AMAP_ALLOWED_PAGE_ORIGINS` 是服务器配置的SDK页面白名单，不是上游或CORS放开。
 - 后端：`pyproject.toml` 要求 Python >=3.13（不是早期规划的 3.12）；FastAPI、Pydantic/pydantic-settings、httpx、SQLModel。依赖由 uv.lock 和 package-lock.json 管理。
 - 图片：仅新增锁定Pillow12.3.0；原始二进制请求有界读取，不用multipart临时文件。5MiB／2000万像素／静态JPEG-PNG-WebP，转正、去元数据、长边2048后发送；单进程1张、上传10秒、模型操作20秒、前端35秒。无URL下载、数据库照片、日志Base64或模型自动重试。独立 `QWEN_VISION_MODEL=qwen3-vl-plus`，其JSON Object+服务端严格Schema不改变原AI契约。release-1E另加账号／全局次数额度，不替代媒体资源限制。
@@ -82,4 +82,4 @@ media-1 的视觉能力独立于下列三个行程功能：仅显式上传一张
 
 duration-1 在杭州实测七日步行、第四天实际游览、后续空日、七天天气部分覆盖、预览取消／采用、七日费用、v3 保存刷新／副本主动再生及四日公交。没有真实满载跑遍六城，也没有长行程真实模型调用；最大规模和异常用受控测试。详见 [DURATION_1](DURATION_1.md)，不覆盖上述目的地阶段失败。
 
-按 [README](../README.md) → 本文件 → [ROADMAP](ROADMAP.md) → [PROGRESS](PROGRESS.md) 读取，另遵守 [AGENTS](../AGENTS.md)。README提供实际启动与演示，ROADMAP是未来计划，PROGRESS顶部是当前状态／停止点，下方旧验收保持历史含义。当前停在release-1E业务调用限额与费用保护，不代表已公开上线。media-2B限定结论、media-1旧失败与台账、media-2A零模型记录及其他限制保持；历史额度耗尽，不自动追加模型调用，不进行用户原库迁移或其他下一阶段工作。
+按 [README](../README.md) → 本文件 → [ROADMAP](ROADMAP.md) → [PROGRESS](PROGRESS.md) 读取，另遵守 [AGENTS](../AGENTS.md)。README提供实际启动与演示，ROADMAP是未来计划，PROGRESS顶部是当前状态／停止点，下方旧验收保持历史含义。当前停在上线前依赖安全补修，release-1E业务调用限额与费用保护保持；未修改云服务器，不代表已公开上线。media-2B限定结论、media-1旧失败与台账、media-2A零模型记录及其他限制保持；历史额度耗尽，不自动追加模型调用，不进行用户原库迁移或其他下一阶段工作。
