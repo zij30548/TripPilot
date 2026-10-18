@@ -2,6 +2,7 @@
 
 import { useEffect, useState, useSyncExternalStore, type FormEvent, type ReactNode } from "react";
 import { authServerSnapshot, authSnapshot, checkSession, login, logout, startAuthLifecycle, subscribeAuth } from "@/lib/auth-session";
+import { BusinessUsageControls } from "./business-usage-controls";
 
 export function AuthenticationBoundary({ children }: { children: ReactNode }) {
   const auth = useSyncExternalStore(subscribeAuth, authSnapshot, authServerSnapshot);
@@ -15,6 +16,7 @@ export function AuthenticationBoundary({ children }: { children: ReactNode }) {
           <button type="button" className="rounded-lg border px-3 py-2" onClick={() => void logout(auth.epoch)}>退出登录</button>
         </div>
       </header>
+      <BusinessUsageControls key={`usage-${auth.epoch}`} epoch={auth.epoch} disabled={auth.verifying} />
       {auth.verifying && <p role="status" className="p-4 text-center">正在核对登录状态…</p>}
       {/* Same identity checks hide, but do not unmount, ongoing work. */}
       <div key={auth.epoch} hidden={auth.verifying} inert={auth.verifying}>{children}</div>

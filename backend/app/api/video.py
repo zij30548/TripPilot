@@ -9,6 +9,7 @@ from starlette.requests import ClientDisconnect
 
 from app.services.video import (MAX_RESPONSE, MAX_UPLOAD, PROCESS_SECONDS, VideoError,
                                 executables, extract_frames, settled, validate_container)
+from app.usage_runtime import media_usage
 
 router = APIRouter(prefix="/media", tags=["media"])
 busy = False
@@ -32,22 +33,26 @@ async def process_upload(raw: Request, body: bytearray, request_id: str, binarie
         await asyncio.sleep(0)
         if watch.done():
             raise cancelled()
-        with tempfile.TemporaryDirectory(prefix="trippilot-video-") as directory:
-            path = Path(directory) / "input.mp4"
-            def write() -> None:
-                validate_container(body)
-                with path.open("xb") as output:
-                    path.chmod(0o600)
-                    output.write(body)
-            await settled(asyncio.to_thread(write))
-            body.clear()
+        async with media_usage("media_video"):
+            # Do not start temporary-file/decode work after quota I/O disconnect.
             if watch.done():
                 raise cancelled()
-            result = await extract_frames(path, request_id, binaries)
-            encoded = result.model_dump_json().encode()
-            if len(encoded) > MAX_RESPONSE:
-                raise VideoError("output_limit", 422, "画面响应超过安全上限，未截断为成功结果。")
-            return encoded
+            with tempfile.TemporaryDirectory(prefix="trippilot-video-") as directory:
+                path = Path(directory) / "input.mp4"
+                def write() -> None:
+                    validate_container(body)
+                    with path.open("xb") as output:
+                        path.chmod(0o600)
+                        output.write(body)
+                await settled(asyncio.to_thread(write))
+                body.clear()
+                if watch.done():
+                    raise cancelled()
+                result = await extract_frames(path, request_id, binaries)
+                encoded = result.model_dump_json().encode()
+                if len(encoded) > MAX_RESPONSE:
+                    raise VideoError("output_limit", 422, "画面响应超过安全上限，未截断为成功结果。")
+                return encoded
 
     operation = asyncio.create_task(work())
     try:

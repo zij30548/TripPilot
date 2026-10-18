@@ -21,6 +21,8 @@ from app.api.photo import router as photo_router
 from app.api.video import router as video_router
 from app.api.auth import router as auth_router
 from app.auth import AuthenticationMiddleware
+from app.api.usage import router as usage_router
+from app.business_usage import SERVICES, UsageError
 
 app = FastAPI(
     title="TripPilot API",
@@ -52,6 +54,24 @@ app.include_router(knowledge_answer_router)
 app.include_router(itinerary_query_router)
 app.include_router(photo_router)
 app.include_router(video_router)
+app.include_router(usage_router)
+
+
+@app.exception_handler(UsageError)
+async def business_usage_error(_request: Request, error: UsageError) -> JSONResponse:
+    # Only whitelisted metadata is shared with the common browser notice. No
+    # raw URL, credential, SQL, global counts, or exception input is exposed.
+    codes = {"business_rate_limited", "business_quota_exhausted", "business_service_disabled", "business_usage_unavailable"}
+    headers = {"X-Business-Usage-Code": error.code if error.code in codes else "business_usage_unavailable"}
+    if error.service in SERVICES:
+        headers["X-Business-Usage-Service"] = error.service
+    if error.scope in {"account", "global"}:
+        headers["X-Business-Usage-Scope"] = error.scope
+    if error.retry_after_seconds is not None:
+        headers["Retry-After"] = str(error.retry_after_seconds)
+    if error.reset_at is not None:
+        headers["X-Business-Usage-Reset-At"] = error.reset_at
+    return JSONResponse(status_code=error.status, content={"detail": error.detail()}, headers=headers)
 
 
 @app.exception_handler(StorageError)

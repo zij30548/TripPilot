@@ -12,6 +12,7 @@ from app.config import Settings, get_settings
 from app.integrations.qwen import QwenClient, QwenError, strict_json
 from app.schemas.explanation import ExplanationRequest, ExplanationResponse
 from app.services.explanation import build_facts, fixed_limitations, render_selection, validate_snapshot
+from app.usage_runtime import MeteredAsyncClient
 
 MAX_BODY_BYTES = 65_536
 
@@ -39,7 +40,7 @@ router = APIRouter(prefix="/trips", tags=["trips"], route_class=BoundedExplanati
 
 
 async def get_qwen_http_client() -> AsyncIterator[httpx.AsyncClient]:
-    async with httpx.AsyncClient(follow_redirects=False, timeout=20) as client:
+    async with MeteredAsyncClient(follow_redirects=False, timeout=20) as client:
         yield client
 
 

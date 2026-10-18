@@ -1,4 +1,5 @@
 import { API_ENDPOINTS } from "./api-endpoints";
+import { clearBusinessUsageNotice, recordBusinessUsageNotice } from "./business-usage-notices";
 
 export type AuthSession = {
   authenticated: boolean;
@@ -62,6 +63,7 @@ export function authSnapshot(): AuthState { return state; }
 export function authServerSnapshot(): AuthState { return INITIAL_STATE; }
 
 function publish(next: AuthState): void {
+  if (next.epoch !== state.epoch) clearBusinessUsageNotice();
   state = next;
   listeners.forEach(listener => listener());
 }
@@ -274,6 +276,9 @@ export async function apiFetch(input: string, init: RequestInit = {}): Promise<R
       broadcast("invalidate");
       throw new DOMException("登录已失效", "AbortError");
     }
+    // Read allowlisted metadata only, never consume/clone a media or error body.
+    // The identity check above rejects old-account notices before publication.
+    recordBusinessUsageNotice(response, epoch);
     if (!response.ok) cleanup();
     let guardedBody: ReadableStream<Uint8Array> | null = null;
     const stale = () => epoch !== state.epoch || controller.signal.aborted;

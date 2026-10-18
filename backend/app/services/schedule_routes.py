@@ -14,6 +14,7 @@ from app.services.schedule_drawing import within_edge_limit
 from app.schemas.schedule import ScheduleDay, ScheduleEdge, ScheduleRequest, TransportMode
 from app.schemas.transit import TransitRouteRequest
 from app.planning_limits import LIMITS, MAX_LOGICAL_EDGES, MAX_STARTED_ROUTES
+from app.business_usage import UsageError
 
 
 ROUTE_BATCH_TIMEOUT_SECONDS = float(LIMITS["route_deadline_seconds"])
@@ -154,6 +155,9 @@ class ScheduleRouteCollector:
                 if str(error) in (INVALID_DATA, INVALID_TRANSIT_DATA):
                     return self.failed(index, "data_error", "交通路线数据无法用于排程。")
                 return self.failed(index, "failed", "暂时无法取得所需交通路线。")
+            except UsageError:
+                # Do not disguise exhausted/uncertain counters as invalid AMap.
+                raise
             except Exception:
                 return self.failed(index, "failed", "暂时无法取得所需交通路线。")
 
@@ -187,7 +191,8 @@ class ScheduleRouteCollector:
             return self.results
         try:
             remaining = max(0.0, self.deadline - asyncio.get_running_loop().time())
-            done, pending = await asyncio.wait(tasks.values(), timeout=remaining)
+            done, pending = await asyncio.wait(tasks.values(), timeout=remaining,
+                                               return_when=asyncio.FIRST_EXCEPTION)
             for task in pending:
                 task.cancel()
             await asyncio.gather(*pending, return_exceptions=True)

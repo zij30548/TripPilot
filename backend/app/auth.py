@@ -30,6 +30,7 @@ from starlette.types import ASGIApp, Receive, Scope, Send
 from app.config import BACKEND_ENV_FILE, normalize_map_page_origin
 from app.identity_models import AccountRow, LoginBucketRow, SessionRow
 from app.storage import StorageError, database_path, engine_for
+from app.usage_runtime import bind_usage_context, reset_usage_context
 
 TOKEN_PATTERN = re.compile(r"[A-Za-z0-9_-]{43}")
 USERNAME_PATTERN = re.compile(r"[a-z0-9_.-]{3,48}")
@@ -149,7 +150,11 @@ class AuthenticationMiddleware:
         except (StorageError, SQLAlchemyError, OSError, ValueError):
             response = JSONResponse({"detail": {"code": "identity_unavailable", "message": "身份服务暂不可用。"}}, 503)
         if response is None:
-            await self.app(scope, receive, private_send)
+            token = bind_usage_context(identity[0].id, scope["path"])
+            try:
+                await self.app(scope, receive, private_send)
+            finally:
+                reset_usage_context(token)
             return
         # No request body is read and no route dependency is entered on rejection.
         await response(scope, receive, private_send)

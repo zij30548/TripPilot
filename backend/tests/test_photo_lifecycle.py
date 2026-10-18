@@ -11,6 +11,7 @@ from app.api import photo as api
 from app.config import Settings
 from app.services.photo import PhotoError
 from test_photo import answer
+from tests.usage_fixture import UsageFixture
 
 
 class Receive:
@@ -38,6 +39,11 @@ class Receive:
 
 class PhotoLifecycleTests(unittest.IsolatedAsyncioTestCase):
     async def asyncSetUp(self) -> None:
+        usage = UsageFixture()
+        self.addCleanup(usage.close)
+        binding = usage.bind("/media/landmark")
+        binding.__enter__()
+        self.addCleanup(binding.__exit__, None, None, None)
         self.assertFalse(api.busy)
         self.receive = Receive()
         self.calls = 0

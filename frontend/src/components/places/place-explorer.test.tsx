@@ -88,7 +88,7 @@ describe("PlaceExplorer", () => {
     expect(screen.getByText("地址：暂无地址")).toBeTruthy();
     expect(screen.getByText("类别：暂无类别")).toBeTruthy();
     expect(fetchMock).toHaveBeenCalledTimes(1);
-    expect(markers).toHaveLength(2);
+    await waitFor(() => expect(markers).toHaveLength(2));
     expect(markers.map((marker) => marker.options.position)).toEqual([[120, 30], [121, 31]]);
     expect(markers.map((marker) => marker.options.content.textContent)).toEqual(["1", "2"]);
     expect(screen.getByRole("button", { name: /测试地点一/ }).getAttribute("aria-pressed")).toBe("false");

@@ -5,6 +5,7 @@ import httpx
 from fastapi import APIRouter, Depends, HTTPException, Request, Response
 
 from app.config import Settings, get_settings
+from app.usage_runtime import MeteredAsyncClient
 from app.integrations.amap_proxy import (
     AmapProxyClient, DISTRICT_PATH, PROXY_TIMEOUT, ProxyError,
 )
@@ -15,7 +16,7 @@ router = APIRouter(prefix="/_AMapService", tags=["map-proxy"])
 
 async def get_proxy_http_client() -> AsyncIterator[httpx.AsyncClient]:
     # No browser headers/cookies are forwarded. TLS validation stays enabled.
-    async with httpx.AsyncClient(timeout=PROXY_TIMEOUT, follow_redirects=False) as client:
+    async with MeteredAsyncClient(timeout=PROXY_TIMEOUT, follow_redirects=False) as client:
         yield client
 
 

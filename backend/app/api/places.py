@@ -10,6 +10,7 @@ from app.integrations.amap import AmapClient, AmapError, AmapTimeoutError, REQUE
 from app.schemas.place import Place
 from app.schemas.destination import LocatedPlace
 from app.destinations import DestinationId, destination_for
+from app.usage_runtime import MeteredAsyncClient
 
 
 router = APIRouter(prefix="/places", tags=["places"])
@@ -18,7 +19,7 @@ City = Annotated[str, StringConstraints(strip_whitespace=True, min_length=1, max
 
 
 async def get_http_client() -> AsyncIterator[httpx.AsyncClient]:
-    async with httpx.AsyncClient(timeout=REQUEST_TIMEOUT) as client:
+    async with MeteredAsyncClient(timeout=REQUEST_TIMEOUT, follow_redirects=False) as client:
         yield client
 
 

@@ -17,6 +17,7 @@ from starlette.requests import Request
 from app.api import video as api
 from app.services import video as service
 from main import app
+from tests.usage_fixture import UsageFixture
 
 
 def command(args: list[str]) -> None:
@@ -139,6 +140,11 @@ class VideoDecodeTests(unittest.IsolatedAsyncioTestCase):
 
 class LifecycleTests(unittest.IsolatedAsyncioTestCase):
     async def asyncSetUp(self):
+        usage = UsageFixture()
+        self.addCleanup(usage.close)
+        binding = usage.bind("/media/video-frames")
+        binding.__enter__()
+        self.addCleanup(binding.__exit__, None, None, None)
         self.tmp=tempfile.TemporaryDirectory(); self.addCleanup(self.tmp.cleanup)
         self.data=fixture(Path(self.tmp.name)/"fixture.mp4",duration="2")
         self.queue=asyncio.Queue();self.queue.put_nowait({"type":"http.request","body":self.data,"more_body":False})

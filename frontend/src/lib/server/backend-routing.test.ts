@@ -24,7 +24,7 @@ describe("trusted server-only same-origin forwarding", () => {
   it("has an explicit resource allowlist, never a user-supplied URL or catch-all", () => {
     const target = "http://127.0.0.1:18081";
     const rules = backendRewrites(target);
-    expect(Object.keys(API_ENDPOINTS)).toHaveLength(18);
+    expect(Object.keys(API_ENDPOINTS)).toHaveLength(19);
     expect(new Set(rules.map(r => r.source)).size).toBe(rules.length);
     for (const source of Object.values(API_ENDPOINTS)) {
       expect(source.startsWith("/api/")).toBe(true);

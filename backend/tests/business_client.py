@@ -8,6 +8,7 @@ fixed trusted ASGI identity (not a request header or production configuration).
 from copy import copy
 
 from fastapi.testclient import TestClient
+from tests.usage_fixture import UsageFixture
 
 
 class BusinessTestClient(TestClient):
@@ -17,6 +18,7 @@ class BusinessTestClient(TestClient):
         isolated = copy(app)
         isolated.user_middleware = [m for m in app.user_middleware if m.cls.__name__ != "AuthenticationMiddleware"]
         isolated.middleware_stack = None
+        self.usage_fixture = UsageFixture()
 
         async def authenticated(scope, receive, send):
             if scope["type"] == "http":
@@ -24,6 +26,22 @@ class BusinessTestClient(TestClient):
                     id="a" * 32, username="business-fixture", password_hash="not-a-password-hash",
                     disabled=False, created_at=0,
                 )
-            await isolated(scope, receive, send)
+            if scope["type"] == "http":
+                with self.usage_fixture.bind(scope["path"]):
+                    await isolated(scope, receive, send)
+            else:
+                await isolated(scope, receive, send)
 
         super().__init__(authenticated, *args, **kwargs)
+
+    def close(self):
+        try:
+            super().close()
+        finally:
+            self.usage_fixture.close()
+
+    def __exit__(self, *args):
+        try:
+            return super().__exit__(*args)
+        finally:
+            self.usage_fixture.close()

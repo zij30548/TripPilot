@@ -8,6 +8,7 @@ from app.schemas.candidates import (
 )
 from app.schemas.place import Place
 from app.schemas.destination import CityCandidateRequest, CityCandidateResponse, LocatedCandidate
+from app.business_usage import UsageError
 
 
 # Order is a product rule, independent of request order and asynchronous timing.
@@ -99,6 +100,9 @@ async def prepare_candidates(request: CandidateRequest, amap: AmapClient) -> Can
                     **source.model_dump(), status="timeout", result_count=0,
                     message=TIMEOUT_MESSAGE,
                 ), []
+            except UsageError:
+                # Account/global controls are not an upstream search failure.
+                raise
             except Exception:
                 # Do not reflect raw upstream exceptions, URLs or secrets, even
                 # for unexpected integration failures. Cancellation propagates.
@@ -109,7 +113,8 @@ async def prepare_candidates(request: CandidateRequest, amap: AmapClient) -> Can
 
     tasks = [asyncio.create_task(search(source)) for source in sources]
     try:
-        done, pending = await asyncio.wait(tasks, timeout=BATCH_TIMEOUT_SECONDS)
+        done, pending = await asyncio.wait(tasks, timeout=BATCH_TIMEOUT_SECONDS,
+                                           return_when=asyncio.FIRST_EXCEPTION)
         for task in pending:
             task.cancel()
         # Drain cancelled HTTP requests and semaphore waiters before returning.

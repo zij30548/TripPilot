@@ -19,6 +19,7 @@ backend/data/
 *.sqlite3-wal
 *.sqlite3-shm
 *.sqlite3-journal
+*.sqlite3.identity
 *.db-wal
 *.db-shm
 *.db-journal

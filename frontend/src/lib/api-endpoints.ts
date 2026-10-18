@@ -4,6 +4,7 @@ export const API_ENDPOINTS = Object.freeze({
   authSession: "/api/auth/session",
   authLogin: "/api/auth/login",
   authLogout: "/api/auth/logout",
+  usage: "/api/usage",
   places: "/api/places/search",
   candidates: "/api/places/candidates",
   schedule: "/api/trips/schedule-preview",

@@ -67,6 +67,22 @@ describe("invitation identity transport", () => {
     expect(auth.authSnapshot().session?.session_id).toBe("c".repeat(32));
   });
 
+  it("publishes safe quota headers without consuming the body and clears notices on identity changes", async () => {
+    const notices = await import("./business-usage-notices");
+    const old = deferred<Response>();
+    const denied = () => new Response("controlled body", { status: 429, headers: { "X-Business-Usage-Code": "business_quota_exhausted", "X-Business-Usage-Service": "amap_route", "X-Business-Usage-Scope": "global", "Retry-After": "20" } });
+    const fetcher = vi.fn().mockResolvedValueOnce(response(session())).mockResolvedValueOnce(denied()).mockReturnValueOnce(old.promise)
+      .mockResolvedValueOnce(response(session("b", "b".repeat(32)))).mockResolvedValueOnce(response(session("invite-a", "c".repeat(32))));
+    vi.stubGlobal("fetch", fetcher); stop = auth.startAuthLifecycle(); await flush();
+    const result = await auth.apiFetch("/api/trips/schedule-preview");
+    expect(result.bodyUsed).toBe(false); expect(notices.businessUsageNoticeSnapshot()?.service).toBe("amap_route");
+    const late = auth.apiFetch("/api/places/search");
+    await auth.checkSession(); await auth.checkSession();
+    expect(notices.businessUsageNoticeSnapshot()).toBeNull();
+    old.resolve(denied()); await expect(late).rejects.toMatchObject({ name: "AbortError" });
+    expect(notices.businessUsageNoticeSnapshot()).toBeNull();
+  });
+
   it("guards streamed video chunks without eager reads and releases fully consumed requests", async () => {
     let reads = 0;
     const stream = new ReadableStream<Uint8Array>({

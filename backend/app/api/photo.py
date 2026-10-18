@@ -14,6 +14,7 @@ from app.integrations.qwen_vision import QwenVisionClient
 from app.schemas.explanation import ExplanationUsage
 from app.schemas.photo import PhotoResponse, PhotoSelection
 from app.services.photo import MAX_BYTES, PhotoError, normalize_photo
+from app.usage_runtime import media_usage
 
 router = APIRouter(prefix="/media", tags=["media"])
 # One accepted upload/decode/model operation per process, no waiting queue.
@@ -46,11 +47,14 @@ async def decode_and_recognize(raw: Request, body: bytearray, vision: QwenVision
 
     try:
         await checkpoint()
-        worker = asyncio.create_task(run_in_threadpool(normalize_photo, bytes(body)))
-        body.clear()
-        await asyncio.wait((worker, watch), return_when=asyncio.FIRST_COMPLETED)
-        await checkpoint()
-        image = worker.result()
+        async with media_usage("media_photo"):
+            # Reservation may wait for SQLite; recheck disconnect before decode.
+            await checkpoint()
+            worker = asyncio.create_task(run_in_threadpool(normalize_photo, bytes(body)))
+            body.clear()
+            await asyncio.wait((worker, watch), return_when=asyncio.FIRST_COMPLETED)
+            await checkpoint()
+            image = worker.result()
 
         async def send() -> tuple[PhotoSelection, ExplanationUsage]:
             await checkpoint()
