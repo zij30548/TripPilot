@@ -1,12 +1,13 @@
 """Request-local, paced, bounded directed edges; not an all-pairs matrix."""
 
 import asyncio
+import logging
 import math
 from datetime import datetime, timezone
 
 from app.integrations.amap import AmapError, AmapTimeoutError
 from app.integrations.amap_walking import AmapWalkingClient, INVALID_DATA
-from app.integrations.amap_transit import AmapTransitClient, INVALID_DATA as INVALID_TRANSIT_DATA
+from app.integrations.amap_transit import AmapTransitClient, TransitDataError, INVALID_DATA as INVALID_TRANSIT_DATA
 from app.schemas.place import ConfirmedPlace
 from app.schemas.route import RouteEndpoint, WalkingRouteRequest, WalkingRoute
 from app.services.schedule_drawing import within_edge_limit
@@ -21,6 +22,7 @@ MAX_CONCURRENT_ROUTES = LIMITS["route_concurrency"]
 MIN_ROUTE_START_INTERVAL_SECONDS = LIMITS["route_start_interval_seconds"]
 EdgeKey = tuple[str, str, str, str, str]
 EndpointPair = tuple[RouteEndpoint, RouteEndpoint]
+logger = logging.getLogger(__name__)
 
 
 def normalized_endpoint(place: ConfirmedPlace) -> RouteEndpoint:
@@ -89,6 +91,9 @@ class ScheduleRouteCollector:
 
     def failed(self, index: int, status: str, message: str) -> ScheduleEdge:
         origin, destination = self.pairs[index]
+        # Validated bounded endpoint IDs, no names/coordinates/URL/raw exception.
+        logger.warning("Schedule route unavailable edge=e%d mode=%s origin=%s destination=%s status=%s",
+                       index, self.transport_mode, origin.place_id, destination.place_id, status)
         return ScheduleEdge(id=f"e{index}", origin=origin, destination=destination, status=status,
                             transport_mode=self.transport_mode, queried_at=datetime.now(timezone.utc), message=message)
 
@@ -139,6 +144,12 @@ class ScheduleRouteCollector:
                                     queried_at=result.queried_at)
             except AmapTimeoutError:
                 return self.failed(index, "timeout", "所需交通路线查询超时。")
+            except TransitDataError as error:
+                if error.issues:
+                    issue = error.issues[0]
+                    logger.warning("Schedule transit rejected edge=e%d origin=%s destination=%s field=%s reason=%s",
+                                   index, origin.place_id, destination.place_id, issue.field, issue.reason)
+                return self.failed(index, "data_error", error.summary)
             except AmapError as error:
                 if str(error) in (INVALID_DATA, INVALID_TRANSIT_DATA):
                     return self.failed(index, "data_error", "交通路线数据无法用于排程。")

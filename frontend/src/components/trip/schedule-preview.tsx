@@ -7,6 +7,7 @@ import { scheduleClock, type ScheduleResponse } from "@/types/schedule";
 import type { Place } from "@/types/place";
 import type { TripRequest } from "@/types/trip";
 import type { DrawingState } from "@/lib/schedule-drawing";
+import { scheduleBlocker } from "@/lib/schedule-blocker";
 
 type ScheduleController = ReturnType<typeof useSchedulePreview>;
 type ScheduleItem = ScheduleResponse["days"][number]["items"][number];
@@ -88,6 +89,7 @@ export function ScheduleResult({ response, mapContext, drawing }: { response: Sc
   const visitedIds = new Set(response?.days.flatMap((day) => day.items.filter((item) => item.kind === "visit").map((item) => item.place_id)) ?? []);
   const requiredCount = required.filter((place) => visitedIds.has(place.id)).length;
   const optionalCount = optionalPlaces.filter((place) => visitedIds.has(place.id)).length;
+  const blocker = scheduleBlocker(response);
 
   function itemTitle(item: ScheduleItem) {
     if (item.kind === "walk" || item.kind === "transit") return `${name(item.from_place_id)} → ${name(item.to_place_id)}`;
@@ -98,6 +100,17 @@ export function ScheduleResult({ response, mapContext, drawing }: { response: Sc
   return <div className="mt-6 border-t border-[#315f51]/20 pt-5">
       <p className="text-sm font-semibold text-[#315f51]">{required.length > 0 ? requiredCount === required.length ? "已安排本次必去地点" : requiredCount > 0 ? "部分必去地点尚未安排" : "本次草案未安排必去地点" : optionalCount > 0 ? "本次草案已安排可选地点" : "本次草案尚未安排可选地点"}</p>
       <p className="mt-1 text-sm text-[#315f51]">必去已安排 {requiredCount}/{required.length} 个 · 可选已安排 {optionalCount}/{optionalPlaces.length} 个。可选未排入不影响已验证的必去安排。</p>
+      {blocker && <section aria-label="首个排程阻断" className="mt-3 min-w-0 rounded-xl border border-amber-300 bg-amber-50 p-4 text-sm leading-6 text-[#835718]">
+        <h3 className="break-words font-semibold">首先未能安排：{name(blocker.first.place_id)}</h3>
+        <p>{blocker.first.message}</p>
+        {blocker.roads.length > 0 && <ul aria-label="所需失败路段" className="mt-2 space-y-2">{blocker.roads.map(({ from, to, edge }) => <li key={`${from}-${to}`} className="break-words">
+          <p className="font-medium">{name(from)} → {name(to)} · {edge ? edgeLabels[edge.status] : "缺少路线记录"}</p>
+          {edge ? <EdgeDetails edge={edge} /> : <p className="text-xs">本次结果未提供此方向的可用路线，不能据此推算交通时间。</p>}
+        </li>)}</ul>}
+        {blocker.followingCount > 0 && <p className="mt-2">后续 {blocker.followingCount} 个必去地点按固定顺序未继续尝试，不代表这些地点本身不可行。</p>}
+        {response.optional_results.some(result => result.not_attempted_reason === "must_incomplete") && <p>必去尚未全部安排，所以本次没有试排可选地点。</p>}
+        <p className="mt-2 text-xs">{requiredCount > 0 ? "已保留此前验证通过的安排及返程。" : "当前未取得可验证的必去安排。"}可查看下方路段记录，或使用本区现有的生成与交通方式设置主动重试；不会自动跳过必去或改用其他方式。</p>
+      </section>}
       <p className="mt-1 text-xs leading-5 text-[#68726c]">生成时间：<time dateTime={response.generated_at}>{timestamp(response.generated_at)}</time>。这是本次规则与{transportMode === "walking" ? "步行" : "公交／地铁参考方案"}估算下的草案，不保证未来日期营业、预约或实际可执行。同一请求、同一方式下，可选补充不改变必去时间；切换方式重新生成后，必去时刻可能变化。</p>
       <div role="group" aria-label="选择草案日期" className="mt-4 flex flex-wrap gap-2">
         {response.days.map((day, index) => <button key={day.date} type="button" aria-pressed={activeDay?.date === day.date} onClick={() => map.selectDate(day.date)}
@@ -144,7 +157,7 @@ export function ScheduleResult({ response, mapContext, drawing }: { response: Sc
         <h3 className="text-sm font-semibold text-[#835718]">未安排的必去地点</h3>
         <p className="mt-1 text-xs leading-5 text-[#835718]">仅说明本次固定顺序和规则下未排入，不代表换顺序、调整规则或其他交通方式后也不可行。</p>
         <ul className="mt-3 space-y-3">{response.unscheduled.map((item) => <li key={item.place_id} className="text-sm leading-6">
-          <p className="break-words font-medium">{name(item.place_id)}</p><p>{item.message}</p>
+          <p className="break-words font-medium">{name(item.place_id)}</p><p>未安排原因：{item.message}</p>
         </li>)}</ul>
       </section>}
       <details className="mt-5 rounded-xl border border-[#18201d]/10 p-4 text-sm leading-6">
