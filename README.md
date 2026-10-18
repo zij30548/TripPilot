@@ -84,6 +84,8 @@ docs/                          产品上下文、路线图、进度和历史证�
 
 ## 本地启动与配置
 
+Linux受控部署包见 [release-1F 分步手册](docs/RELEASE_1F.md)：固定release、分离服务身份／EnvironmentFile、外置持久数据、构建复用、systemd／Nginx及停写备份。**只是准备与离线验证，尚未连接或完成公网部署**；由用户按段执行，默认视频不可用直到服务器兼容性检查通过。不搬admin家目录venv、不复制Mac产物或真实.env／数据库。
+
 以下是操作说明，历史生产构建验收曾使用这些命令。已有服务时先核对并复用，不重复占用端口、不误停其他进程；media-2A核对PID/目录后重启了生产前后端，未修改环境文件。
 
 前置环境：Node.js **>=20.9.0**（本地 Next 包要求）、npm、Python **>=3.13**、uv。依赖以 [frontend/package-lock.json](frontend/package-lock.json) 和 [backend/uv.lock](backend/uv.lock) 为准，不重新初始化项目或无故升级。
@@ -203,6 +205,7 @@ git diff --check
 - [PROGRESS](docs/PROGRESS.md)：最新摘要、实际交付、历史失败与停止点。
 - [release-1C](docs/RELEASE_1C.md)：完整接口盘点、同源访问、服务端配置、受控生产转发／取消验证和剩余部署缺口。
 - [release-1E](docs/RELEASE_1E.md)：实际发送盘点、额度单位／默认值、独立SQLite初始化、错误与未覆盖费用风险。
+- [release-1F](docs/RELEASE_1F.md)：Ubuntu分步发布、配置／密钥分离、Linux已有构建核对、systemd／证书、备份与待服务器验证事项；不是已完成部署。
 - [目的地扩展第 1 阶段](docs/DESTINATION_1.md)：三城契约、v1/v2 边界、有限真实验收及文件清单。
 - [行程天数扩展第 1 阶段](docs/DURATION_1.md)：七天规则、41／29／58 预算、v3 与旧存档兼容、真实证据及演示步骤。
 - [单照片入口 media-1](docs/MEDIA_1.md)：限定验收矩阵、版本适用性、约3分钟历史证据演示、旧失败和当前限制；该文档收口轮只编写脚本，不执行。

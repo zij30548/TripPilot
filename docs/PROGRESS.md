@@ -1,5 +1,18 @@
 # TripPilot Progress
 
+## 最新摘要（2026-10-19，release-1F：Linux部署包准备，未执行服务器部署）
+
+- **实际基线 `4e009851b6dee24e7192d60c5dc6ce5b9d3e2a25`，main，开工fetch同步。Current：分步部署脚本／配置／手册及离线验证完成；由用户在服务器逐段执行，停在部署包准备。** 真实模型／高德／其他业务API调用 **0**，未连接／修改服务器、创建真实账号、签发证书或发布公网。用户提供的香港Ubuntu24.04 x64/admin、1.6GiB＋2GiBSwap／40GB、Node24.22.0/npm11.19.1/uv0.13.1/Python3.13.16、Nginx active、现有Webpack成功、DNS解析等是用户事实，不写成代理验证；Linux native独立输出仍待取得。
+- **布局／配置**：固定`/opt/trippilot/releases/<sha>`＋显式current选择，root代码／两个独立低权限api/web用户；backend.env root0600，frontend.env root:web0640仅公开JSKey与origin，不复制真实dotenv或让Next读后端key。uv复制可信现有工具并在最终/opt路径安装独立Python，最终release创建venv，不搬旧venv／放宽home。持久`/var/lib/trippilot`含私有库、额度库／锚及防误初始化标记，代码回退不改数据。精确HTTPS origin、Secure=true和现有模型／额度边界不变；systemd EnvironmentFile受限语法与dotenv明确区分。
+- **构建／服务**：优先核对同机Linux已有HEAD／锁／BUILD_ID／22rewrite／origin／源码／build/static／完整node_modules字节hash（64KiB流），仅安全内部相对链接；不复制Mac产物。既有编译提交及公开Key无法事后独立证明，首次receipt明确为操作员声明，不伪造编译溯源。最终路径以web身份检查Linuxnative与3102页面壳／静态hash，不执行业务API。两unit单APIworker、127.0.0.1:8000/3000、失败有界重启、只读代码／home屏蔽、独立cache、起始内存／CPU护栏；Ubuntu255指令官方核对，实际系统行为／容量待验。
+- **视频／入口**：未经Linux兼容性验证默认屏蔽全部固定FFmpeg路径，现有接口明确video_unavailable，其他功能不阻塞；显式合成12秒三色检查fd/MOV安全选项及原生产抽帧2/6/10秒，通过才写小drop-in，不自动restart／改协议。Nginx HTTP先仅ACME/503，无不存在证书引用；独立certonly后才TLS切换。21MiB／90秒、非缓冲、取消传播／无上游重试，本站点不记录URI／凭据日志；真实TLS／透传上传取消待服务器验收，不以模板断言代替。
+- **数据／恢复**：显式identity与usage初始化，已有文件只验证；孤立sidecar、丢库、锚不匹配、旧数据、重复receipt／release均停止，不覆盖清理。API启动Pre只读验证。停服务＋无其他writer声明后SQLite.backup双库／锚／hash，恢复仅新root私有演练目录，清除副本会话、保留账号／存档／限流与额度原字节。无生产恢复／返额入口，不提供定时备份或RPO/RTO保证。
+- **实际检查**：10月18日开工、19日完成离线检查；本轮仅部署工具／模板，业务前后端及依赖未改；定向Python **55项**（部署／数据／备份／模板48＋视频7）、Node **13项**通过，语法／CLI帮助／差异检查通过。包含真实临时Git archive排除env/data/cache与权限、实际生产新库schema及停写／WAL／恢复不返额；管理锁互斥、current状态、损坏凭据、依赖导入失败不发布ready、归档中断回收子进程及故障停止受控验证，无原库写入。Mac Linux预检按预期退出1，未冒称systemd-analyze/nginx-t／Linuxnative成功。开发中首次模板测试仍禁止一切Pre，与新增只读verify冲突，改为精确要求verify非init；一次测试sqlite上下文未close警告已修并以ResourceWarning严格重跑，保留事实不虚构全程零失败。交叉审查修正备份unit名、孤立旁文件、root Git所有权、发布目录读权限与SSR壳检查。
+- **证据／保护**：[稳定离线记录](../../trippilot-evidence/release-1f-batch-20261018.TcsRmO/)、[完整分步手册](RELEASE_1F.md)列预期输出／停止条件／剩余服务器待验。本轮不启动浏览器或重跑全套业务构建，不把历史1,346前端／628后端写成本轮成绩。原五缓存、旧库／额度库／锚SHA256复核不变；原进程、环境文件、旧证据／台账及未跟踪浏览器日志保留。
+- **交付／Next**：仅普通commit/push本轮deploy脚本／模板／测试与README／PROJECT_CONTEXT／PROGRESS／RELEASE_1F。用户下一步按手册先preflight，再独立安装／构建核对／初始化／服务／证书；不是代理自动执行授权。**停在release-1F，未完成公网部署或全部上线门槛。** 5项开发链high、ESLint9 EOL、低内存容量／磁盘监测、真正HTTPS登录／CSRF、媒体Linux兼容、完整公开入口防护／监控／异地备份，以及历史交通／媒体质量限制继续保留。
+
+当前导航：[README](../README.md) → [PROJECT_CONTEXT](PROJECT_CONTEXT.md) → [ROADMAP](ROADMAP.md) → 本页 → [release-1F分步清单](RELEASE_1F.md#服务器分步执行本轮未执行)。以下旧验收／失败／成绩／停止点均保留历史语境，不是本轮重跑或新调用额度。
+
 ## 最新摘要（2026-10-18，上线前依赖安全补修）
 
 - **实际基线 `0e0cad1b2433a2f2c9de4824e33274cbd10d84aa`，main，开工fetch同步。Current：兼容依赖补丁及受控生产回归完成；停在本轮，不改云服务器、不发布公网。** 真实千问／高德／其他外部业务调用 **0**，不使用任何历史额度。原release-1E身份／持久次数保护、知识问答停用及媒体限定结论保持。

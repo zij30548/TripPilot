@@ -1,0 +1,7 @@
+# Install ONLY after check-video.py check AND synthetic pass at the final Linux path
+# under the production service identity. Installation does not restart the service.
+# This changes decoder availability, not its protocol whitelist or validation rules.
+[Service]
+# Reset the base binary denylist but retain the unrelated private-backup protection.
+InaccessiblePaths=
+InaccessiblePaths=/var/backups/trippilot

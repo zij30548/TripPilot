@@ -1,0 +1,61 @@
+# Ubuntu 24.04 / systemd 255 system unit. node must be verified at /usr/bin/node.
+# frontend.env is public-map-key + trusted backend origin only; NEVER backend secrets.
+[Unit]
+Description=TripPilot production Next.js service
+After=network.target trippilot-api.service
+Wants=trippilot-api.service
+StartLimitIntervalSec=60
+StartLimitBurst=3
+
+[Service]
+Type=simple
+User=trippilot-web
+Group=trippilot-web
+WorkingDirectory=/opt/trippilot/current/frontend
+EnvironmentFile=/etc/trippilot/frontend.env
+Environment=NODE_ENV=production
+Environment=NEXT_TELEMETRY_DISABLED=1
+Environment="NODE_OPTIONS=--max-old-space-size=320"
+ExecStart=/usr/bin/node /opt/trippilot/current/frontend/node_modules/next/dist/bin/next start --hostname 127.0.0.1 --port 3000
+Restart=on-failure
+RestartSec=5
+TimeoutStartSec=30
+TimeoutStopSec=30
+KillMode=control-group
+KillSignal=SIGTERM
+SendSIGKILL=yes
+UMask=0077
+
+# No broad chown of a release. The checked .next/cache directory alone is web-writable.
+# A new future feature requiring another write path must fail and be reviewed explicitly.
+NoNewPrivileges=true
+ProtectSystem=strict
+ProtectHome=true
+PrivateTmp=true
+PrivateDevices=true
+ProtectKernelTunables=true
+ProtectKernelModules=true
+ProtectControlGroups=true
+RestrictSUIDSGID=true
+LockPersonality=true
+CapabilityBoundingSet=
+AmbientCapabilities=
+RestrictAddressFamilies=AF_UNIX AF_INET AF_INET6
+ReadWritePaths=/opt/trippilot/current/frontend/.next/cache
+InaccessiblePaths=/etc/trippilot/backend.env /var/lib/trippilot /var/backups/trippilot /opt/trippilot/current/backend
+
+# Initial containment, to be observed under Linux before admitting testers.
+# No MemoryDenyWriteExecute: Node's JIT and native modules require executable mappings.
+MemoryHigh=384M
+MemoryMax=512M
+CPUQuota=100%
+TasksMax=128
+LimitNOFILE=4096
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=trippilot-web
+LogRateLimitIntervalSec=30s
+LogRateLimitBurst=100
+
+[Install]
+WantedBy=multi-user.target

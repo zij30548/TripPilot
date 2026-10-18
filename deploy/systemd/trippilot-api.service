@@ -1,0 +1,64 @@
+# Ubuntu 24.04 / systemd 255 system unit. Install only after release/config/data checks.
+# Never run uv sync, database initialization or quota reset from this unit.
+[Unit]
+Description=TripPilot private FastAPI service
+After=network.target
+StartLimitIntervalSec=60
+StartLimitBurst=3
+
+[Service]
+Type=simple
+User=trippilot-api
+Group=trippilot-api
+WorkingDirectory=/opt/trippilot/current/backend
+EnvironmentFile=/etc/trippilot/backend.env
+Environment=PYTHONDONTWRITEBYTECODE=1
+Environment=PYTHONUNBUFFERED=1
+ExecStartPre=/opt/trippilot/current/backend/.venv/bin/python -B /opt/trippilot/current/deploy/data_admin.py verify
+ExecStart=/opt/trippilot/current/backend/.venv/bin/python -B -m uvicorn main:app --host 127.0.0.1 --port 8000 --workers 1 --no-access-log --no-proxy-headers --timeout-graceful-shutdown 30
+Restart=on-failure
+RestartSec=5
+TimeoutStartSec=30
+TimeoutStopSec=45
+KillMode=control-group
+KillSignal=SIGTERM
+SendSIGKILL=yes
+UMask=0077
+
+# Code and configuration are root-owned; only the independent state directory is writable.
+# PrivateTmp remains writable with ProtectSystem=strict and is removed after unit exit.
+NoNewPrivileges=true
+ProtectSystem=strict
+ProtectHome=true
+PrivateTmp=true
+PrivateDevices=true
+ProtectKernelTunables=true
+ProtectKernelModules=true
+ProtectControlGroups=true
+RestrictSUIDSGID=true
+LockPersonality=true
+CapabilityBoundingSet=
+AmbientCapabilities=
+RestrictAddressFamilies=AF_UNIX AF_INET AF_INET6
+ReadWritePaths=/var/lib/trippilot
+# Default video fail-closed until the unchanged fd-based decoder passes Linux checks.
+# Missing binaries are permitted; existing ones are hidden from the service, so the
+# production executables() check returns the explicit video_unavailable result.
+# Only the separately reviewed video-enabled.conf drop-in may lift this restriction.
+InaccessiblePaths=/var/backups/trippilot -/usr/bin/ffmpeg -/usr/bin/ffprobe -/usr/local/bin/ffmpeg -/usr/local/bin/ffprobe -/opt/homebrew/bin/ffmpeg -/opt/homebrew/bin/ffprobe
+
+# Initial containment for the reported 1.6 GiB host, NOT a measured capacity guarantee.
+# The cgroup includes ffprobe/ffmpeg children; do not add workers to evade this boundary.
+MemoryHigh=512M
+MemoryMax=768M
+CPUQuota=100%
+TasksMax=128
+LimitNOFILE=4096
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=trippilot-api
+LogRateLimitIntervalSec=30s
+LogRateLimitBurst=100
+
+[Install]
+WantedBy=multi-user.target
