@@ -1,6 +1,7 @@
 import { explanationSnapshot } from "./explanation-api";
 import { scheduledVisits } from "./weather-schedule-check";
 import type { ScheduleCapture } from "./schedule-adjustment";
+import { API_ENDPOINTS } from "./api-endpoints";
 
 export const INTENT_VERSION = "adjustment-intent-v1";
 export const intentMessages = {
@@ -45,7 +46,7 @@ export async function queryAdjustmentIntent(base: ScheduleCapture, instruction: 
   const cancel = () => controller.abort(); signal.addEventListener("abort", cancel, { once: true });
   const timer = setTimeout(() => { timedOut = true; controller.abort(); }, 25000);
   try {
-    const res = await fetch("http://127.0.0.1:8000/trips/adjustment-intent", { method: "POST", headers: { "Content-Type": "application/json" }, body, signal: controller.signal });
+    const res = await fetch(API_ENDPOINTS.adjustment, { method: "POST", headers: { "Content-Type": "application/json" }, body, signal: controller.signal });
     const data: unknown = await res.json();
     if (controller.signal.aborted) throw new DOMException("已取消", "AbortError");
     if (!res.ok) { const code = record(data) && record(data.detail) ? data.detail.code : ""; throw new Error(errors[String(code)] ?? "调整解析失败，原方案未改变。请主动重试。"); }

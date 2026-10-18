@@ -88,9 +88,9 @@ beforeEach(() => {
   controls.nextPlan = makePlan();
   routeFetch = vi.fn<typeof fetch>(() => Promise.resolve(new Response(JSON.stringify(routeResult))));
   fetchMock = vi.fn<typeof fetch>((input, options) => {
-    const path = new URL(String(input)).pathname;
-    if (path === "/places/search") return Promise.resolve(new Response(JSON.stringify(places)));
-    if (path === "/routes/walking") return routeFetch(input, options);
+    const path = new URL(String(input), window.location.origin).pathname;
+    if (path === "/api/places/search") return Promise.resolve(new Response(JSON.stringify(places)));
+    if (path === "/api/routes/walking") return routeFetch(input, options);
     return Promise.reject(new Error("Unexpected unmocked request"));
   });
   vi.stubGlobal("fetch", fetchMock);

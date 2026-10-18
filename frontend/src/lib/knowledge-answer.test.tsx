@@ -67,6 +67,7 @@ describe("Python → TS answer and citation contract", () => {
   it("request projection never transmits client sources, URL or prompt", async () => {
     const r = fixture(); fetcher.mockResolvedValueOnce(response(r));
     await answerKnowledge(r.retrieval, r.request.request_id, new AbortController().signal);
+    expect(fetcher.mock.calls[0][0]).toBe("/api/knowledge/answer");
     expect(JSON.parse(fetcher.mock.calls[0][1].body)).toEqual(makeAnswerRequest(r.retrieval, r.request.request_id));
     expect(fetcher).toHaveBeenCalledTimes(1);
   });

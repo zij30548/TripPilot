@@ -37,6 +37,7 @@ describe("bounded intent request and strict cross-language response", () => {
     const base = captureFixture(), fetcher = vi.fn().mockResolvedValue(new Response(JSON.stringify(intent(base, "i1")))); vi.stubGlobal("fetch", fetcher);
     await queryAdjustmentIntent(base, "排除一个地点", "i1", new AbortController().signal);
     expect(fetcher).toHaveBeenCalledTimes(1);
+    expect(fetcher.mock.calls[0][0]).toBe("/api/trips/adjustment-intent");
     const payload = JSON.parse(fetcher.mock.calls[0][1].body);
     expect(Object.keys(payload)).toEqual(["contract_version", "request_id", "draft_version", "instruction", "snapshot"]);
     expect(JSON.stringify(payload)).not.toContain('"segments"'); expect(JSON.stringify(payload)).not.toContain('"fare_cny"');

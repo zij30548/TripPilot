@@ -30,7 +30,7 @@ describe("searchPlaces", () => {
     expect(fetchMock).toHaveBeenCalledTimes(1);
     const [input, options] = fetchMock.mock.calls[0];
     const url = new URL(String(input), "http://localhost:3000");
-    expect(url.pathname).toBe("/places/search");
+    expect(url.pathname).toBe("/api/places/search");
     expect(url.searchParams.get("keyword")).toBe("测试地点");
     expect(url.searchParams.get("city")).toBe("上海");
     expect(url.searchParams.has("key")).toBe(false);

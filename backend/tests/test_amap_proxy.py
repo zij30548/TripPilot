@@ -7,6 +7,7 @@ from unittest.mock import patch
 
 import httpx
 from fastapi.testclient import TestClient
+from pydantic import ValidationError
 from uvicorn.logging import AccessFormatter
 
 from app.api.amap_proxy import get_proxy_http_client
@@ -190,6 +191,63 @@ class AmapProxyTests(unittest.TestCase):
                 self.assertEqual(self.request(params).status_code, 200)
                 for name in params:
                     self.assertNotIn(name, self.requests[-1].url.params)
+
+    def test_deployment_page_origins_are_explicit_and_not_forwarded(self) -> None:
+        self.settings = Settings(_env_file=None, amap_js_key=JS_KEY,
+            amap_js_security_code=SECURITY_CODE, amap_web_key=WEB_KEY,
+            amap_allowed_page_origins=["https://trippilot.example", "http://127.0.0.1:38173"])
+        for page in ["https://trippilot.example/", "https://trippilot.example/plan/from/record?tab=map#visit",
+                     "https%3A%2F%2Ftrippilot.example%2Fplan", "http://127.0.0.1:38173/demo"]:
+            with self.subTest(page=page):
+                response = self.request({"appname": page})
+                self.assertEqual(response.status_code, 200)
+                self.assertNotIn("appname", self.requests[-1].url.params)
+                self.assertEqual(self.requests[-1].url.host, "restapi.amap.com")
+                self.assertEqual(self.requests[-1].url.path, "/v3/config/district")
+                self.assert_safe(response)
+        sent = len(self.requests)
+        for page in ["http://trippilot.example/", "https://trippilot.example:444/",
+                     "https://trippilot.example.evil.test/", "https://other.example/",
+                     "https://user:password@trippilot.example/", "//trippilot.example/",
+                     "https://trippilot.example\\@evil.test/", "https://trippilot.example/%0a",
+                     "http://127.0.0.1:38174/", "http://localhost:3000/"]:
+            with self.subTest(page=page):
+                response = self.request({"appname": page})
+                self.assertEqual(response.status_code, 400)
+                self.assert_safe(response)
+        self.assertEqual(len(self.requests), sent)
+
+    def test_page_origin_configuration_defaults_json_and_normalization(self) -> None:
+        default = Settings(_env_file=None)
+        self.assertEqual(default.amap_allowed_page_origins,
+                         ("http://localhost:3000", "http://127.0.0.1:3000"))
+        origins = '["https://trippilot.example/","http://127.0.0.1:38173"]'
+        with patch.dict(os.environ, {"AMAP_ALLOWED_PAGE_ORIGINS": origins}):
+            configured = Settings(_env_file=None)
+        self.assertEqual(configured.amap_allowed_page_origins,
+                         ("https://trippilot.example", "http://127.0.0.1:38173"))
+        normalized = Settings(_env_file=None,
+                              amap_allowed_page_origins=["https://trippilot.example:443/", "http://[::1]:38173"])
+        self.assertEqual(normalized.amap_allowed_page_origins,
+                         ("https://trippilot.example", "http://[::1]:38173"))
+
+    def test_invalid_page_origin_configuration_fails_closed(self) -> None:
+        for origins in [[], ["https://trippilot.example"] * 2,
+                        ["https://trippilot.example", "https://trippilot.example:443/"],
+                        ["ftp://trippilot.example"], ["//trippilot.example"], [""],
+                        ["https://user:password@trippilot.example"], ["https://trippilot.example/path"],
+                        ["https://trippilot.example?"], ["https://trippilot.example#fragment"],
+                        ["https://trippilot.example\n"], [" https://trippilot.example"],
+                        ["https://trippilot.example\\@evil.test"], ["https://trippilot.example:0"],
+                        ["https://trippilot.example:65536"], ["https://trippilot.example:00443"],
+                        ["https://trippilot.example:"], ["https://trippilot.example."],
+                        ["https://TRIPPILOT.example"], ["https://%74rippilot.example"],
+                        ["http://127.1"], ["http://2130706433"], ["http://0x7f000001"],
+                        ["http://0x7f.0.0.1"], [None], [3], ["https://x.test"] * 33,
+                        "https://trippilot.example"]:
+            with self.subTest(origins=origins):
+                with self.assertRaises(ValidationError):
+                    Settings(_env_file=None, amap_allowed_page_origins=origins)
 
     def test_invalid_sdk_metadata_is_rejected_without_an_upstream_request(self) -> None:
         for params in [

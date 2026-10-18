@@ -1,4 +1,5 @@
 import { destination, type DestinationId } from "./destinations";
+import { AMAP_SERVICE_PATH } from "./api-endpoints";
 type DistrictSearchClient = {
   search: (keyword: string, callback: (status: string, result: unknown) => void) => void;
 };
@@ -20,21 +21,18 @@ export function loadAMap(): Promise<AMapSDK> {
   if (sdkPromise) return sdkPromise;
 
   const key = process.env.NEXT_PUBLIC_AMAP_JS_KEY?.trim();
-  const configuredServiceHost = process.env.NEXT_PUBLIC_AMAP_SERVICE_HOST?.trim();
-  if (!key || !configuredServiceHost) {
-    return Promise.reject(new Error("地图尚未配置，请设置地图的浏览器 Key 和安全代理地址后重启前端。"));
+  if (!key) {
+    return Promise.reject(new Error("地图尚未配置，请设置地图的浏览器 Key 后重启前端。"));
   }
   let serviceHost: string;
   try {
-    const proxy = new URL(configuredServiceHost);
-    proxy.pathname = proxy.pathname.replace(/\/+$/, "");
-    if (!["http:", "https:"].includes(proxy.protocol) || proxy.pathname !== "/_AMapService" ||
-      proxy.username || proxy.password || proxy.search || proxy.hash) {
-      throw new Error("Invalid map proxy configuration");
+    const page = new URL(window.location.href);
+    if (!["http:", "https:"].includes(page.protocol) || page.origin === "null") {
+      throw new Error("Invalid map page origin");
     }
-    serviceHost = proxy.toString();
+    serviceHost = new URL(AMAP_SERVICE_PATH, page.origin).toString();
   } catch {
-    return Promise.reject(new Error("地图安全代理地址无效，请配置以 /_AMapService 结尾的 HTTP 或 HTTPS 地址后重启前端。"));
+    return Promise.reject(new Error("当前页面地址不支持地图安全代理，请通过 HTTP 或 HTTPS 打开网站。"));
   }
 
   // Only the proxy URL is public. The security code stays on that server.

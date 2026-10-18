@@ -91,10 +91,10 @@ beforeEach(() => {
   transitFetch = vi.fn<typeof fetch>(() => Promise.resolve(new Response(JSON.stringify(transit))));
   walkingFetch = vi.fn<typeof fetch>(() => Promise.resolve(new Response(JSON.stringify(walking))));
   vi.stubGlobal("fetch", vi.fn<typeof fetch>((input, options) => {
-    const path = new URL(String(input)).pathname;
-    if (path === "/places/search") return Promise.resolve(new Response(JSON.stringify(places)));
-    if (path === "/routes/walking") return walkingFetch(input, options);
-    if (path === "/routes/transit") return transitFetch(input, options);
+    const path = new URL(String(input), window.location.origin).pathname;
+    if (path === "/api/places/search") return Promise.resolve(new Response(JSON.stringify(places)));
+    if (path === "/api/routes/walking") return walkingFetch(input, options);
+    if (path === "/api/routes/transit") return transitFetch(input, options);
     return Promise.reject(new Error("Unexpected unmocked request"));
   }));
   vi.stubGlobal("requestAnimationFrame", (callback: FrameRequestCallback) => { callback(0); return 1; });

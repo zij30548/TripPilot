@@ -9,6 +9,7 @@ from urllib.parse import unquote, urlsplit
 
 import httpx
 
+from app.config import DEFAULT_AMAP_PAGE_ORIGINS, normalize_map_page_origin
 from app.logging_filters import install_http_log_redaction
 from app.destinations import DESTINATIONS
 
@@ -42,7 +43,7 @@ class ProxyPayload:
     media_type: str
 
 
-def _strip_sdk_metadata(params: dict[str, str]) -> None:
+def _strip_sdk_metadata(params: dict[str, str], allowed_page_origins: Sequence[str]) -> None:
     """Validate observed SDK diagnostic fields, without forwarding them upstream."""
     if ("platform" in params and params["platform"] != "JS") or (
         "logversion" in params and params["logversion"] != "2.0"
@@ -60,8 +61,9 @@ def _strip_sdk_metadata(params: dict[str, str]) -> None:
             parsed = urlsplit(page_url)
             valid_page = (
                 not any(ord(character) < 32 or ord(character) == 127 for character in page_url)
-                and parsed.scheme == "http"
-                and parsed.netloc in {"localhost:3000", "127.0.0.1:3000"}
+                and "\\" not in page_url
+                and page_url.startswith(parsed.scheme + "://")
+                and normalize_map_page_origin(f"{parsed.scheme}://{parsed.netloc}") in allowed_page_origins
             )
         except ValueError:
             valid_page = False
@@ -71,7 +73,8 @@ def _strip_sdk_metadata(params: dict[str, str]) -> None:
         params.pop(name, None)
 
 
-def validate_proxy_query(path: str, items: Sequence[tuple[str, str]], key: str) -> dict[str, str]:
+def validate_proxy_query(path: str, items: Sequence[tuple[str, str]], key: str,
+                         allowed_page_origins: Sequence[str] = DEFAULT_AMAP_PAGE_ORIGINS) -> dict[str, str]:
     if path not in UPSTREAM_URLS:
         raise ProxyError(404, "不支持的地图服务路径。")
     allowed = {
@@ -95,7 +98,7 @@ def validate_proxy_query(path: str, items: Sequence[tuple[str, str]], key: str) 
         params[name] = value
     if "key" not in params:
         raise ProxyError(403, "地图 JS Key 与服务配置不匹配。")
-    _strip_sdk_metadata(params)
+    _strip_sdk_metadata(params, allowed_page_origins)
     callback = params.get("callback")
     if callback is not None and (len(callback) > 128 or CALLBACK_PATTERN.fullmatch(callback) is None):
         raise ProxyError(400, "地图回调参数无效。")
@@ -117,14 +120,16 @@ def validate_proxy_query(path: str, items: Sequence[tuple[str, str]], key: str) 
 
 
 class AmapProxyClient:
-    def __init__(self, client: httpx.AsyncClient, key: str, security_code: str, web_key: str = "") -> None:
+    def __init__(self, client: httpx.AsyncClient, key: str, security_code: str, web_key: str = "",
+                 allowed_page_origins: Sequence[str] = DEFAULT_AMAP_PAGE_ORIGINS) -> None:
         self._client = client
         self._key = key
         self._security_code = security_code
+        self._allowed_page_origins = tuple(allowed_page_origins)
         self._sensitive_values = tuple(value for value in (key, security_code, web_key) if value)
 
     async def request(self, path: str, items: Sequence[tuple[str, str]]) -> ProxyPayload:
-        params = validate_proxy_query(path, items, self._key)
+        params = validate_proxy_query(path, items, self._key, self._allowed_page_origins)
         params["jscode"] = self._security_code
         try:
             async with self._client.stream(

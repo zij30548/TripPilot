@@ -127,6 +127,7 @@ describe("HTTP client boundary", () => {
     const fetcher = vi.fn().mockResolvedValueOnce(new Response(JSON.stringify(response()))).mockResolvedValueOnce(new Response(JSON.stringify(response() as object), { status: 200 })).mockResolvedValueOnce(new Response(JSON.stringify({ detail: { code: "structure", message: "UNSAFE RAW" } }), { status: 502 }));
     vi.stubGlobal("fetch", fetcher);
     expect(await queryItinerary(request(), new AbortController().signal)).toEqual(response());
+    expect(fetcher.mock.calls[0][0]).toBe("/api/trips/itinerary-query");
     await expect(queryItinerary({ ...request(), request_id: "new" }, new AbortController().signal)).rejects.toThrow("不一致");
     await expect(queryItinerary(request(), new AbortController().signal)).rejects.toThrow("唯一有效");
     expect(fetcher).toHaveBeenCalledTimes(3);

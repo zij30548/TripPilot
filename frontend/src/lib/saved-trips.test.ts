@@ -40,8 +40,10 @@ describe("versioned archive projection and disk-backed cross-language contract",
     const detail=archiveFixture(), fetcher=vi.fn().mockImplementation(async()=>new Response(JSON.stringify(detail)));vi.stubGlobal("fetch",fetcher);
     const operation={operation_id:"b".repeat(32),name:detail.name,snapshot:detail.snapshot};
     expect(await saveTrip(operation,new AbortController().signal)).toEqual(detail);
+    expect(fetcher.mock.calls[0][0]).toBe("/api/saved-trips");
     expect(JSON.parse(fetcher.mock.calls[0][1].body)).toEqual(operation);
     expect(await readTrip(detail.id,new AbortController().signal)).toEqual(detail);
+    expect(fetcher.mock.calls[1][0]).toBe(`/api/saved-trips/${detail.id}`);
     fetcher.mockResolvedValueOnce(new Response(JSON.stringify({...detail,id:"c".repeat(32)})));
     await expect(readTrip(detail.id,new AbortController().signal)).rejects.toThrow("校验");
     fetcher.mockResolvedValueOnce(new Response(JSON.stringify({detail:{code:"storage_unavailable",message:"secret SQL"}}),{status:503}));
@@ -52,6 +54,7 @@ describe("versioned archive projection and disk-backed cross-language contract",
     const detail=archiveFixture();const {snapshot:_,...summary}=detail;void _;
     vi.stubGlobal("fetch",vi.fn().mockResolvedValue(new Response(JSON.stringify({items:[summary],limit:10,offset:0,has_more:false}))));
     expect((await listTrips(0,new AbortController().signal)).items).toHaveLength(1);
+    expect(vi.mocked(fetch).mock.calls[0][0]).toBe("/api/saved-trips?offset=0&limit=10");
     vi.useFakeTimers();const fetcher=vi.fn((_u,i)=>new Promise((_yes,no)=>i.signal.addEventListener("abort",()=>no(new DOMException("cancel","AbortError")))));vi.stubGlobal("fetch",fetcher);
     const pending=saveTrip({operation_id:"b".repeat(32),name:detail.name,snapshot:detail.snapshot},new AbortController().signal);
     const check=expect(pending).rejects.toThrow("可能已保存");await vi.advanceTimersByTimeAsync(15000);await check;expect(fetcher).toHaveBeenCalledTimes(1);

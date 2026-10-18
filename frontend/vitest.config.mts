@@ -15,7 +15,6 @@ export default defineConfig({
     include: ["src/**/*.test.{ts,tsx}"],
     env: {
       NEXT_PUBLIC_AMAP_JS_KEY: "test-js-key",
-      NEXT_PUBLIC_AMAP_SERVICE_HOST: "http://127.0.0.1:8000/_AMapService",
       AMAP_WEB_KEY: "",
       AMAP_JS_KEY: "",
       AMAP_JS_SECURITY_CODE: "",

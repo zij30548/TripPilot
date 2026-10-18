@@ -176,7 +176,7 @@ describe("schedule preview request and response contract", () => {
   it("posts only the independent inputs and accepts real seconds/ceiling minutes and rounded coordinates", async () => {
     const input = request(); const data = response(input); mockResponse(data);
     expect(await querySchedulePreview(input)).toEqual(data); expect(fetch).toHaveBeenCalledTimes(1);
-    expect(vi.mocked(fetch).mock.calls[0][0]).toBe("http://127.0.0.1:8000/trips/schedule-preview");
+    expect(vi.mocked(fetch).mock.calls[0][0]).toBe("/api/trips/schedule-preview");
     expect(JSON.parse(String(vi.mocked(fetch).mock.calls[0][1]?.body))).toEqual(input);
     expect(data.edges[0].duration_seconds).toBe(61.2); expect(data.edges[0].duration_minutes).toBe(2);
     expect(data.edges[0].origin.longitude).toBe(121.4); expect(input.accommodation_place.longitude).toBe(121.40000014);

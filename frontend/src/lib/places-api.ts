@@ -1,7 +1,6 @@
 import { isPlace, type Place } from "@/types/place";
 import { regionBelongsTo, type DestinationId } from "./destinations";
-
-const SEARCH_URL = "http://127.0.0.1:8000/places/search";
+import { API_ENDPOINTS } from "./api-endpoints";
 
 export async function searchPlaces(keyword: string, signal?: AbortSignal, destinationId?: DestinationId): Promise<Place[]> {
   const query = keyword.trim();
@@ -21,7 +20,7 @@ export async function searchPlaces(keyword: string, signal?: AbortSignal, destin
 
   try {
     const params = new URLSearchParams(destinationId ? { keyword: query, destination_id: destinationId } : { keyword: query, city: "上海" });
-    const response = await fetch(`${SEARCH_URL}?${params}`, { signal: controller.signal });
+    const response = await fetch(`${API_ENDPOINTS.places}?${params}`, { signal: controller.signal });
     if (!response.ok) {
       const messages: Record<number, string> = {
         422: "搜索关键词未通过校验，请输入 1～80 个字后重试。",

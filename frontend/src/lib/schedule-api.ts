@@ -1,5 +1,6 @@
 import { isScheduleRequest, isScheduleResponse, type ScheduleRequest, type ScheduleResponse } from "@/types/schedule";
 import { readScheduleDelivery, type ScheduleDelivery } from "./schedule-drawing";
+import { API_ENDPOINTS } from "./api-endpoints";
 
 export class ScheduleError extends Error {
   constructor(public readonly kind: "timeout" | "error", message: string) {
@@ -16,7 +17,7 @@ export async function querySchedulePreview(request: ScheduleRequest, signal?: Ab
   signal?.addEventListener("abort", cancel, { once: true });
   const timer = setTimeout(() => { timedOut = true; controller.abort(); }, 25_000);
   try {
-    const response = await fetch(`http://127.0.0.1:8000/trips/schedule-preview${drawing ? "?drawing=walking-v1" : ""}`, {
+    const response = await fetch(`${API_ENDPOINTS.schedule}${drawing ? "?drawing=walking-v1" : ""}`, {
       method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(submitted), signal: controller.signal,
     });
     if (!response.ok) {

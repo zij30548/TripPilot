@@ -1,7 +1,6 @@
 import { hasValidCoordinates } from "@/types/place";
 import { isWalkingRouteResponse, type WalkingRouteEndpoint, type WalkingRouteRequest, type WalkingRouteResponse } from "@/types/route";
-
-const WALKING_URL = "http://127.0.0.1:8000/routes/walking";
+import { API_ENDPOINTS } from "./api-endpoints";
 
 export class WalkingRouteError extends Error {
   constructor(public readonly kind: "timeout" | "error", message: string) {
@@ -32,7 +31,7 @@ export async function queryWalkingRoute(request: WalkingRouteRequest, signal?: A
   }, 20_000);
 
   try {
-    const response = await fetch(WALKING_URL, {
+    const response = await fetch(API_ENDPOINTS.walking, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(request),

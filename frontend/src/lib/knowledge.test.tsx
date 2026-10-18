@@ -55,7 +55,7 @@ describe("local request boundaries", () => {
   it("one POST only, exact input and no automatic retry on safe failures", async () => {
     fetcher.mockResolvedValueOnce(response(fixture()));
     const c = new AbortController(); await searchKnowledge(fixture().request, c.signal);
-    expect(fetcher.mock.calls[0][0]).toBe("http://127.0.0.1:8000/knowledge/search");
+    expect(fetcher.mock.calls[0][0]).toBe("/api/knowledge/search");
     expect(JSON.parse(fetcher.mock.calls[0][1].body)).toEqual(fixture().request);
     fetcher.mockRejectedValueOnce(new Error("secret raw URL"));
     await expect(searchKnowledge(fixture().request, c.signal)).rejects.toThrow("本地资料查询未完成");
@@ -157,7 +157,7 @@ describe("official page is retrieval only", () => {
       expect(screen.queryByText(/部分有依据，仍有事项待确认|已依据收录资料回答/)).toBeNull();
     }
     expect(fetcher).toHaveBeenCalledTimes(4);
-    expect(fetcher.mock.calls.every(([url]) => url === "http://127.0.0.1:8000/knowledge/search")).toBe(true);
+    expect(fetcher.mock.calls.every(([url]) => url === "/api/knowledge/search")).toBe(true);
   });
 
   it("cancel is available on the official page and late retrieval cannot show results", async () => {

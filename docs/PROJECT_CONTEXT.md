@@ -2,6 +2,8 @@
 
 本文件描述产品定位及当前边界，不是新增功能授权。当前基于`f18fb40461adfa93eecc02e53a03d3399249cc34`完成media-2B：**视频选中单帧→主动地点线索识别→真实POI核对确认**，不是整段视频/批量多地点识别。8次固定调用（4 API＋4 Chrome）限定通过、额度已耗尽；不改照片提示/契约/评分。详见[MEDIA_2B](MEDIA_2B.md)，资源仍见[MEDIA_2A](MEDIA_2A.md)。
 
+2026-10-18后续进展：release-1A补诊断，release-1B以新真实案例修复公交退化接驳绘图兼容；原上海六日案例仍根因未知。**release-1C仅完成接口寻址适配**：15个浏览器请求模块固定同源 `/api/*`，Next按可信服务端origin转发；地图同源 `/_AMapService`，页面origin由后端精确白名单校验，不扩大高德上游或CORS。构建／启动目标必须一致。该轮为独立受控后端验证、模型及高德等真实外部业务调用0，不是公网部署或业务质量重新验收，见[RELEASE_1C](RELEASE_1C.md)及最新[PROGRESS](PROGRESS.md)。
+
 此前2026-10-16 在 `2b1d5689d46571090d1945be13fcff6fcbeac588` 上只读核对版本与证据，**media-1按单照片地点线索辅助的限定范围收口**，不是全国可靠识别或公开上线准入。该次仅整理文档，模型／外部业务调用均0；没有业务、提示、契约或评测标准改动。旧真实流程、历史输出回放＋真实高德、新固定样本接口结果分别标明版本，不合称一次最终版全链路验收；详见[限定收口矩阵与演示](MEDIA_1.md#2026-10-16-限定收口与演示整理当前状态)。若HEAD变化先核对[PROGRESS](PROGRESS.md)，不依据旧聊天回退。
 
 ## 长期目标：国内旅行规划助手
@@ -47,6 +49,7 @@ media-1 的视觉能力独立于下列三个行程功能：仅显式上传一张
 ## 实际技术与数据边界
 
 - 前端：Next.js 16.3.3 App Router、React 19.2.8、TypeScript、Tailwind 4；本地 Hook/ref + fetch，无全局状态库。修改前阅读 `frontend/AGENTS.md` 和该版本本地 Next 文档。
+- 部署寻址：共享 `api-endpoints.ts`，服务端 `TRIPPILOT_BACKEND_ORIGIN` 只允许规范HTTP(S) origin；只转发固定业务资源和一个地图路径。Next75秒代理空闲超时／21MiB请求克隆缓冲，不替代业务端的大小／总截止／取消规则。目标写入构建清单，生产缺配置或启动不一致明确失败；不是运行时任意URL代理或公开上线网关。`AMAP_ALLOWED_PAGE_ORIGINS` 是服务器配置的SDK页面白名单，不是上游或CORS放开。
 - 后端：`pyproject.toml` 要求 Python >=3.13（不是早期规划的 3.12）；FastAPI、Pydantic/pydantic-settings、httpx、SQLModel。依赖由 uv.lock 和 package-lock.json 管理。
 - 图片：仅新增锁定Pillow12.3.0；原始二进制请求有界读取，不用multipart临时文件。5MiB／2000万像素／静态JPEG-PNG-WebP，转正、去元数据、长边2048后发送；单进程1张、上传10秒、模型操作20秒、前端35秒。无URL下载、数据库照片、日志Base64或模型自动重试。独立 `QWEN_VISION_MODEL=qwen3-vl-plus`，其JSON Object+服务端严格Schema不改变原AI契约。产品并无全局账号配额系统。
 - 视频：独立`/media/video-frames`及`video-frames-v1`，非空MP4/H.264≤20MiB／30秒／1920长边／2073600像素，实际容器／单视频流校验。FFmpeg/ffprobe9.0.1固定可信路径、仅继承私有文件fd读取、禁网络与外部引用，单进程1任务；上传30秒、处理共享20秒、前端60秒。中点采样≤6，JPEG≤1280长边／512KiB每张／5MiB整批；不复制缺帧，去元数据。服务端0700临时目录／0600输入文件，成功／失败／取消／超时后清理；子进程真正退出前不释放容量。不是完全不落盘、OS级隔离或公开上传准入。
@@ -73,4 +76,4 @@ media-1 的视觉能力独立于下列三个行程功能：仅显式上传一张
 
 duration-1 在杭州实测七日步行、第四天实际游览、后续空日、七天天气部分覆盖、预览取消／采用、七日费用、v3 保存刷新／副本主动再生及四日公交。没有真实满载跑遍六城，也没有长行程真实模型调用；最大规模和异常用受控测试。详见 [DURATION_1](DURATION_1.md)，不覆盖上述目的地阶段失败。
 
-按 [README](../README.md) → 本文件 → [ROADMAP](ROADMAP.md) → [PROGRESS](PROGRESS.md) 读取，另遵守 [AGENTS](../AGENTS.md)。README提供实际启动与演示，ROADMAP是未来计划，PROGRESS顶部是当前状态／停止点，下方旧验收保持历史含义。当前停在media-2B单帧辅助限定验收；media-1旧失败与台账、media-2A零模型记录及其他限制保持。本轮8次额度耗尽，不自动追加，不进入批量多地点识别、上线工程或数据库迁移。
+按 [README](../README.md) → 本文件 → [ROADMAP](ROADMAP.md) → [PROGRESS](PROGRESS.md) 读取，另遵守 [AGENTS](../AGENTS.md)。README提供实际启动与演示，ROADMAP是未来计划，PROGRESS顶部是当前状态／停止点，下方旧验收保持历史含义。当前停在release-1C同源接口适配，不代表已公开上线。media-2B限定结论、media-1旧失败与台账、media-2A零模型记录及其他限制保持；历史8次等额度耗尽，不自动追加模型调用，不进入批量多地点识别、其他上线工作或数据库迁移。

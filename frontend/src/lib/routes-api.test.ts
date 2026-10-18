@@ -23,15 +23,16 @@ describe("queryWalkingRoute normalized API contract", () => {
     vi.stubGlobal("fetch", fetchMock);
   });
 
-  it("POSTs bound endpoint identities and longitude/latitude to the local business endpoint without credentials", async () => {
+  it("POSTs bound endpoint identities and longitude/latitude to the same-origin business endpoint without credentials", async () => {
     fetchMock.mockResolvedValue(new Response(JSON.stringify(result)));
     const controller = new AbortController();
     await expect(queryWalkingRoute(request, controller.signal)).resolves.toEqual(result);
 
     const [input, options] = fetchMock.mock.calls[0];
-    const url = new URL(String(input));
-    expect(url.origin).toBe("http://127.0.0.1:8000");
-    expect(url.pathname).toBe("/routes/walking");
+    const url = new URL(String(input), "https://trippilot.example:8443");
+    expect(url.origin).toBe("https://trippilot.example:8443");
+    expect(url.pathname).toBe("/api/routes/walking");
+    expect(String(input)).toBe("/api/routes/walking");
     expect(url.search).toBe("");
     expect(options?.method).toBe("POST");
     expect(new Headers(options?.headers).get("Content-Type")).toBe("application/json");

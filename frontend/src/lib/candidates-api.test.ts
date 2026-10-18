@@ -30,7 +30,7 @@ describe("candidate contract and safe API", () => {
     expect(await queryCandidates(request())).toEqual(response());
     expect(fetch).toHaveBeenCalledTimes(1);
     const [url, init] = vi.mocked(fetch).mock.calls[0];
-    expect(url).toBe("http://127.0.0.1:8000/places/candidates");
+    expect(url).toBe("/api/places/candidates");
     expect(init?.method).toBe("POST");
     expect(JSON.parse(String(init?.body))).toEqual(request());
   });

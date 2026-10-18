@@ -105,7 +105,7 @@ describe("weather request boundary and safe errors", () => {
   it("sends one date-only batch request to the backend, snapshots input and validates its echo", async () => {
     const data = response(); stubResponse(data); const input = request(); const work = queryWeatherForecast(input); input.start_date = "2027-01-01";
     expect(await work).toEqual(data); expect(fetch).toHaveBeenCalledTimes(1);
-    const [url, init] = vi.mocked(fetch).mock.calls[0]; expect(url).toBe("http://127.0.0.1:8000/weather/forecast"); expect(init?.method).toBe("POST"); expect(JSON.parse(String(init?.body))).toEqual(request());
+    const [url, init] = vi.mocked(fetch).mock.calls[0]; expect(url).toBe("/api/weather/forecast"); expect(init?.method).toBe("POST"); expect(JSON.parse(String(init?.body))).toEqual(request());
   });
   it.each([422, 502, 503, 504, 500, 429])("masks error body on HTTP %i and does not retry", async (status) => {
     const json = vi.fn(async () => ({ detail: "sensitive upstream URL" })); vi.stubGlobal("fetch", vi.fn().mockResolvedValue({ ok: false, status, json }));

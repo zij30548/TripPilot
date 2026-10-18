@@ -4,6 +4,8 @@
 
 **当前是本机单用户版本：上海、杭州、北京、广州、成都、西安六选一，单城、1～7 天、一个住宿参考点。它们是当前版本范围，不是永久产品定位。** 不代表全国全部可用；更多城市、进一步扩容、视频批量多地点发现、跨城及多住宿仍是未来方向，见 [路线图](docs/ROADMAP.md)。
 
+2026-10-18 **release-1C 接口寻址已适配同源部署**：浏览器业务请求使用 `/api/*`，地图安全代理使用同源 `/_AMapService`；Next 服务端按可信配置转发，不连接访问者本机8000端口。这只是寻址适配，不是公网发布或多用户安全准入。真实交通的新案例及兼容修复见[release-1B](docs/RELEASE_1B.md)，本轮转发／受控验证与部署步骤见[release-1C](docs/RELEASE_1C.md)。
+
 2026-10-16 **media-2B视频选中单帧地点线索流程已实现并完成本轮限定验收**：主动抽帧→选一张并查看约时间→明确点击识别→一个可能名称/城市或拒识→主动高德搜索→预览并确认加入编辑中的必去。复用照片提示/契约，不上传整段视频给模型；抽帧/选帧不自动识别。固定8次调用（4 API＋4 Chrome）得到5次识别、3次合理拒识，结构8/8，四项流程通过；4视频/5帧、两真实摄影片两静态照片合成片、有同源复用，不能宣传总体准确率。取消编辑保留原草案/费用/地图；不做批量识别。详见[MEDIA_2B](docs/MEDIA_2B.md)。额度8/8已用尽，停在本阶段。
 
 此前 **media-2A短视频抽帧预览已实现**，当轮模型／高德／其他外部业务API调用均0；资源、依赖、临时落盘、取消清理和历史证据见[MEDIA_2A](docs/MEDIA_2A.md)，该轮记录不等于本轮新增识别能力的成绩。
@@ -45,6 +47,7 @@
 | 部分 | 当前实现与职责 |
 | --- | --- |
 | 前端 | Next.js **16.3.3** App Router、React **19.2.8**、TypeScript、Tailwind CSS **4**；React Hook/ref 管理会话与请求版本，原生 fetch，无额外全局状态库 |
+| 接口寻址 | 浏览器固定同源路径；Next 内置 rewrite 转发至服务端 `TRIPPILOT_BACKEND_ORIGIN`，固定资源白名单、不重试、不解析媒体正文；构建和启动目标必须一致 |
 | 后端 | Python **>=3.13**、FastAPI、Pydantic/pydantic-settings、httpx；`api` 接口、`schemas` 契约、`integrations` 上游适配、`services` 规则与检索 |
 | 真实数据 | 高德 Web Service 提供 POI、步行、公交参考与天气；JS API 2.0 提供底图，官方 loader + 受限后端安全代理 |
 | 规则与计算 | 后端纯规则排程消费规范化交通分钟；前端整数分费用计算、天气关联与确定性结果展示。没有 OR-Tools、自动优化或模型生成整份行程 |
@@ -93,13 +96,16 @@ docs/                          产品上下文、路线图、进度和历史证�
 | `backend/.env` | `AMAP_JS_KEY` | 与前端 JS Key 一致，供受限代理校验 |
 | `backend/.env` | `AMAP_JS_SECURITY_CODE` | 仅服务端使用的 JS 安全密钥，绝不能放入 `NEXT_PUBLIC_` |
 | `frontend/.env.local` | `NEXT_PUBLIC_AMAP_JS_KEY` | 浏览器专用 JS Key；公开配置，不是服务端 Web Key |
-| `frontend/.env.local` | `NEXT_PUBLIC_AMAP_SERVICE_HOST` | 本地为 `http://127.0.0.1:8000/_AMapService` |
+| `frontend/.env.local` 或进程环境 | `TRIPPILOT_BACKEND_ORIGIN` | **仅Next服务端**的后端 HTTP(S) origin；开发省略时才默认本机8000，生产构建和启动均须明确配置且一致 |
+| `backend/.env` | `AMAP_ALLOWED_PAGE_ORIGINS` | SDK页面来源精确白名单（JSON列表）；默认本地3000两个来源，部署时配置实际HTTPS站点，不等于CORS或任意上游许可 |
 | `backend/.env` | `QWEN_API_KEY`、`QWEN_BASE_URL`、`QWEN_MODEL` | 可选 AI 配置；密钥仅后端，当前模型默认快照见上表 |
 | `backend/.env` | `QWEN_VISION_MODEL` | 独立照片模型，当前仅允许 `qwen3-vl-plus`；复用上述北京地址与服务端密钥，不改三项行程AI默认模型 |
 
 `QWEN_BASE_URL` 只能使用当前服务端白名单内的北京官方 HTTPS 地址和 `/compatible-mode/v1` 路径；具体配置边界见 [QWEN_SETUP](docs/QWEN_SETUP.md)。该文档是 6A-1 配置与历史验收记录，其中的旧调用额度不是新授权，原解释接口的 JSON 输出说明也不能替代 7A-1 原生工具协议。不要修改配置来换模型或绕过历史额度。
 
 后端从固定 `backend/.env` 读取，进程环境优先。密钥缺失不阻止 API 启动，但对应真实查询会给出未配置错误；地图未配置会显示提示，不伪造地图。前端公开变量在构建时注入，改动后需重启开发服务或重建生产包。
+
+不再配置浏览器后端地址。旧 `NEXT_PUBLIC_AMAP_SERVICE_HOST` 已不读取，已有本机环境文件可自行移除该废弃项；它不能覆盖新的同源代理。地图 `serviceHost` 从当前页面 origin 生成，安全码仍仅在后端。`TRIPPILOT_BACKEND_ORIGIN` 不使用 `NEXT_PUBLIC_`，不允许凭证、子路径、query或fragment，也不接受请求参数选择目标。
 
 ### 2. 后端（从仓库根目录，在终端一）
 
@@ -119,15 +125,17 @@ npm ci
 npm run dev -- --webpack
 ```
 
-打开 `http://localhost:3000` 或 `http://127.0.0.1:3000`。当前前端业务请求固定指向 `http://127.0.0.1:8000`，CORS 仅允许上述本地 3000 来源；不是已经完成公网部署的配置。
+打开 `http://localhost:3000` 或 `http://127.0.0.1:3000`。浏览器使用页面同源 `/api/*`；开发服务端默认转发到本机8000。FastAPI原有CORS不放宽，生产也不应改成 `*`；同源转发不依赖浏览器跨域访问后端。
 
 复现已采用的生产构建方式（从仓库根目录执行，先停止同端口开发服务）：
 
 ```sh
 cd frontend
-npm run build -- --webpack
-npm run start -- --hostname 127.0.0.1 --port 3000
+TRIPPILOT_BACKEND_ORIGIN=http://127.0.0.1:8000 npm run build -- --webpack
+TRIPPILOT_BACKEND_ORIGIN=http://127.0.0.1:8000 npm run start -- --hostname 127.0.0.1 --port 3000
 ```
+
+这里的 loopback 是**Next服务器自己的后端**，不是访问者电脑。更换后端目标必须重新构建，并以相同值启动；缺失、非法或与构建清单不一致均明确失败，不静默使用旧地址。此方案需要 `next start` 的Node服务，不支持纯静态导出。配置路径、超时、上传、入口网关及仍缺的上线工作见[部署适配说明](docs/RELEASE_1C.md#配置与部署步骤)。
 
 仓库也有 `npm run dev` / `npm run build`，但历史代理执行环境遇到 Turbopack 端口权限限制，验收沿用 Webpack；不能把此限制写成全平台 Next.js 故障。现有 `next/font/google` 在干净构建时需要字体网络访问；最近构建结果见 PROGRESS；media-2A已运行Webpack生产构建。
 
@@ -144,8 +152,8 @@ npm run start -- --hostname 127.0.0.1 --port 3000
 # 前端目录
 npm test -- --reporter=dot
 npm run lint
-npm run typecheck
-npm run build -- --webpack
+TRIPPILOT_BACKEND_ORIGIN=http://127.0.0.1:8000 npm run typecheck
+TRIPPILOT_BACKEND_ORIGIN=http://127.0.0.1:8000 npm run build -- --webpack
 
 # 仓库根目录
 git diff --check
@@ -166,6 +174,7 @@ git diff --check
 - 照片仅JPEG/PNG/静态WebP，一次一张≤5MiB、≤2000万像素，发送前长边≤2048；无图片URL下载、相册或持久存储；视频抽帧是另一入口，不会自动调用照片功能。单进程同时处理1张不是跨实例限流。当前视觉JSON Object输出仍须服务端严格校验，合法结构也不保证识别正确；原12/12与保守版新增12/12均已用尽，不自动重试或追加。
 - 视频仅短MP4/H.264、确定性中点采样，不保证找全场景；服务端会临时落盘再清理，不是完全不落盘。单进程1任务／上传30秒／处理20秒／前端60秒，不是跨实例配额或完整OS沙箱；进程被强杀／主机崩溃后的遗留清理与公网隔离须另行设计。
 - 尚无用户登录、数据权限隔离、公网上传管理、公开部署运维与全局调用限额；不能直接当作公网多用户产品发布。历史安全告警与测试依赖弃用提示需独立复核，本轮没有重跑安全审计或升级原有依赖。
+- Next代理空闲超时配置75秒、请求克隆缓冲21MiB，原照片5MiB／35秒和视频20MiB／60秒前端限制不变；代理空闲超时不替代业务总截止。缓冲不是全局限流或流式零拷贝；外层网关必须支持足够大小／时限、取消传播及非缓冲上传，不能直接套用较小的托管函数上限。本轮仅验证本机不同端口的生产转发，不代表公网HTTPS、入口防护或真实业务已重新验收。
 
 ## 演示与文档入口
 
@@ -174,6 +183,7 @@ git diff --check
 - [PROJECT_CONTEXT](docs/PROJECT_CONTEXT.md)：长期定位、当前事实及架构边界。
 - [ROADMAP](docs/ROADMAP.md)：依赖、优先级、待细化事项；不是实施授权。
 - [PROGRESS](docs/PROGRESS.md)：最新摘要、实际交付、历史失败与停止点。
+- [release-1C](docs/RELEASE_1C.md)：完整接口盘点、同源访问、服务端配置、受控生产转发／取消验证和剩余部署缺口。
 - [目的地扩展第 1 阶段](docs/DESTINATION_1.md)：三城契约、v1/v2 边界、有限真实验收及文件清单。
 - [行程天数扩展第 1 阶段](docs/DURATION_1.md)：七天规则、41／29／58 预算、v3 与旧存档兼容、真实证据及演示步骤。
 - [单照片入口 media-1](docs/MEDIA_1.md)：限定验收矩阵、版本适用性、约3分钟历史证据演示、旧失败和当前限制；该文档收口轮只编写脚本，不执行。

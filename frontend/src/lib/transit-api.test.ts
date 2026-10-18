@@ -27,7 +27,7 @@ describe("queryTransitRoute normalized public-transport contract", () => {
     fetchMock.mockResolvedValue(new Response(JSON.stringify(result)));
     await expect(queryTransitRoute(request)).resolves.toEqual(result);
     const [input, options] = fetchMock.mock.calls[0];
-    expect(String(input)).toBe("http://127.0.0.1:8000/routes/transit");
+    expect(String(input)).toBe("/api/routes/transit");
     expect(options?.method).toBe("POST");
     expect(new Headers(options?.headers).get("Content-Type")).toBe("application/json");
     expect(JSON.parse(String(options?.body))).toEqual(request);

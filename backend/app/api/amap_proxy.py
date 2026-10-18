@@ -27,7 +27,8 @@ def get_proxy_client(
     security_code = settings.amap_js_security_code.get_secret_value().strip()
     if not key or not security_code:
         raise HTTPException(status_code=503, detail="地图服务未配置 AMAP_JS_KEY 或 AMAP_JS_SECURITY_CODE。")
-    return AmapProxyClient(client, key, security_code, settings.amap_web_key.get_secret_value().strip())
+    return AmapProxyClient(client, key, security_code, settings.amap_web_key.get_secret_value().strip(),
+                           settings.amap_allowed_page_origins)
 
 
 async def _proxy_response(request: Request, path: str, proxy: AmapProxyClient) -> Response:

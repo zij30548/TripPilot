@@ -24,7 +24,6 @@ beforeEach(() => {
   Reflect.deleteProperty(window, "_AMapSecurityConfig");
   Reflect.deleteProperty(window, "AMap");
   vi.stubEnv("NEXT_PUBLIC_AMAP_JS_KEY", "fixture-browser-js-key");
-  vi.stubEnv("NEXT_PUBLIC_AMAP_SERVICE_HOST", "http://127.0.0.1:8000/_AMapService");
 });
 
 describe("loadAMap", () => {
@@ -32,7 +31,7 @@ describe("loadAMap", () => {
     const pending = deferred<object>();
     officialLoader.load.mockImplementation(() => {
       expect(browserGlobals._AMapSecurityConfig).toEqual({
-        serviceHost: "http://127.0.0.1:8000/_AMapService",
+        serviceHost: `${window.location.origin}/_AMapService`,
       });
       return pending.promise;
     });
@@ -56,25 +55,38 @@ describe("loadAMap", () => {
     expect(fetch).not.toHaveBeenCalled();
   });
 
-  it.each(["NEXT_PUBLIC_AMAP_JS_KEY", "NEXT_PUBLIC_AMAP_SERVICE_HOST"])("fails safely before SDK loading when %s is missing", async (name) => {
-    vi.stubEnv(name, "");
+  it("fails safely before SDK loading when the public JS key is missing", async () => {
+    vi.stubEnv("NEXT_PUBLIC_AMAP_JS_KEY", "");
     const { loadAMap } = await import("@/lib/amap-loader");
     await expect(loadAMap()).rejects.toThrow(/[\u4e00-\u9fff]/);
     expect(officialLoader.load).not.toHaveBeenCalled();
   });
 
-  it.each([
-    "javascript:alert(1)",
-    "//example.test/_AMapService",
-    "http://example.test/arbitrary-proxy",
-    "http://user:password@example.test/_AMapService",
-    "http://example.test/_AMapService?jscode=fixture-secret",
-    "http://example.test/_AMapService#fragment",
-  ])("rejects an invalid serviceHost before loading the SDK", async (serviceHost) => {
-    vi.stubEnv("NEXT_PUBLIC_AMAP_SERVICE_HOST", serviceHost);
+  it.each(["https://travel.example/plan/from/test", "http://localhost:3417/", "https://travel.example:8443/demo"])("uses only the current page origin for %s", async (href) => {
+    const page = { location: new URL(href), _AMapSecurityConfig: undefined as unknown };
+    vi.stubGlobal("window", page);
+    // This obsolete public value must never become a browser-controlled target.
+    vi.stubEnv("NEXT_PUBLIC_AMAP_SERVICE_HOST", "https://other.example/arbitrary?jscode=fixture-secret");
+    officialLoader.load.mockResolvedValue({ fixture: "sdk" });
+    const { loadAMap } = await import("@/lib/amap-loader");
+    await expect(loadAMap()).resolves.toEqual({ fixture: "sdk" });
+    expect(page._AMapSecurityConfig).toEqual({ serviceHost: `${page.location.origin}/_AMapService` });
+    expect(fetch).not.toHaveBeenCalled();
+  });
+
+  it.each(["file:///private/example.html", "data:text/html,example", "about:blank"])("rejects an unsupported page origin %s before SDK loading", async (href) => {
+    vi.stubGlobal("window", { location: new URL(href) });
     const { loadAMap } = await import("@/lib/amap-loader");
     await expect(loadAMap()).rejects.toThrow(/[\u4e00-\u9fff]/);
     expect(officialLoader.load).not.toHaveBeenCalled();
+  });
+
+  it("does not require or read the obsolete public proxy address", async () => {
+    vi.stubEnv("NEXT_PUBLIC_AMAP_SERVICE_HOST", "");
+    officialLoader.load.mockResolvedValue({ fixture: "sdk" });
+    const { loadAMap } = await import("@/lib/amap-loader");
+    await expect(loadAMap()).resolves.toEqual({ fixture: "sdk" });
+    expect(browserGlobals._AMapSecurityConfig).toEqual({ serviceHost: `${window.location.origin}/_AMapService` });
   });
 
   it("allows retry after a failed SDK initialization", async () => {

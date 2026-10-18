@@ -32,7 +32,7 @@ with tempfile.TemporaryDirectory() as d:
  it("sends one binary request, not a filename/URL; safe errors and no retry",async()=>{
    const fetcher=vi.fn().mockResolvedValue(new Response(JSON.stringify(valid)));vi.stubGlobal("fetch",fetcher);
    const file=new File(["bytes"],"private.mp4");expect(await extractVideo(file,"r",new AbortController().signal)).toEqual(valid);
-   expect(fetcher).toHaveBeenCalledOnce();expect(fetcher.mock.calls[0][0]).not.toContain("private");expect(fetcher.mock.calls[0][1].body).toBe(file);
+   expect(fetcher).toHaveBeenCalledOnce();expect(fetcher.mock.calls[0][0]).toBe("/api/media/video-frames?request_id=r");expect(fetcher.mock.calls[0][1].body).toBe(file);
    fetcher.mockResolvedValue(new Response(JSON.stringify({detail:{code:"unknown",message:"raw sensitive error"}}),{status:500}));
    await expect(extractVideo(file,"r",new AbortController().signal)).rejects.toThrow("视频处理未完成");expect(fetcher).toHaveBeenCalledTimes(2);
  });

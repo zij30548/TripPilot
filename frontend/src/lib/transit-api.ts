@@ -1,8 +1,7 @@
 import { hasValidCoordinates } from "@/types/place";
 import type { WalkingRouteEndpoint, WalkingRouteRequest } from "@/types/route";
 import { isTransitRouteResponse, type TransitRouteResponse } from "@/types/transit";
-
-const TRANSIT_URL = "http://127.0.0.1:8000/routes/transit";
+import { API_ENDPOINTS } from "./api-endpoints";
 
 export class TransitRouteError extends Error {
   constructor(public readonly kind: "timeout" | "error", message: string) {
@@ -27,7 +26,7 @@ export async function queryTransitRoute(request: WalkingRouteRequest, signal?: A
   signal?.addEventListener("abort", cancel, { once: true });
   const timeout = setTimeout(() => { timedOut = true; controller.abort(); }, 20_000);
   try {
-    const response = await fetch(TRANSIT_URL, {
+    const response = await fetch(API_ENDPOINTS.transit, {
       method: "POST", headers: { "Content-Type": "application/json" },
       body: JSON.stringify(request), signal: controller.signal,
     });

@@ -32,6 +32,7 @@ describe("structured confirmed trip requirements", () => {
     const response = plan(input);
     fetchMock.mockResolvedValue(new Response(JSON.stringify(response)));
     expect(await planTrip(input)).toEqual(response);
+    expect(fetchMock.mock.calls[0][0]).toBe("/api/trips/plan");
     expect(JSON.parse(fetchMock.mock.calls[0][1]?.body as string)).toEqual(input);
     expect(input.must_visit_places?.map(p => p.id)).toEqual([place.id, second.id]);
   });

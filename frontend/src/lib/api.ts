@@ -3,8 +3,7 @@ import { isConfirmedPlace, type Place } from "@/types/place";
 import { isDestinationId, regionBelongsTo } from "./destinations";
 import { scheduleDates } from "@/types/schedule";
 import { MAX_TRIP_DAYS, LEGACY_MAX_TRIP_DAYS } from "./planning-limits";
-
-const PLAN_URL = "http://127.0.0.1:8000/trips/plan";
+import { API_ENDPOINTS } from "./api-endpoints";
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null && !Array.isArray(value);
@@ -137,7 +136,7 @@ export async function planTrip(request: TripRequest): Promise<TripPlan> {
   const timeout = setTimeout(() => controller.abort(), 15_000);
 
   try {
-    const response = await fetch(PLAN_URL, {
+    const response = await fetch(API_ENDPOINTS.plan, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(request),

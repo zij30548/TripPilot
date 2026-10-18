@@ -113,7 +113,7 @@ beforeEach(() => {
     route: { distance_meters: 1250, duration_seconds: 901, segments: [[[120.01, 30.01], [120.02, 30.02]]] },
   })));
   vi.stubGlobal("fetch", vi.fn<typeof fetch>((input, options) => {
-    if (new URL(String(input)).pathname === "/routes/walking") return walkingFetch(input, options);
+    if (new URL(String(input), window.location.origin).pathname === "/api/routes/walking") return walkingFetch(input, options);
     return Promise.reject(new Error("Unexpected unmocked network request"));
   }));
   vi.stubGlobal("requestAnimationFrame", (callback: FrameRequestCallback) => { callback(0); return 1; });

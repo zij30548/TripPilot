@@ -52,7 +52,7 @@ describe("explanation boundary, no real credentials", () => {
     const fetcher = vi.fn().mockResolvedValue(new Response(JSON.stringify(response()))); vi.stubGlobal("fetch", fetcher);
     await queryExplanation(schedule(), "test-1", new AbortController().signal);
     expect(fetcher).toHaveBeenCalledTimes(1);
-    expect(fetcher.mock.calls[0][0]).toBe("http://127.0.0.1:8000/trips/schedule-explanation");
+    expect(fetcher.mock.calls[0][0]).toBe("/api/trips/schedule-explanation");
     const init = fetcher.mock.calls[0][1]; expect(init.headers).toEqual({ "Content-Type": "application/json" });
     expect(Object.keys(JSON.parse(init.body))).toEqual(["contract_version", "request_id", "snapshot"]);
   });
