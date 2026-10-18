@@ -347,7 +347,7 @@ class TransitRouteApiTests(unittest.TestCase):
         self.assertTrue(all(leg["geometry"] == [] for leg in route["legs"]))
 
     def test_present_malformed_geometry_cannot_be_silently_skipped(self) -> None:
-        for geometry in ["bad", {}, "121,31", "121,31;", "121,31;121,31", "181,31;122,32",
+        for geometry in ["bad", {}, "121,31", "121,31;", "181,31;122,32",
                          "121,91;122,32", "NaN,31;122,32", "121,31;122,32,1"]:
             for kind in ["walking", "bus"]:
                 with self.subTest(geometry=geometry, kind=kind):
@@ -357,6 +357,44 @@ class TransitRouteApiTests(unittest.TestCase):
                     target["polyline"] = geometry
                     self.set_proposals([proposal])
                     self.assertEqual(self.transit().status_code, 502)
+
+    def test_repeated_valid_access_points_are_incomplete_not_an_unusable_journey(self) -> None:
+        # Minimal field projection of release-1B's real Shanghai response,
+        # embedded in the existing controlled proposal (not a live route).
+        proposal = sample_proposal()
+        steps = proposal["segments"][0]["walking"]["steps"]
+        before, after = [step["polyline"] for step in steps]
+        steps.insert(1, {"distance": "1", "duration": [], "instruction": "步行1米右转",
+                         "polyline": "121.446312,31.223412;121.446312,31.223412"})
+        self.set_proposals([proposal])
+        response = self.transit()
+        self.assertEqual(response.status_code, 200)
+        route = response.json()["route"]
+        self.assertEqual(route["duration_seconds"], 1201)  # Total once, no invented step time.
+        self.assertEqual(route["walking_distance_meters"], 501)
+        self.assertEqual(route["fare_cny"], 4.5)
+        self.assertFalse(route["geometry_complete"])
+        walk = route["legs"][0]
+        self.assertFalse(walk["geometry_complete"])
+        self.assertEqual(walk["duration_seconds"], 181)
+        self.assertEqual(walk["instruction"], "沿测试道路步行；步行1米右转；进入测试站")
+        self.assertEqual(walk["geometry"], [
+            [[float(n) for n in point.split(",")] for point in text.split(";")]
+            for text in [before, after]])  # Separate pieces, no bridging line.
+        self.assertTrue(route["legs"][1]["geometry_complete"])
+
+    def test_degenerate_ride_geometry_is_still_rejected_and_cannot_mask_invalid_coordinates(self) -> None:
+        for kind, geometry in [
+            ("bus", "121,31;121,31"), ("walking", "181,31;181,31"),
+            ("walking", "NaN,31;NaN,31"), ("walking", "121,31"),
+        ]:
+            with self.subTest(kind=kind, geometry=geometry):
+                proposal = sample_proposal()
+                target = proposal["segments"][0][kind]
+                target = target["steps"][0] if kind == "walking" else target["buslines"][0]
+                target["polyline"] = geometry
+                self.set_proposals([proposal])
+                self.assertEqual(self.transit().status_code, 502)
 
     def test_missing_ride_name_type_or_stops_is_abnormal_not_a_complete_plan(self) -> None:
         for field, value in [("name", None), ("type", None), ("departure_stop", {}),

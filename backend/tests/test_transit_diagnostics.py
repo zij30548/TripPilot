@@ -17,8 +17,8 @@ class TransitDiagnosticsTests(unittest.TestCase):
             (lambda p: p.update(duration="NaN"), "route.transits[0].duration", "number_range"),
             (lambda p: p["segments"][0]["bus"]["buslines"][0].update(arrival_stop={}),
              "route.transits[0].segments[0].bus.buslines[0].arrival_stop.name", "text_required_or_type"),
-            (lambda p: p["segments"][0]["walking"]["steps"][0].update(polyline="121,31;121,31"),
-             "route.transits[0].segments[0].walking.steps[0].polyline", "geometry_undrawable"),
+            (lambda p: p["segments"][0]["walking"]["steps"][0].update(polyline="NaN,31;121,31"),
+             "route.transits[0].segments[0].walking.steps[0].polyline", "coordinate_non_finite"),
         ]
         for mutate, field, reason in cases:
             with self.subTest(field=field):
@@ -30,6 +30,19 @@ class TransitDiagnosticsTests(unittest.TestCase):
                 self.assertEqual([(i.field, i.reason) for i in caught.exception.issues], [(field, reason)])
                 self.assertIn(field, logs.output[0])
                 self.assertNotIn("NaN", " ".join(logs.output))
+
+    def test_degenerate_access_geometry_has_safe_incomplete_diagnostic_not_rejection(self) -> None:
+        data = sample_upstream()
+        data["route"]["transits"][0]["segments"][0]["walking"]["steps"][0]["polyline"] = "121.446312,31.223412;121.446312,31.223412"
+        with self.assertLogs("app.integrations.amap_transit", "INFO") as logs:
+            status, route = _convert_route(data)
+        self.assertEqual(status, "ok")
+        self.assertFalse(route.geometry_complete)
+        self.assertEqual(len(logs.output), 1)
+        self.assertIn("reason=degenerate_access_walk", logs.output[0])
+        self.assertIn("route.transits[0].segments[0].walking.steps[0].polyline", logs.output[0])
+        self.assertNotIn("121.446312", logs.output[0])
+        self.assertNotIn("data rejected", logs.output[0])
 
     def test_bounded_paths_and_codes_never_include_values_or_unknown_field_names(self) -> None:
         data = sample_upstream()

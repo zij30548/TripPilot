@@ -101,7 +101,7 @@ def _text(value: object, field: str, *, required: bool = False) -> str | None:
     return value.strip()
 
 
-def _polyline(value: object, field: str) -> list[Coordinate] | None:
+def _polyline(value: object, field: str, *, access_walking: bool = False) -> list[Coordinate] | None:
     if value is None or value == "" or value == []:
         return None
     if not isinstance(value, str):
@@ -120,6 +120,15 @@ def _polyline(value: object, field: str) -> list[Coordinate] | None:
         if not (-180 <= longitude <= 180 and -90 <= latitude <= 90):
             raise InvalidTransitField(field, "coordinate_range")
         result.append((longitude, latitude))
+    if len(result) >= 2 and all(point == result[0] for point in result[1:]) and access_walking:
+        # Observed AMap access steps can describe 1 metre with repeated rounded
+        # coordinates. Their valid-but-undrawable geometry is not a missing
+        # journey duration: keep the proposal total, retain the instruction and
+        # mark this leg incomplete. Never join neighbouring steps across it.
+        # Malformed/non-finite/out-of-range coordinates above still fail, as do
+        # undrawable ride polylines. No replacement coordinates or time invented.
+        logger.info("AMap transit geometry omitted field=%s reason=degenerate_access_walk", field)
+        return None
     if len(result) < 2 or all(point == result[0] for point in result[1:]):
         raise InvalidTransitField(field, "geometry_undrawable")
     return result
@@ -142,7 +151,7 @@ def _walking(value: object, field: str) -> TransitLeg | None:
         step_field = f"{field}.steps[{_index(index)}]"
         if not isinstance(step, dict):
             raise InvalidTransitField(step_field, "object_required")
-        segment = _polyline(step.get("polyline"), f"{step_field}.polyline")
+        segment = _polyline(step.get("polyline"), f"{step_field}.polyline", access_walking=True)
         if segment is None:
             complete = False
         else:
