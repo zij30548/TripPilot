@@ -4,6 +4,7 @@ import { isDestinationId, regionBelongsTo } from "./destinations";
 import { scheduleDates } from "@/types/schedule";
 import { MAX_TRIP_DAYS, LEGACY_MAX_TRIP_DAYS } from "./planning-limits";
 import { API_ENDPOINTS } from "./api-endpoints";
+import { apiFetch } from "./auth-session";
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null && !Array.isArray(value);
@@ -136,7 +137,7 @@ export async function planTrip(request: TripRequest): Promise<TripPlan> {
   const timeout = setTimeout(() => controller.abort(), 15_000);
 
   try {
-    const response = await fetch(API_ENDPOINTS.plan, {
+    const response = await apiFetch(API_ENDPOINTS.plan, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(request),

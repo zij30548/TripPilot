@@ -4,7 +4,7 @@ import json
 import unittest
 from unittest.mock import patch
 import httpx
-from fastapi.testclient import TestClient
+from tests.business_client import BusinessTestClient as TestClient
 from PIL import Image
 from app.config import Settings, get_settings
 from app.api.explanation import get_qwen_http_client

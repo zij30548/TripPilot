@@ -3,7 +3,7 @@ from datetime import date, timedelta
 
 from pydantic import ValidationError
 
-from fastapi.testclient import TestClient
+from tests.business_client import BusinessTestClient as TestClient
 
 from app.schemas.trip import TripPlan, WeatherSummary
 from main import app

@@ -2,34 +2,27 @@
 import json
 from collections.abc import Iterator
 from datetime import datetime, timezone
-from functools import lru_cache
 from pathlib import Path
-from threading import Lock
 from typing import Annotated
 from uuid import uuid4
 
 from fastapi import Depends
+from sqlalchemy import UniqueConstraint
 from sqlalchemy.exc import IntegrityError, SQLAlchemyError
-from sqlalchemy.engine import Engine
-from sqlmodel import Field, Session, SQLModel, create_engine, select
+from sqlmodel import Field, Session, SQLModel, select
 
 from app.integrations.qwen import strict_json
 from app.schemas.saved_trip import MAX_BODY_BYTES, SaveTrip, SavedDetail, SavedList, SavedSnapshot, SavedSummary, snapshot_adapter
 
-DEFAULT_PATH = Path(__file__).resolve().parents[1] / "data" / "saved-trips.sqlite3"
-_initialization_lock = Lock()
-
-
-class ArchiveError(Exception):
-    def __init__(self, code: str, status: int = 503):
-        self.code, self.status = code, status
-        super().__init__(code)
+from app.storage import DEFAULT_PATH, StorageError as ArchiveError, database_path, engine_for
 
 
 class SavedTripRow(SQLModel, table=True):
     __tablename__ = "saved_trips"
+    __table_args__ = (UniqueConstraint("owner_id", "operation_id", name="uq_saved_trips_owner_operation"),)
     id: str = Field(primary_key=True)
-    operation_id: str = Field(unique=True, index=True)
+    owner_id: str | None = Field(default=None, foreign_key="accounts.id", index=True)
+    operation_id: str
     name: str
     saved_at: str = Field(index=True)
     schema_version: str
@@ -38,21 +31,6 @@ class SavedTripRow(SQLModel, table=True):
     transport_mode: str
     status: str
     snapshot_json: str
-
-
-def database_path() -> Path:
-    return DEFAULT_PATH
-
-
-@lru_cache(maxsize=8)
-def engine_for(path: str) -> Engine:
-    target = Path(path).resolve()
-    target.parent.mkdir(parents=True, exist_ok=True)
-    engine = create_engine(f"sqlite:///{target}", connect_args={"check_same_thread": False, "timeout": 3}, echo=False)
-    # Only initial table creation, not a migration or data reset.
-    with _initialization_lock:
-        SQLModel.metadata.create_all(engine)
-    return engine
 
 
 def get_session(path: Annotated[Path, Depends(database_path)]) -> Iterator[Session]:
@@ -91,10 +69,12 @@ def detail(row: SavedTripRow) -> SavedDetail:
         raise ArchiveError("invalid_record", 422) from None
 
 
-def save(session: Session, request: SaveTrip) -> SavedDetail:
+def save(session: Session, request: SaveTrip, owner_id: str) -> SavedDetail:
+    if not isinstance(owner_id, str) or not owner_id:
+        raise ArchiveError("authentication_required", 401)
     content = canonical(request.snapshot)
     def existing() -> SavedTripRow | None:
-        return session.exec(select(SavedTripRow).where(SavedTripRow.operation_id == request.operation_id)).first()
+        return session.exec(select(SavedTripRow).where(SavedTripRow.owner_id == owner_id, SavedTripRow.operation_id == request.operation_id)).first()
     def retry(row: SavedTripRow) -> SavedDetail:
         if row.name != request.name or row.snapshot_json != content:
             raise ArchiveError("operation_conflict", 409)
@@ -104,7 +84,7 @@ def save(session: Session, request: SaveTrip) -> SavedDetail:
         if previous:
             return retry(previous)
         sr = request.snapshot.schedule
-        row = SavedTripRow(id=uuid4().hex, operation_id=request.operation_id, name=request.name,
+        row = SavedTripRow(id=uuid4().hex, owner_id=owner_id, operation_id=request.operation_id, name=request.name,
                            saved_at=datetime.now(timezone.utc).isoformat(), schema_version=request.snapshot.schema_version,
                            start_date=sr.request.start_date.isoformat(), end_date=sr.request.end_date.isoformat(),
                            transport_mode=sr.request.transport_mode, status=sr.status, snapshot_json=content)
@@ -124,15 +104,19 @@ def save(session: Session, request: SaveTrip) -> SavedDetail:
         raise ArchiveError("storage_unavailable") from None
 
 
-def listing(session: Session, offset: int, limit: int) -> SavedList:
-    rows = session.exec(select(SavedTripRow).order_by(SavedTripRow.saved_at.desc(), SavedTripRow.id.desc()).offset(offset).limit(limit + 1)).all()
+def listing(session: Session, offset: int, limit: int, owner_id: str) -> SavedList:
+    if not isinstance(owner_id, str) or not owner_id:
+        raise ArchiveError("authentication_required", 401)
+    rows = session.exec(select(SavedTripRow).where(SavedTripRow.owner_id == owner_id).order_by(SavedTripRow.saved_at.desc(), SavedTripRow.id.desc()).offset(offset).limit(limit + 1)).all()
     # Also validate stored contents on list reads, but transmit summaries only.
     items = [SavedSummary(**detail(row).model_dump(exclude={"snapshot"})) for row in rows[:limit]]
     return SavedList(items=items, offset=offset, limit=limit, has_more=len(rows) > limit)
 
 
-def get_record(session: Session, record_id: str) -> SavedDetail:
-    row = session.get(SavedTripRow, record_id)
+def get_record(session: Session, record_id: str, owner_id: str) -> SavedDetail:
+    if not isinstance(owner_id, str) or not owner_id:
+        raise ArchiveError("authentication_required", 401)
+    row = session.exec(select(SavedTripRow).where(SavedTripRow.id == record_id, SavedTripRow.owner_id == owner_id)).first()
     if row is None:
         raise ArchiveError("not_found", 404)
     return detail(row)

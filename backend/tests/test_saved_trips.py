@@ -7,7 +7,7 @@ from pathlib import Path
 from unittest.mock import patch
 from uuid import uuid4
 
-from fastapi.testclient import TestClient
+from tests.business_client import BusinessTestClient as TestClient
 from sqlalchemy import text
 from sqlalchemy.exc import OperationalError
 from sqlmodel import Session, select
@@ -16,6 +16,7 @@ from app.saved_trips import ArchiveError, SavedTripRow, database_path, detail, e
 from app.schemas.saved_trip import SaveTrip, SavedSnapshot
 from main import app
 from tests.explanation_samples import business_samples
+from tests.archive_owner import OWNER, seed_owner
 
 
 def snapshot(name: str = "complete_walk") -> dict:
@@ -67,6 +68,7 @@ class ArchivePersistence(unittest.TestCase):
     def setUp(self):
         self.directory = tempfile.TemporaryDirectory()
         self.path = Path(self.directory.name) / "archives.sqlite3"
+        seed_owner(engine_for(str(self.path)))
         app.dependency_overrides[database_path] = lambda: self.path
         self.client = TestClient(app)
     def tearDown(self):
@@ -101,7 +103,7 @@ class ArchivePersistence(unittest.TestCase):
     def test_concurrent_same_operation_uses_database_unique_constraint(self):
         engine = engine_for(str(self.path)); request = SaveTrip.model_validate_json(json.dumps(payload()),strict=True)
         def submit(_):
-            with Session(engine,expire_on_commit=False) as session: return save(session,request).id
+            with Session(engine,expire_on_commit=False) as session: return save(session,request,OWNER).id
         with ThreadPoolExecutor(max_workers=4) as pool: ids = list(pool.map(submit,range(4)))
         self.assertEqual(len(set(ids)),1)
         self.assertEqual(len(self.client.get("/saved-trips").json()["items"]),1)

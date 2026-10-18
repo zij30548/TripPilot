@@ -22,6 +22,7 @@ from app.schemas.saved_trip import SaveTrip, snapshot_adapter
 from app.schemas.schedule import ScheduleEdge, ScheduleRequest
 from app.schemas.weather import CityWeatherRequest
 from app.saved_trips import engine_for, save, detail, SavedTripRow
+from tests.archive_owner import OWNER, seed_owner
 from app.integrations.amap_walking import AmapWalkingClient
 from app.integrations.amap_transit import AmapTransitClient
 from app.integrations.amap_weather import convert_forecast
@@ -150,11 +151,12 @@ class DurationContracts(unittest.TestCase):
         old=modern_snapshot(); before=json.dumps(old,sort_keys=True)
         with tempfile.TemporaryDirectory() as folder:
             path=str(Path(folder)/"duration.sqlite3"); engine=engine_for(path)
+            seed_owner(engine)
             records=[]
             for raw in [old,archive_for(controlled_schedule(city_request()))]:
                 op=SaveTrip.model_validate_json(json.dumps({"operation_id":uuid4().hex,"name":"duration controlled","snapshot":raw}),strict=True)
                 with Session(engine) as session:
-                    first=save(session,op); second=save(session,op)
+                    first=save(session,op,OWNER); second=save(session,op,OWNER)
                     self.assertEqual(first.id,second.id); records.append(first)
             engine.dispose(); engine_for.cache_clear(); reopened=engine_for(path)
             with Session(reopened) as session:

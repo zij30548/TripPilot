@@ -3,7 +3,7 @@ import json
 import unittest
 from unittest.mock import AsyncMock, patch
 
-from fastapi.testclient import TestClient
+from tests.business_client import BusinessTestClient as TestClient
 
 from app.api.routes import get_walking_client
 from app.schemas.route import WalkingRoute, WalkingRouteResponse

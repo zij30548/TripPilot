@@ -6,7 +6,7 @@ from collections.abc import AsyncIterator
 from unittest.mock import patch
 
 import httpx
-from fastapi.testclient import TestClient
+from tests.business_client import BusinessTestClient as TestClient
 from pydantic import ValidationError
 from uvicorn.logging import AccessFormatter
 

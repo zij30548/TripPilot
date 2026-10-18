@@ -2,6 +2,7 @@ from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from app.saved_trips import ArchiveError
+from app.storage import StorageError
 from app.api.saved_trips import router as saved_trips_router
 
 from app.api.places import router as places_router
@@ -18,6 +19,8 @@ from app.api.knowledge_answer_disabled import router as knowledge_answer_router
 from app.api.itinerary_query import router as itinerary_query_router
 from app.api.photo import router as photo_router
 from app.api.video import router as video_router
+from app.api.auth import router as auth_router
+from app.auth import AuthenticationMiddleware
 
 app = FastAPI(
     title="TripPilot API",
@@ -30,6 +33,10 @@ app.add_middleware(
     allow_methods=["GET", "POST"],
     allow_headers=["Content-Type"],
 )
+# Authentication runs before routing/body parsing/upstream dependency creation.
+# A session is mandatory even when this API is reached without the Next proxy.
+app.add_middleware(AuthenticationMiddleware)
+app.include_router(auth_router)
 app.include_router(trips_router)
 app.include_router(places_router)
 app.include_router(amap_proxy_router)
@@ -47,6 +54,7 @@ app.include_router(photo_router)
 app.include_router(video_router)
 
 
+@app.exception_handler(StorageError)
 @app.exception_handler(ArchiveError)
 async def archive_error(_request: Request, error: ArchiveError) -> JSONResponse:
     return JSONResponse(status_code=error.status, content={"detail": {"code": error.code, "message": "行程存档操作未完成，请稍后主动重试。"}})

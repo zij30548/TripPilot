@@ -7,13 +7,15 @@ from app.saved_trips import engine_for, save
 from app.schemas.saved_trip import SaveTrip
 from tests.test_saved_trips import payload
 from tests.explanation_samples import business_samples
+from tests.archive_owner import OWNER, seed_owner
 
 with tempfile.TemporaryDirectory() as folder:
     engine = engine_for(str(Path(folder) / "controlled.sqlite3"))
+    seed_owner(engine)
     results = []
     for name in business_samples():
         with Session(engine, expire_on_commit=False) as session:
             request = SaveTrip.model_validate_json(json.dumps(payload(name)), strict=True)
-            results.append(save(session, request).model_dump(mode="json"))
+            results.append(save(session, request, OWNER).model_dump(mode="json"))
     engine.dispose()
     print(json.dumps(results, ensure_ascii=False))

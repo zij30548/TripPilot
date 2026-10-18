@@ -4,7 +4,7 @@ import hashlib
 import json
 import unittest
 from unittest.mock import patch
-from fastapi.testclient import TestClient
+from tests.business_client import BusinessTestClient as TestClient
 from pydantic import ValidationError
 from app.schemas.knowledge import Corpus, KnowledgeRequest, KnowledgeResponse
 from app.services.knowledge import DATA, KnowledgeIndex, build_index, evaluate, fingerprint, tokens

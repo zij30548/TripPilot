@@ -1,5 +1,6 @@
 import { isWeatherForecastRequest, isWeatherForecastResponse, type WeatherForecastRequest, type WeatherForecastResponse } from "@/types/weather";
 import { API_ENDPOINTS } from "./api-endpoints";
+import { apiFetch } from "./auth-session";
 
 export class WeatherError extends Error {
   constructor(public readonly kind: "timeout" | "error", message: string) {
@@ -19,7 +20,7 @@ export async function queryWeatherForecast(request: WeatherForecastRequest, sign
   signal?.addEventListener("abort", cancel, { once: true });
   const timer = setTimeout(() => { timedOut = true; controller.abort(); }, 15_000);
   try {
-    const response = await fetch(API_ENDPOINTS.weather, {
+    const response = await apiFetch(API_ENDPOINTS.weather, {
       method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(snapshot), signal: controller.signal,
     });
     if (!response.ok) {

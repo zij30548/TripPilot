@@ -8,7 +8,7 @@ from unittest.mock import patch
 from uuid import uuid4
 
 import httpx
-from fastapi.testclient import TestClient
+from tests.business_client import BusinessTestClient as TestClient
 
 from app.api.places import get_http_client
 from app.api.amap_proxy import get_proxy_http_client
@@ -22,6 +22,7 @@ from app.schemas.saved_trip import SavedSnapshot, snapshot_adapter
 from app.schemas.weather import CityWeatherRequest
 from app.services.explanation import compact_schedule, validate_snapshot
 from app.saved_trips import database_path, engine_for
+from tests.archive_owner import seed_owner
 from tests.test_saved_trips import snapshot
 from tests.test_weather import sample_upstream as weather_data, sample_request, QUERY_TIME
 from tests.test_transit import sample_upstream as transit_data
@@ -101,6 +102,7 @@ class DestinationAPIs(unittest.TestCase):
     def setUp(self):
         self.directory = tempfile.TemporaryDirectory()
         self.path = Path(self.directory.name)/"city.sqlite3"
+        seed_owner(engine_for(str(self.path)))
         self.requests = []
         self.city = "hangzhou"
         self.mutation = {}

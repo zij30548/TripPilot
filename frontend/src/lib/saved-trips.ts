@@ -4,6 +4,7 @@ import type { TripRequest } from "@/types/trip";
 import type { CostInputs } from "./schedule-costs";
 import { LEGACY_MAX_TRIP_DAYS, MAX_TRIP_DAYS, PLANNING_LIMITS } from "./planning-limits";
 import { API_ENDPOINTS } from "./api-endpoints";
+import { apiFetch } from "./auth-session";
 
 export const ARCHIVE_VERSION = "saved-trip-v1";
 export const CITY_ARCHIVE_VERSION = "saved-trip-v2";
@@ -89,7 +90,7 @@ async function requestArchive(path: string, signal: AbortSignal, operation?: Sav
   const cancel=()=>controller.abort(); signal.addEventListener("abort",cancel,{once:true});
   const timer=setTimeout(()=>{timeout=true;controller.abort();},15000);
   try {
-    const response=await fetch(`${API_ENDPOINTS.savedTrips}${path}`,{method:operation?"POST":"GET",signal:controller.signal,
+    const response=await apiFetch(`${API_ENDPOINTS.savedTrips}${path}`,{method:operation?"POST":"GET",signal:controller.signal,
       ...(operation?{headers:{"Content-Type":"application/json"},body:JSON.stringify(operation)}:{})});
     const text=await response.text();
     if (controller.signal.aborted) throw new DOMException("取消","AbortError");

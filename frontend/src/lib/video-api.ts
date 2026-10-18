@@ -1,4 +1,5 @@
 import { API_ENDPOINTS } from "./api-endpoints";
+import { apiFetch } from "./auth-session";
 
 /** Preview-only contract. No photo/model/POI client is imported here. */
 export const VIDEO_BYTES = 20 * 1024 * 1024;
@@ -46,7 +47,7 @@ export async function extractVideo(file: File, requestId: string, signal: AbortS
   const cancel = () => controller.abort(); signal.addEventListener("abort",cancel,{once:true});
   const timer=setTimeout(()=>{timedOut=true;controller.abort();},60000);
   try {
-    const response = await fetch(`${API_ENDPOINTS.video}?request_id=${encodeURIComponent(requestId)}`,
+    const response = await apiFetch(`${API_ENDPOINTS.video}?request_id=${encodeURIComponent(requestId)}`,
       {method:"POST",headers:{"Content-Type":"application/octet-stream"},body:file,signal:controller.signal});
     if (!response.body) throw new Error("视频处理响应为空。");
     const reader=response.body.getReader(); const parts:Uint8Array[]=[]; let size=0;

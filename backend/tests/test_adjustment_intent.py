@@ -6,7 +6,7 @@ from unittest.mock import patch
 
 import httpx
 from fastapi import HTTPException, Request
-from fastapi.testclient import TestClient
+from tests.business_client import BusinessTestClient as TestClient
 
 from app.api.adjustment_intent import adjustment_intent
 from app.api.explanation import get_qwen_http_client

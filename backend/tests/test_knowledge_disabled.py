@@ -2,7 +2,7 @@
 import unittest
 from unittest.mock import patch
 
-from fastapi.testclient import TestClient
+from tests.business_client import BusinessTestClient as TestClient
 
 from app.api.explanation import get_qwen_http_client
 from app.config import get_settings

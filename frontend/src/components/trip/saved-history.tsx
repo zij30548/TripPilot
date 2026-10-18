@@ -39,7 +39,7 @@ function HistoryWindow({close}:{close:()=>void}){
   useEffect(()=>{dialog.current?.showModal?.();void load(null);},[load]);
   return <dialog ref={dialog} aria-label="历史行程" onCancel={e=>{e.preventDefault();close();}} className="fixed inset-0 m-auto h-[92dvh] w-[calc(100%-24px)] max-w-6xl overflow-y-auto rounded-2xl border border-[#315f51]/30 bg-[#f4f2ec] p-4 text-[#18201d] shadow-xl backdrop:bg-black/40 sm:p-7">
     <header className="mb-5 flex flex-wrap items-center justify-between gap-3"><h1 className="text-2xl font-semibold">历史行程 · 只读</h1><button className={button} onClick={close}>关闭历史</button></header>
-    <p className="mb-4 text-sm">本机单用户存档，无账号隔离；原记录不可修改、删除或分享。可从详情在新标签页创建独立规划副本。查看历史不会生成行程或调用外部服务。</p>
+    <p className="mb-4 text-sm">仅显示当前邀请账号的存档；无归属的旧存档不公开。原记录不可修改、删除或分享。可从详情在新标签页创建独立规划副本。查看历史不会生成行程或调用外部服务。</p>
     {state.status!=="list"&&<button className={button} onClick={()=>void load(null,state.offset)}>返回历史列表</button>}
     {state.status==="loading"&&<p role="status" className="mt-4">正在读取历史…</p>}
     {state.status==="error"&&<p role="alert" className="mt-4">{state.error}</p>}

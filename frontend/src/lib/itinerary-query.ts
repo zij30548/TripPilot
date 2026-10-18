@@ -2,6 +2,7 @@ import { isScheduleResponse, type ScheduleDay } from "@/types/schedule";
 import type { ScheduleCapture } from "./schedule-adjustment";
 import { calculateScheduleCosts, type CostInputs, type ScheduleCosts } from "./schedule-costs";
 import { API_ENDPOINTS } from "./api-endpoints";
+import { apiFetch } from "./auth-session";
 
 export const QUERY_VERSION = "itinerary-query-v1";
 export const clarificationMessages = {
@@ -46,7 +47,7 @@ export async function queryItinerary(request: QueryRequest, signal: AbortSignal)
   const cancel = () => controller.abort(); signal.addEventListener("abort", cancel, { once: true });
   const timer = setTimeout(() => { timedOut = true; controller.abort(); }, 25000);
   try {
-    const res = await fetch(API_ENDPOINTS.itineraryQuery, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(request), signal: controller.signal });
+    const res = await apiFetch(API_ENDPOINTS.itineraryQuery, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(request), signal: controller.signal });
     const data: unknown = await res.json();
     if (controller.signal.aborted) throw new DOMException("已取消", "AbortError");
     if (!res.ok) throw new Error(errors[String(record(data) && record(data.detail) ? data.detail.code : "")] ?? "只读查询失败，原行程与费用未改变。");

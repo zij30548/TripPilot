@@ -2,7 +2,7 @@ import json
 import unittest
 from copy import deepcopy
 
-from fastapi.testclient import TestClient
+from tests.business_client import BusinessTestClient as TestClient
 from pydantic import ValidationError
 
 from app.schemas.place import ConfirmedPlace, Place

@@ -1,5 +1,6 @@
 import { isKnowledgeRequest, isKnowledgeResponse, type KnowledgeRequest, type KnowledgeResponse } from "./knowledge";
 import { API_ENDPOINTS } from "./api-endpoints";
+import { apiFetch } from "./auth-session";
 
 export async function searchKnowledge(request: KnowledgeRequest, signal: AbortSignal): Promise<KnowledgeResponse> {
   if (!isKnowledgeRequest(request)) throw new Error("请选择馆区并输入2至160字的问题。");
@@ -10,7 +11,7 @@ export async function searchKnowledge(request: KnowledgeRequest, signal: AbortSi
   const timer = setTimeout(() => { timeout = true; controller.abort(); }, 10_000);
   try {
     if (signal.aborted) throw new DOMException("取消", "AbortError");
-    const response = await fetch(API_ENDPOINTS.knowledgeSearch, {
+    const response = await apiFetch(API_ENDPOINTS.knowledgeSearch, {
       method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(request), signal: controller.signal,
     });
     if (!response.ok) throw new Error("查询失败");

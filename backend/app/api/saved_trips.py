@@ -9,6 +9,8 @@ from starlette.concurrency import run_in_threadpool
 
 from app.integrations.qwen import strict_json
 from app.saved_trips import get_record, get_session, listing, save
+from app.auth import current_user
+from app.identity_models import AccountRow
 from app.schemas.saved_trip import MAX_BODY_BYTES, RecordId, SaveTrip, SavedDetail, SavedList
 
 
@@ -16,6 +18,7 @@ class ArchiveRoute(APIRoute):
     def get_route_handler(self) -> Callable[[Request], Coroutine[Any, Any, Response]]:
         handler = super().get_route_handler()
         async def bounded(request: Request) -> Response:
+            current_user(request)  # Authentication precedes bounded upload parsing too.
             if request.method == "POST":
                 chunks = bytearray()
                 try:
@@ -33,10 +36,11 @@ class ArchiveRoute(APIRoute):
 
 router = APIRouter(prefix="/saved-trips", tags=["saved-trips"], route_class=ArchiveRoute)
 DB = Annotated[Session, Depends(get_session)]
+User = Annotated[AccountRow, Depends(current_user)]
 
 
 @router.post("", response_model=SavedDetail)
-async def create(raw: Request, session: DB) -> SavedDetail:
+async def create(raw: Request, session: DB, user: User) -> SavedDetail:
     try:
         body = await raw.body()
         strict_json(body)
@@ -44,15 +48,15 @@ async def create(raw: Request, session: DB) -> SavedDetail:
     except (ValueError, RecursionError, TypeError):
         raise HTTPException(422, detail={"code": "invalid_snapshot"}) from None
     # Local atomic transaction, independent of browser disconnect semantics.
-    return await run_in_threadpool(save, session, request)
+    return await run_in_threadpool(save, session, request, user.id)
 
 
 @router.get("", response_model=SavedList)
-def list_saved(session: DB, offset: Annotated[int, Query(ge=0, le=100_000)] = 0,
+def list_saved(session: DB, user: User, offset: Annotated[int, Query(ge=0, le=100_000)] = 0,
                limit: Annotated[int, Query(ge=1, le=20)] = 10) -> SavedList:
-    return listing(session, offset, limit)
+    return listing(session, offset, limit, user.id)
 
 
 @router.get("/{record_id}", response_model=SavedDetail)
-def read_saved(record_id: RecordId, session: DB) -> SavedDetail:
-    return get_record(session, record_id)
+def read_saved(record_id: RecordId, session: DB, user: User) -> SavedDetail:
+    return get_record(session, record_id, user.id)

@@ -8,7 +8,7 @@ from time import monotonic
 from unittest.mock import AsyncMock, patch
 
 import httpx
-from fastapi.testclient import TestClient
+from tests.business_client import BusinessTestClient as TestClient
 
 from app.api.places import get_http_client
 from app.config import Settings, get_settings

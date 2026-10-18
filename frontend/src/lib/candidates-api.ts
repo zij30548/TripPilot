@@ -1,5 +1,6 @@
 import { isCandidateRequest, isCandidateResponse, type CandidateRequest, type CandidateResponse } from "@/types/candidates";
 import { API_ENDPOINTS } from "./api-endpoints";
+import { apiFetch } from "./auth-session";
 
 export class CandidateError extends Error {
   constructor(public readonly kind: "timeout" | "error", message: string) {
@@ -17,7 +18,7 @@ export async function queryCandidates(request: CandidateRequest, signal?: AbortS
   signal?.addEventListener("abort", cancel, { once: true });
   const timer = setTimeout(() => { timedOut = true; controller.abort(); }, 15_000);
   try {
-    const response = await fetch(API_ENDPOINTS.candidates, {
+    const response = await apiFetch(API_ENDPOINTS.candidates, {
       method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(request), signal: controller.signal,
     });
     if (!response.ok) {

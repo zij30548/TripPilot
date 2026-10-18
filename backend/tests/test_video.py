@@ -10,7 +10,7 @@ import tempfile
 import unittest
 from unittest.mock import AsyncMock, patch
 
-from fastapi.testclient import TestClient
+from tests.business_client import BusinessTestClient as TestClient
 from PIL import Image
 from starlette.requests import Request
 

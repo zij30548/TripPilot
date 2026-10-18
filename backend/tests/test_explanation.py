@@ -7,7 +7,7 @@ from dataclasses import asdict
 from unittest.mock import patch
 
 import httpx
-from fastapi.testclient import TestClient
+from tests.business_client import BusinessTestClient as TestClient
 from fastapi import HTTPException, Request
 from pydantic import ValidationError
 

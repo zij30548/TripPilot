@@ -1,5 +1,6 @@
 import { isScheduleResponse, type ScheduleResponse } from "@/types/schedule";
 import { API_ENDPOINTS } from "./api-endpoints";
+import { apiFetch } from "./auth-session";
 
 export const EXPLANATION_VERSION = "schedule-explanation-v1";
 export const explanationCodes = ["arrangement", "visits", "movement", "reserved_time", "return_to_stay", "not_arranged", "optional_attempts", "empty_day"] as const;
@@ -93,7 +94,7 @@ export async function queryExplanation(response: ScheduleResponse, requestId: st
   const cancel = () => controller.abort(); signal.addEventListener("abort", cancel, { once: true });
   const timer = setTimeout(() => { timedOut = true; controller.abort(); }, 25_000);
   try {
-    const result = await fetch(API_ENDPOINTS.explanation, {
+    const result = await apiFetch(API_ENDPOINTS.explanation, {
       method: "POST", headers: { "Content-Type": "application/json" }, body, signal: controller.signal,
     });
     const data: unknown = await result.json();
