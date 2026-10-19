@@ -53,7 +53,14 @@ def validate(backend: dict[str, str], frontend: dict[str, str]) -> None:
     for key in ("AMAP_WEB_KEY", "AMAP_JS_KEY", "AMAP_JS_SECURITY_CODE", "QWEN_API_KEY"):
         if backend[key] and ("REPLACE" in backend[key] or len(backend[key]) > 512): raise ConfigError("credential_placeholder_or_length")
     if frontend["NEXT_PUBLIC_AMAP_JS_KEY"] and not re.fullmatch(r"[A-Za-z0-9_-]{16,128}", frontend["NEXT_PUBLIC_AMAP_JS_KEY"]): raise ConfigError("public_key_format")
-    if backend["QWEN_BASE_URL"] not in {"", "https://dashscope.aliyuncs.com/compatible-mode/v1"}: raise ConfigError("beijing_model_origin_required")
+    # Match the backend's Beijing public/workspace hosts and fixed base path.
+    # Keep this pre-venv check stdlib-only and reject URL credentials, ports,
+    # query/fragment delimiters (even empty) and whitespace rather than normalize.
+    if backend["QWEN_BASE_URL"] and not re.fullmatch(
+        r"(?i:https://(?:dashscope\.aliyuncs\.com|[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?"
+        r"\.cn-beijing\.maas\.aliyuncs\.com))/compatible-mode/v1/?",
+        backend["QWEN_BASE_URL"], re.ASCII,
+    ): raise ConfigError("beijing_model_origin_required")
     if backend["QWEN_MODEL"] != "qwen3.7-flash-2026-07-15" or backend["QWEN_VISION_MODEL"] != "qwen3-vl-plus": raise ConfigError("model_configuration_changed")
     if not re.fullmatch(r"[0-9]{1,6}", backend["AUTH_SESSION_SECONDS"]) or not 60 <= int(backend["AUTH_SESSION_SECONDS"]) <= 604800: raise ConfigError("session_duration")
     for key in ("BUSINESS_RATE_WINDOW_SECONDS", "BUSINESS_RATE_ACCOUNT_LIMIT", "BUSINESS_RATE_GLOBAL_LIMIT"):

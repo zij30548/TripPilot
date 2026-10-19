@@ -1,5 +1,69 @@
 # release-1F：可重复的 Linux 部署包与分步手册
 
+## 2026-10-19：千问北京业务空间地址兼容补修
+
+实际基线 `0db7a8aeb5240e7d067e856b7429128f1b5f7429`，main，开工fetch后与origin/main同步。用户报告服务器已完成 `layout`、`runtime`、`config-templates`，尚未填正式凭据、attest、stage或启动服务；这是用户提供的执行状态，本轮没有连接服务器核验。以下原部署包记录保留。
+
+**原因与最小变更**：[后端 `beijing_endpoint`](../backend/app/integrations/qwen.py)已接受北京公共地址与北京业务空间专属地址；[部署检查](../deploy/config.py)此前仅接受空值或公共地址的精确字符串，导致合法workspace地址在安装后端依赖前被误拒为 `beijing_model_origin_required`。本次只扩展部署层官方域名／固定路径兼容，不改后端、模型、请求协议或调用逻辑。
+
+非空 `QWEN_BASE_URL` 现允许：
+
+- `https://dashscope.aliyuncs.com/compatible-mode/v1`
+- `https://<workspace>.cn-beijing.maas.aliyuncs.com/compatible-mode/v1`；workspace为单个1～63字符ASCII标签，首尾字母或数字，中间可含连字符。
+
+两者可带一个尾斜线，scheme／host允许大小写差异，路径仍严格区分大小写。以控制台提供的北京业务空间Base URL为准，不把示例workspace当实际配置；不能附加 `/chat/completions`、端口、用户名密码、query、fragment或其他地域。空配置继续表示未配置，不代表可发起模型请求。模板默认公共地址与两个模型值不变，仅增加说明。
+
+部署检查仍只用标准库，**不从后端导入Pydantic/httpx或读取本机.env**。8个合法、31个共同非法地址与实际后端校验逐项对照；部署另保留5项严格语法拒绝（空端口、空query／fragment、内嵌tab／换行），不因后端URL解析器会忽略这些符号而放行。不是宣称任意字符串的解析行为完全相同。错误仅返回固定安全原因，不输出提交URL或凭据。
+
+### 已完成布局／解释器后的服务器续行清单（仅供用户执行）
+
+不重跑 `layout`、`runtime` 或 `config-templates`，不重装已有Python，不覆盖重建配置。模板注释已变化，原模板文件再次安装可能因字节不同而停止；这是保护行为，应原地编辑既有文件再验证。
+
+```sh
+cd /home/admin/apps/trippilot
+git status --short
+git fetch origin
+# 仅在确认没有冲突或不明改动后正常前进；有分歧就停下。
+git pull --ff-only
+COMMIT=$(git rev-parse HEAD)
+git diff --exit-code 4e009851b6dee24e7192d60c5dc6ce5b9d3e2a25 HEAD -- frontend
+
+# 在服务器本机填写／核对既有配置，不打印、不贴聊天，不复制真实.env。
+sudoedit /etc/trippilot/backend.env /etc/trippilot/frontend.env
+sudo python3 -B deploy/release.py check-config
+```
+
+预期：前端差异为空，可继续核对复用现有Linux构建；配置检查输出 `Exact production config, permissions and separated key allowlists verified.`。仍需填写正确凭据与公开JS Key一致性，地址校验通过不证明账号权限或模型可用，也不发送连通性探测。
+
+仅在检查通过且确认原构建来源后，按原第3步逐条继续：
+
+```sh
+sudo python3 -B deploy/release.py attest --commit "$COMMIT" --confirm-existing-build
+sudo python3 -B deploy/release.py stage --commit "$COMMIT" --receipt "/opt/trippilot/receipts/$COMMIT.json"
+sudo python3 -B deploy/release.py backend-deps --commit "$COMMIT"
+sudo python3 -B deploy/release.py verify-frontend --commit "$COMMIT"
+```
+
+预期依次为新receipt、`Release staged`、后端依赖／导入验证、最终路径Linux原生模块与静态资源验证；任一步异常按原停止规则处理，不删receipt／半份目录，不在本次地址补修中启动服务、初始化数据或签发证书。后续仍按原手册单独分步执行。
+
+### 本次离线验证与交付
+
+```sh
+# 仓库根目录；全部为离线／受控检查，无外部业务调用。
+backend/.venv/bin/python -B -Werror::ResourceWarning -m unittest discover -s deploy/tests -q
+python3 -B deploy/release.py --help
+git diff --check
+```
+
+```sh
+# backend目录的现有千问适配／解读回归：
+.venv/bin/python -B -m unittest discover -s tests -p test_explanation.py -q
+```
+
+部署测试 **53项通过**（原48＋新增5）；包含地址矩阵、实际后端对照、空配置、安全错误和 `-I -S -B` 隔离子进程标准库验证，原文件不覆盖／发布故障停止等受控回归保留。现有后端解读测试 **14项通过**，保留Starlette/httpx弃用提示。开发首轮矩阵抓到全局忽略大小写误放行路径的问题，已限定为scheme／host忽略大小写，保留路径拒绝断言后通过。CLI帮助／差异／文档链接及敏感信息检查通过；前端和业务后端未改，不重复整套构建或浏览器验收。
+
+交付仅5文件：`deploy/config.py`、`deploy/env/backend.env.example`、`deploy/tests/test_qwen_config.py`、本页及 `PROGRESS.md`。既有环境、数据库、五缓存、旧证据及浏览器日志保持；真实模型与外部业务API调用 **0**。**停在本次兼容补修；部署、账号权限、HTTPS与真实Linux运行仍待用户执行验证。**
+
 ## 状态、来源与停止点
 
 基线 `4e009851b6dee24e7192d60c5dc6ce5b9d3e2a25`，main，开工fetch同步。本轮只准备脚本／模板／离线验证；**没有登录、修改云服务器、创建真实账号、签发证书或完成公网部署**。真实千问／高德／其他业务API调用0，业务源码、数据库结构和已有用户库不变。

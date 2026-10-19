@@ -1,5 +1,15 @@
 # TripPilot Progress
 
+## 最新摘要（2026-10-19，release-1F：千问北京业务空间地址兼容补修）
+
+- **实际基线 `0db7a8aeb5240e7d067e856b7429128f1b5f7429`，main，开工fetch同步。Current：部署层千问URL兼容补修及离线验证完成。** 用户报告服务器已完成layout／runtime／config-templates，未填正式凭据、attest、stage或启动服务；本轮未连接服务器，不写成代理实测。上一轮Agent路线只规划，未开始实施。
+- **原因／方案**：后端beijing_endpoint本已允许北京workspace专属地址，部署层仅允许空值／公共地址精确字符串，误拒合法配置。本次仅修改deploy/config.py的严格URL白名单，支持公共北京域名或单个1～63字符ASCII workspace标签＋`.cn-beijing.maas.aliyuncs.com`、HTTPS、固定`/compatible-mode/v1`及可选尾斜线；scheme／host大小写兼容、路径区分大小写。任意域名、其他地域、端口／凭据／query／fragment／非法路径继续拒绝；空值保留未配置行为。后端、模型、协议及业务接口不改，部署仍只依赖标准库。
+- **实际检查**：部署完整定向 **53通过**（原48＋新5），其中8合法／31共同非法URL与实际后端逐项对照，5项部署严格语法拒绝（解析器可忽略的空分隔符／控制字符）单列；另测空配置、错误不泄漏与`-I -S -B`标准库独立。现有后端解读回归 **14通过**；CLI帮助、前端源码与原构建基线无差异、文档链接／敏感信息及git diff检查。首轮新矩阵抓到路径大小写误放行，修为局部忽略scheme／host大小写后通过，没有删除断言。既有Starlette/httpx弃用提示保留；没有重跑完整前后端测试／构建或Chrome，不冒称真实模型／Linux已验收。
+- **文件／保护**：只交付 `deploy/config.py`、`deploy/env/backend.env.example`、`deploy/tests/test_qwen_config.py`、[RELEASE_1F补修与续行清单](RELEASE_1F.md#已完成布局解释器后的服务器续行清单仅供用户执行)、本文件共5份。模板仅补说明，既有服务器配置须原地编辑并check-config，不重装Python、不重跑layout／runtime／config-templates。原五缓存、数据、环境文件及浏览器日志开工／收口哈希复核不变；数据库、旧证据／台账不改、不提交。
+- **调用／Next／停止**：真实千问及外部业务API调用 **0**，无云服务器操作。用户正常拉取提交后，重新设置COMMIT、核对前端差异、填写既有配置、check-config通过再逐条attest／stage／backend-deps／verify-frontend；当前地址兼容不证明凭据／权限／上游可用。仅普通提交推送本轮文件，**停在本次兼容补修**，不启动服务、初始化／迁移数据、签证书或进入新功能。
+
+当前导航：[release-1F兼容补修](RELEASE_1F.md#2026-10-19千问北京业务空间地址兼容补修) → [服务器续行清单](RELEASE_1F.md#已完成布局解释器后的服务器续行清单仅供用户执行)。以下旧规划、验收、失败、成绩、调用台账与停止点逐字保留其历史含义。
+
 ## 最新摘要（2026-10-19，产品与Agent架构路线同步，仅规划文档）
 
 - **实际基线 `7b2e36100404a1aa67131d9f3dd6bcd81f716574`，main，开工fetch后与origin/main同步。Current：只完成用户确认的后续方向与当前事实的文档同步，没有实施新功能。** 工程交付仍为release-1F部署包准备，尚未部署公网；一周内现有版本受控上线与演示保持最高优先级，本轮不操作云服务器。
