@@ -185,11 +185,14 @@ def check_artifact_tree(source: Path, *, skip_cache: bool = False) -> None:
 def dependency_fingerprint() -> dict[str, object]:
     # Reuse the receipt's exact source/lock/BUILD_ID/build/static/dependency hash
     # implementation. This imports no product code and sends no API requests.
+    # With node -e, argv[1] is the first extra argument. It must not be the
+    # imported module's path, which would trigger that module's CLI main guard.
     script = ("import {pathToFileURL} from 'node:url';"
-              "const {inspectBuild}=await import(pathToFileURL(process.argv[1]));"
-              "console.log(JSON.stringify(await inspectBuild(process.argv[2])));")
+              "const {inspectBuild}=await import(pathToFileURL(process.argv[2]));"
+              "console.log(JSON.stringify(await inspectBuild(process.argv[3])));")
     value = json.loads(run(["/usr/bin/node", "--input-type=module", "-e", script,
-                           str(SOURCE / "deploy/verify-frontend.mjs"), str(SOURCE / "frontend")], capture=True))
+                           "trippilot-dependency-fingerprint", str(SOURCE / "deploy/verify-frontend.mjs"),
+                           str(SOURCE / "frontend")], capture=True))
     require(isinstance(value, dict) and len(value) == 9, "artifact_fingerprint_invalid")
     return value
 

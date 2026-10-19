@@ -1,5 +1,29 @@
 # release-1F：可重复的 Linux 部署包与分步手册
 
+## 2026-10-19：权限修正的Node导入入口补修
+
+实际基线 `b1fd2228a257c9c2ed69deb1d5b79aa025832635`，main，fetch同步。用户执行默认检查得到27065项／待收022为27035项，随后显式apply报`STOP: absolute_paths_required`。这是新增部署工具的Python→Node参数衔接缺陷，不是合法权限被再次拒绝；旧65项Python／14项Node测试的成绩保留，其当时未覆盖真实跨进程组合的缺口在本轮补齐。
+
+`dependency_fingerprint`使用`node -e`动态导入实际`verify-frontend.mjs`，却把该模块路径放在`process.argv[1]`。模块的独立CLI守卫据此认为自己是主程序，错误进入CLI参数校验并非零退出。本次只在调用方增加固定`trippilot-dependency-fingerprint`参数占据argv[1]，模块／前端路径移至argv[2]／argv[3]；**不修改校验模块的主入口、安全检查、权限算法或任何产物／receipt规则，也不忽略子进程错误**。
+
+该错误发生在第一次内容指纹检查，按代码顺序早于`_save_manifest`和首个fchmod；用户输出也没有`Original dependency permissions saved privately`提示。本次服务器命令未进入权限修改阶段，不需要回滚、重装或清理文件。保留旧失败目录、receipt及错误输出；本轮没有连接服务器或独立复核其文件状态。
+
+新增2项真正跨边界的离线测试：实际Python调用方→测试机真实Node→复制实际校验模块字节的临时项目→inspectBuild，对临时依赖执行权限收敛并核对前后9字段指纹；仅映射Linux固定Node可执行路径到测试机安装路径，不伪造JSON返回。新成功测试在修正前真实非零失败，修正后通过。另以非法BUILD_ID让实际指纹检查失败，核对无清单／无chmod，确保仍正确保留错误；原独立CLI帮助与14项Node测试继续通过。
+
+本轮部署Python **67项通过**（原65＋跨进程2）、Node **14项通过**、CLI帮助／语法／文档链接／敏感信息及差异检查通过。前端、原校验模块、权限模块、锁文件和构建未改，无需机械重建；没有业务全套／浏览器或真实Linux发布验收。缓存、数据库、实际环境、日志及旧证据不改；真实模型／外部业务API调用 **0**。
+
+服务器下一步仅更新后再执行显式apply，保持npm／构建等写入停止：
+
+```sh
+cd /home/admin/apps/trippilot
+git status --short
+git pull --ff-only
+COMMIT=$(git rev-parse HEAD)
+sudo python3 -B deploy/release.py dependency-permissions --apply
+```
+
+预期先输出私有原权限清单路径，成功再输出修改数及`content fingerprints unchanged`；异常则停止并保留现场。取得成功输出后，才按下文原清单复查`needs_changes=0`、check-config、新SHA的attest／stage；不得覆盖或删除旧f6b7ca5失败目录／receipt，也不需要重新执行layout／runtime／config-templates。本轮只提交`deploy/release.py`、`deploy/tests/test_artifact_permissions.py`、本页及`PROGRESS.md`四文件，**停在此次调用衔接补修，真实服务器apply／stage仍待用户验证**。
+
 ## 2026-10-19：Linux依赖权限补修
 
 实际基线 `f6b7ca597299c47d4fae207b7b5b09f04958a30a`，main，与origin/main同步。**用户报告**：服务器layout／runtime／配置检查通过，attest已成功，stage在verify-source通过后报`artifact_group_or_world_writable`；工作副本node_modules有27034项带group/world写位，前20项为0775目录，.next未发现此类项。旧失败发布目录尚无node_modules／.next／release.json。以上不是代理登录实测，本轮没有操作服务器。

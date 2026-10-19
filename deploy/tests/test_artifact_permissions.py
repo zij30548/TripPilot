@@ -4,7 +4,10 @@ import io
 import json
 import os
 from pathlib import Path
+import re
+import shutil
 import stat
+import subprocess
 import sys
 import tempfile
 import unittest
@@ -52,6 +55,68 @@ class DependencyPermissions(unittest.TestCase):
         plan = artifacts.scan_tree(self.root, self.owner, allow_writable=True)
         return artifacts.remove_write_bits(self.root, self.owner, plan, self.audit,
                                            updates.get("fingerprint", self.fingerprint), commit="a" * 40)
+
+    def prepare_node_build(self) -> None:
+        frontend = self.base / "frontend"
+        for path in ("src/lib", "public", "node_modules/next", ".next/static/chunks"):
+            (frontend / path).mkdir(parents=True, exist_ok=True)
+        source = (DEPLOY.parent / "frontend/src/lib/api-endpoints.ts").read_text()
+        endpoints = re.findall(r':\s*"(/api/[a-z/-]+)"', source)
+        rules = [{"source": path, "destination": "http://127.0.0.1:8000" + path[4:]} for path in endpoints]
+        rules.extend([
+            {"source": "/api/health", "destination": "http://127.0.0.1:8000/health"},
+            {"source": "/api/saved-trips/:id([0-9a-f]{32})", "destination": "http://127.0.0.1:8000/saved-trips/:id"},
+            {"source": "/_AMapService/v3/config/district", "destination": "http://127.0.0.1:8000/_AMapService/v3/config/district"},
+        ])
+        for path, value in {
+            "package.json": json.dumps({"dependencies": {"next": "16.3.8"}, "devDependencies": {"eslint-config-next": "16.3.8"}}),
+            "package-lock.json": json.dumps({"packages": {"node_modules/next": {"version": "16.3.8"}}}),
+            "next.config.ts": "// controlled fixture", "tsconfig.json": "{}",
+            "src/lib/api-endpoints.ts": source, "public/icon.svg": "<svg/>",
+            "node_modules/next/package.json": '{"version":"16.3.8"}',
+            ".next/BUILD_ID": "controlled-build", ".next/static/chunks/app.js": "controlled static bytes",
+            ".next/routes-manifest.json": json.dumps({"rewrites": {"beforeFiles": rules, "afterFiles": [], "fallback": []}}),
+        }.items():
+            (frontend / path).write_text(value)
+        (self.base / "deploy").mkdir()
+        shutil.copyfile(DEPLOY / "verify-frontend.mjs", self.base / "deploy/verify-frontend.mjs")
+
+    def real_node(self, argv, *, capture=False, **kwargs):
+        self.assertEqual(argv[0], "/usr/bin/node")
+        self.assertTrue(capture)
+        node = shutil.which("node")
+        self.assertIsNotNone(node, "deployment bridge regression requires the installed Node runtime")
+        # Map only the Linux executable path for this test host. Execute the
+        # actual caller script and actual verifier, never fabricate its JSON.
+        result = subprocess.run([node, *argv[1:]], env=release.clean_environment(),
+                                check=True, capture_output=True, text=True, timeout=10)
+        self.assertNotIn("STOP:", result.stderr)
+        return result.stdout.strip()
+
+    def test_real_python_node_import_bridge_fingerprints_before_and_after_repair(self) -> None:
+        self.prepare_node_build()
+        with patch.object(release, "SOURCE", self.base), patch.object(release, "run", side_effect=self.real_node), contextlib.redirect_stdout(io.StringIO()):
+            expected = release.dependency_fingerprint()
+            self.assertEqual(set(expected), {"next_version", "build_id", "backend_origin", "package_lock_sha256",
+                                            "source_sha256", "build_sha256", "static_sha256",
+                                            "node_modules_sha256", "declared_public_key_sha256"})
+            manifest, changed = self.repair(fingerprint=release.dependency_fingerprint)
+        self.assertEqual(changed, 4)
+        self.assertEqual(json.loads(manifest.read_text())["content_before"], expected)
+        self.assertEqual(stat.S_IMODE(self.root.stat().st_mode), 0o755)
+
+    def test_real_fingerprint_failure_precedes_manifest_and_chmod(self) -> None:
+        self.prepare_node_build()
+        (self.base / "frontend/.next/BUILD_ID").write_text("invalid/build")
+        before = artifacts.scan_tree(self.root, self.owner, allow_writable=True)
+        with patch.object(release, "SOURCE", self.base), patch.object(release, "run", side_effect=self.real_node), patch.object(artifacts, "_chmod_entry") as chmod:
+            with self.assertRaises(subprocess.CalledProcessError) as error:
+                self.repair(fingerprint=release.dependency_fingerprint)
+            self.assertIn("build_id_invalid", error.exception.stderr)
+            self.assertNotIn("absolute_paths_required", error.exception.stderr)
+            chmod.assert_not_called()
+        self.assertEqual(list(self.audit.iterdir()), [])
+        self.assertEqual(artifacts.scan_tree(self.root, self.owner, allow_writable=True), before)
 
     def test_apply_only_removes_022_and_preserves_owner_execution_content_and_links(self) -> None:
         before = artifacts.scan_tree(self.root, self.owner, allow_writable=True)

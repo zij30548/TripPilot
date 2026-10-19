@@ -1,5 +1,15 @@
 # TripPilot Progress
 
+## 最新摘要（2026-10-19，release-1F：权限工具Node导入入口补修）
+
+- **实际基线 `b1fd2228a257c9c2ed69deb1d5b79aa025832635`，main，fetch同步。Current：用户服务器apply失败的跨进程调用缺陷已最小修正，真实服务器继续待验。** 用户检查27065项／27035待收敛，apply报absolute_paths_required；没有清单保存提示，代码首fingerprint失败早于清单创建与fchmod，此次命令未进入权限修改。未连接服务器，不冒称独立核验了其现场。
+- **原因／修复**：node -e的argv[1]被填成动态导入模块路径，误触发verify-frontend.mjs独立CLI入口。本次只在Python调用方用固定sentinel占argv[1]，实际模块／前端移至argv[2]/[3]；原CLI守卫、URL／权限／内容校验、失败非零拒绝和receipt规则保持。不吞掉错误、不跳过检查，不要求清理或回滚旧目录。
+- **实际检查**：新增实际Python→真实Node→实际校验模块的临时项目回归，修正前重现非零失败，修正后权限收敛前后9字段指纹一致；另用非法BUILD_ID验证真实fingerprint失败时无清单／无chmod。部署Python **67通过**（原65＋2），Node **14通过**，原CLI帮助、语法／链接／敏感信息及差异检查通过。此前65／14分开测试未覆盖实际调用桥接，旧成绩不改，本轮补上该覆盖。前端、原Node校验器与权限模块无变化，不重复业务全套、前端构建或浏览器，不冒称Linux部署通过。
+- **文件／保护**：仅`deploy/release.py`、`deploy/tests/test_artifact_permissions.py`、[RELEASE_1F入口补修](RELEASE_1F.md#2026-10-19权限修正的node导入入口补修)、本页4文件。原五缓存、数据库、环境及浏览器日志哈希不变，旧失败／证据／台账保留；模型及外部业务调用 **0**。
+- **Next／停止**：用户正常pull后重新设置COMMIT，保持其他源树写入停止，再单独执行dependency-permissions --apply；先核对清单路径／内容指纹成功，之后复查0项、新SHA attest／stage。旧f6b7ca5失败目录／receipt不覆盖，已有Python／配置不重建。**停在本次补修**，服务器apply、stage及后续服务／HTTPS仍未由本轮验收，不开始新功能。
+
+当前导航：[原因与跨进程验证](RELEASE_1F.md#2026-10-19权限修正的node导入入口补修)。以下旧失败、测试成绩、调用台账及停止点原文保留。
+
 ## 最新摘要（2026-10-19，release-1F：Linux依赖权限补修）
 
 - **实际基线 `f6b7ca597299c47d4fae207b7b5b09f04958a30a`，main，开工fetch同步。Current：固定依赖权限检查／显式收敛与stage前置预检完成，本轮不操作服务器。** 用户报告attest成功、stage在verify-source后因node_modules有27034项group/world可写而失败，.next同类项为0；尚未启动应用／初始化生产库／签证书。这是用户提供的现状，不称代理已登录实测。
