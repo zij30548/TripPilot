@@ -1,4 +1,4 @@
-"""Local artifact inspection and explicit, audited removal of only mode 022.
+"""Local artifact inspection, dependency tightening and public-code publication.
 
 No shell, chown, symlink traversal during walks, content writes or rollback.
 The CLI caller fixes the root/owner and serializes deployment operations.
@@ -120,13 +120,14 @@ def scan_tree(root: Path, owner: tuple[int, int], *, allow_writable: bool = Fals
         os.close(descriptor)
 
 
-def _save_manifest(directory: Path, value: dict[str, object]) -> Path:
+def _save_manifest(directory: Path, value: dict[str, object], *, prefix: str = "dependency-permissions") -> Path:
+    _require(prefix in {"dependency-permissions", "release-permissions"}, "permission_manifest_prefix_invalid")
     descriptor = _root_fd(directory)
     try:
         info = os.fstat(descriptor)
         _require((info.st_uid, info.st_gid) == (os.geteuid(), os.getegid())
                  and stat.S_IMODE(info.st_mode) == 0o700, "permission_manifest_directory_permissions")
-        name = f"dependency-permissions-{uuid4().hex}.json"
+        name = f"{prefix}-{uuid4().hex}.json"
         file = os.open(name, os.O_WRONLY | os.O_CREAT | os.O_EXCL | os.O_NOFOLLOW, 0o600, dir_fd=descriptor)
         with os.fdopen(file, "w", encoding="utf-8") as stream:
             os.fchmod(stream.fileno(), 0o600)
@@ -140,7 +141,7 @@ def _save_manifest(directory: Path, value: dict[str, object]) -> Path:
         os.close(descriptor)
 
 
-def _chmod_entry(root: int, entry: Entry, known: dict[str, Entry]) -> None:
+def _chmod_entry(root: int, entry: Entry, known: dict[str, Entry], *, mode: int | None = None) -> None:
     """Use anchored descriptors, not a path-based chmod that could follow links."""
     parent = os.dup(root)
     opened: int | None = None
@@ -161,11 +162,52 @@ def _chmod_entry(root: int, entry: Entry, known: dict[str, Entry]) -> None:
         opened = os.open(parts[-1], flags, dir_fd=parent) if parts else os.dup(root)
         actual = _entry(entry.path, os.fstat(opened), (entry.uid, entry.gid), True)
         _require(actual == entry, "artifact_changed_before_permission_update")
-        os.fchmod(opened, entry.mode & ~0o022)
+        os.fchmod(opened, entry.mode & ~0o022 if mode is None else mode)
     finally:
         if opened is not None:
             os.close(opened)
         os.close(parent)
+
+
+def runtime_mode(entry: Entry) -> int:
+    """Only copied public code: add reading/traversal, never shared writing.
+
+    Original executable files stay executable for the service identity. Files
+    with no execute bits do not become executable. Symlinks are never chmod'ed.
+    The scanner independently rejects unsafe writing/special permissions.
+    """
+    if entry.kind == "symlink":
+        return entry.mode
+    return entry.mode | (0o555 if entry.kind == "directory" or entry.mode & 0o111 else 0o444)
+
+
+def publish_readable(root: Path, owner: tuple[int, int], plan: list[Entry], *, skip_cache: bool = False) -> int:
+    """Publish a verified copied tree; existing-release callers must audit first.
+
+    Never use on configuration/data/source. Stage uses newly created targets;
+    the separate explicit repair command writes a private manifest first.
+    """
+    _require(scan_tree(root, owner, skip_cache=skip_cache) == plan, "artifact_changed_before_permission_update")
+    descriptor = _root_fd(root)
+    try:
+        _require(_entry(".", os.fstat(descriptor), owner, False) == plan[0], "artifact_root_changed")
+        known = {entry.path: entry for entry in plan}
+        changed = 0
+        for entry in plan:
+            mode = runtime_mode(entry)
+            if entry.kind != "symlink" and mode != entry.mode:
+                _chmod_entry(descriptor, entry, known, mode=mode)
+                known[entry.path] = replace(entry, mode=mode)
+                changed += 1
+        _require(scan_tree(root, owner, skip_cache=skip_cache) == [known[e.path] for e in plan],
+                 "artifact_changed_after_permission_update")
+        return changed
+    finally:
+        os.close(descriptor)
+
+
+def save_publication_manifest(directory: Path, value: dict[str, object]) -> Path:
+    return _save_manifest(directory, value, prefix="release-permissions")
 
 
 def remove_write_bits(root: Path, owner: tuple[int, int], plan: list[Entry], directory: Path,

@@ -1,5 +1,55 @@
 # release-1F：可重复的 Linux 部署包与分步手册
 
+## 2026-10-19：发布产物读取权限补修（当前续行入口）
+
+实际基线 `4b07a68559e8aaa911494b36fd3172358a89f622`，main，fetch与origin/main同步。本轮**用户提供的服务器证据**：更新控制器后Node验证器已可启动；verifier_load／receipt_read通过，artifact_hashes报EACCES。定点诊断为open `.next/BUILD_ID`；namei显示所有祖先目录755，目标`.next`为root:root 700、BUILD_ID为root:root 600；工作副本同目录／文件分别为admin:admin 700／600。没有证据表明原生模块检查已经执行或失败；应用、生产库初始化与HTTPS仍未完成。本轮没有登录服务器。
+
+**首因与取舍**：原扫描正确拒绝共享写位、异常归属／链接等，但允许仅owner可读的合法构建；`shutil.copytree`保留700／600，发布副本归root，导致低权限web服务无法读取。这是发布权限衔接缺陷，不是原构建内容错误，也不要求重建前端。新stage仅对**新复制的node_modules／.next公开代码产物**补齐读／穿越权限：目录`mode | 0555`，普通文件`mode | 0444`，原有任一执行位则补齐111，无执行位文件不添加执行；不增加共享写位、不chown、不修改工作副本。文件444仍是444。源码归档原本已采用644／755，此规则与root拥有代码、web只读运行的原架构一致；不是对配置／私密数据开放读取。
+
+### 已暂存目标的显式审计修正
+
+新增`release-permissions --commit FULL_SHA`，默认只检查一个已stage发布目标的node_modules及`.next`，需要修改时报告`needs_changes=N`并以`release_permissions_need_explicit_apply`非零停止；不会创建清单或修改权限。不是原`dependency-permissions`的扩展：后者仍只收敛工作副本依赖的022，原语义与清单独立保留。
+
+仅显式`--apply`才修改，且须先通过目标root目录／元数据、release.json与原frontend-reuse.json的commit/hash绑定、**完整双树**归属／特殊位／写权限／链接／普通文件硬链接检查，以及目标实际9字段内容指纹对原receipt的核对。使用目标目录自身的原Node校验模块和服务器frontend.env的公开配置，不拿工作副本构建代替。原receipt不重写、不改分；源码、锁、BUILD_ID、build／static、全部依赖字节均沿用原校验。
+
+首chmod前在root0700的`/opt/trippilot/receipts/`独占保存root0600 `release-permissions-<随机ID>.json`并fsync，记录原相对路径、身份、mode、元数据、目标SHA、两个元数据hash和内容指纹；这是prepared原权限清单，**不是操作成功收据**。通过逐级dir_fd／O_NOFOLLOW核对后fchmod，只改普通文件／目录mode，不修改／跟随链接、不改属主、内容或mtime。完成后两树复核且内容指纹仍须与原receipt一致，才输出`content fingerprints unchanged`。预检／清单写失败不改权限；中途失败保留私有清单及已修改现场，不自动回滚或清理。重复完成的操作为no-op，不新建清单。
+
+`.next/cache`必须仍是web身份、0700、非链接的私有目录，先核对其身份／mode，再排除修改与遍历，前后检查不变。不触及其他发布版本、backend-ready／frontend-ready、原receipt、实际环境、数据库、源码工作副本、旧f6b7ca5失败目录或旧权限清单。发布内容仍不含真实dotenv／用户数据；该命令不是ACL／LSM通用修复工具。额外ACL／平台限制如仍拒绝，保留失败定位，不通过扩大私密路径权限放行。root指纹成功也不能代替web身份native／启动／静态检查。
+
+### 服务器下一步：只检查，再单独批准apply（仅供用户执行）
+
+继续使用已成功stage及安装后端依赖的目标`3a41ffdcb3f58be609cbcb0c4c2a822ab023b9c8`；新控制器版本另行记录，**不要将COMMIT改为新HEAD、覆盖旧发布或重做构建／attest／stage／backend-deps**。本次不需要重装Python、重建配置或安装前端依赖。先停止对目标发布的其他操作，逐段执行，异常不继续：
+
+```sh
+cd /home/admin/apps/trippilot
+git status --short
+git pull --ff-only
+COMMIT=3a41ffdcb3f58be609cbcb0c4c2a822ab023b9c8
+git diff --exit-code "$COMMIT" HEAD -- frontend deploy/verify-frontend.mjs deploy/systemd
+sudo python3 -B deploy/release.py release-permissions --commit "$COMMIT"
+```
+
+前端／验证器／unit差异应为空。默认检查若唯一结果是`needs_changes=N`＋`release_permissions_need_explicit_apply`，属于预期停止，尚未改权限；若归属、链接、元数据、缓存等其他错误，先调查，不能跳过。确认完整检查正常后才单独执行：
+
+```sh
+sudo python3 -B deploy/release.py release-permissions --commit "$COMMIT" --apply
+```
+
+预期先输出私有原权限清单路径，之后`Release artifact permissions applied: changed=N; content fingerprints unchanged`。N以实际扫描为准，不凭BUILD_ID一项推断总数。此成功输出尚未取得，不能记作服务器已通过。保留清单，不贴其完整内容到聊天；异常保留现场停止。取得成功后分别执行：
+
+```sh
+sudo python3 -B deploy/release.py release-permissions --commit "$COMMIT"
+sudo python3 -B deploy/release.py verify-frontend --commit "$COMMIT"
+```
+
+前者应为0项＋内容匹配，后者仍必须实际以web身份完成原生模块、低权限临时启动与静态hash。未通过前不初始化生产数据、选择发布、启动正式服务或签证书。
+
+### 本次实际验证、交付与停止
+
+部署Python **100通过**（原71＋发布权限核心13＋controller16），Node产物 **14通过**。真实临时700／600及执行位、内部链接、inode／mtime／owner／内容不变、cache私有排除、硬链接／越界／特殊／写位／陈旧plan、私有清单写失败／部分修改、默认只查／no-op和CLI显式目标均覆盖；旧stage真实git archive测试补上私有mode的发布复制与源不变。另实际执行Python控制器→真实Node→实际目标校验模块，核对9字段指纹修正前后一致，实际校验失败先于清单／chmod。原依赖收敛与跨进程回归仍全部通过，没有删除断言。初次新Node测试夹具误将链接放入禁止链接的`.next`，保留原拒绝并修正夹具；链接防护另有测试。不是Linux用户切换、ACL／LSM、原生模块或Next启动已实测成功。
+
+CLI帮助、语法／文档链接／敏感信息及`git diff --check`通过。前端、Node验证器、锁文件及实际产物无变更，无需重复业务全套、前端构建或浏览器。仅7文件：`deploy/artifact_permissions.py`、`deploy/release.py`、`deploy/tests/test_release.py`、新增`deploy/tests/test_publication_permissions.py`及`deploy/tests/test_release_readability.py`、本页、`PROGRESS.md`。原五缓存、数据库、实际环境及浏览器日志共69份文件开工／收口SHA256一致，旧证据／评分／台账不改。真实模型及外部业务API调用 **0**；**停在发布可读权限补修，服务器apply／完整前端验证仍待用户执行，未部署公网**。以下历史记录和当时续行顺序保留；当前操作以本节为准。
+
 ## 2026-10-19：服务身份切换命令路径补修（当前续行入口）
 
 实际基线 `3a41ffdcb3f58be609cbcb0c4c2a822ab023b9c8`，main，fetch与origin/main同步。**用户终端输出**确认：依赖权限收敛27035项且内容指纹不变，随后复查`needs_changes=0`、check-config、attest、stage及最终路径backend-deps成功。`verify-frontend`只返回通用失败，尚无Node检查输出。进一步只读诊断显示受控PATH查找`runuser`为None，`/usr/sbin/runuser`存在，绝对路径执行`id`成功切换为trippilot-web。以上来自用户提供的服务器输出，不是代理登录验证；应用服务、生产库初始化及HTTPS仍未完成。

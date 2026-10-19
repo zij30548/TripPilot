@@ -6,6 +6,8 @@ create-or-verify; failed partial releases remain for investigation, never reused
 from __future__ import annotations
 
 import argparse
+from dataclasses import asdict, replace
+from datetime import datetime, timezone
 import fcntl
 import hashlib
 import json
@@ -20,7 +22,8 @@ import stat
 import subprocess
 import tarfile
 from config import ConfigError
-from artifact_permissions import ArtifactError, scan_tree, remove_write_bits
+from artifact_permissions import (ArtifactError, scan_tree, remove_write_bits,
+                                  publish_readable, runtime_mode, save_publication_manifest)
 
 SOURCE = Path("/home/admin/apps/trippilot")
 BASE = Path("/opt/trippilot")
@@ -182,7 +185,7 @@ def check_artifact_tree(source: Path, *, skip_cache: bool = False) -> None:
         raise Refused(str(error)) from None
 
 
-def dependency_fingerprint() -> dict[str, object]:
+def frontend_fingerprint(verifier: Path, frontend: Path, *, env: dict[str, str] | None = None) -> dict[str, object]:
     # Reuse the receipt's exact source/lock/BUILD_ID/build/static/dependency hash
     # implementation. This imports no product code and sends no API requests.
     # With node -e, argv[1] is the first extra argument. It must not be the
@@ -191,10 +194,14 @@ def dependency_fingerprint() -> dict[str, object]:
               "const {inspectBuild}=await import(pathToFileURL(process.argv[2]));"
               "console.log(JSON.stringify(await inspectBuild(process.argv[3])));")
     value = json.loads(run(["/usr/bin/node", "--input-type=module", "-e", script,
-                           "trippilot-dependency-fingerprint", str(SOURCE / "deploy/verify-frontend.mjs"),
-                           str(SOURCE / "frontend")], capture=True))
+                           "trippilot-dependency-fingerprint", str(verifier), str(frontend)], capture=True,
+                          env=clean_environment() if env is None else env))
     require(isinstance(value, dict) and len(value) == 9, "artifact_fingerprint_invalid")
     return value
+
+
+def dependency_fingerprint() -> dict[str, object]:
+    return frontend_fingerprint(SOURCE / "deploy/verify-frontend.mjs", SOURCE / "frontend")
 
 
 def dependency_permissions(apply: bool = False) -> None:
@@ -218,6 +225,83 @@ def dependency_permissions(apply: bool = False) -> None:
 def safe_copy_tree(source: Path, destination: Path, *, skip_cache: bool = False) -> None:
     check_artifact_tree(source, skip_cache=skip_cache)
     shutil.copytree(source, destination, symlinks=True, ignore=(lambda directory, names: ["cache"] if skip_cache and Path(directory) == source else []))
+    # copy2/copystat preserve e.g. admin's 0700/0600 build permissions, but the
+    # release copy is root-owned. Only these new public-code copies need r/x.
+    owner = os.geteuid(), os.getegid()
+    publish_readable(destination, owner, scan_tree(destination, owner))
+
+
+def release_permissions(commit: str, apply: bool = False) -> None:
+    """Explicit audited r/x repair of one already-staged release's public code."""
+    target = checked_release(commit)
+    owner = os.geteuid(), os.getegid()  # CLI is Linux/root-only.
+    for path in (target, target / "frontend"):
+        info = path.lstat()
+        require(stat.S_ISDIR(info.st_mode) and (info.st_uid, info.st_gid) == owner
+                and not stat.S_IMODE(info.st_mode) & 0o7022, "release_directory_permissions")
+
+    def metadata(name: str) -> tuple[dict[str, object], str]:
+        path = target / name
+        info = path.lstat()
+        require(stat.S_ISREG(info.st_mode) and info.st_nlink == 1 and info.st_size <= 65536
+                and (info.st_uid, info.st_gid) == owner and not stat.S_IMODE(info.st_mode) & 0o7022,
+                "bounded_root_release_metadata_required")
+        value = json.loads(path.read_text())
+        require(isinstance(value, dict), "release_metadata_invalid")
+        return value, digest(path)
+
+    receipt, receipt_hash = metadata("frontend-reuse.json")
+    release_proof, release_hash = metadata("release.json")
+    require(release_proof == {"commit": commit, "frontend_receipt_sha256": receipt_hash,
+                              "python_venv_copied": False}, "release_receipt_mismatch")
+    require(receipt.get("schema_version") == "frontend-release-v1" and receipt.get("commit") == commit
+            and receipt.get("platform") == "linux" and receipt.get("architecture") == "x64"
+            and receipt.get("provenance") == "operator-attested-existing-build", "release_receipt_invalid")
+    cache = target / "frontend/.next/cache"
+    cache_info = cache.lstat()
+    web = pwd.getpwnam("trippilot-web")
+    require(stat.S_ISDIR(cache_info.st_mode) and (cache_info.st_uid, cache_info.st_gid) == (web.pw_uid, web.pw_gid)
+            and stat.S_IMODE(cache_info.st_mode) == 0o700, "private_web_cache_permissions")
+    scopes = [(target / "frontend/node_modules", False), (target / "frontend/.next", True)]
+    plans = [scan_tree(path, owner, skip_cache=skip) for path, skip in scopes]
+    pending = sum(runtime_mode(e) != e.mode for plan in plans for e in plan if e.kind != "symlink")
+    print(f"Release artifact permissions checked: entries={sum(map(len, plans))}, needs_changes={pending}; no files changed.")
+    require(apply or pending == 0, "release_permissions_need_explicit_apply")
+    from config import check_files
+    env = clean_environment() | check_files(CONFIG)["frontend"]
+
+    def fingerprint() -> dict[str, object]:
+        require(metadata("frontend-reuse.json")[1] == receipt_hash and metadata("release.json")[1] == release_hash,
+                "release_metadata_changed")
+        require(cache.lstat() == cache_info, "private_web_cache_changed")
+        value = frontend_fingerprint(target / "deploy/verify-frontend.mjs", target / "frontend", env=env)
+        require(all(receipt.get(key) == val for key, val in value.items()), "release_artifact_fingerprint_mismatch")
+        return value
+
+    before = fingerprint()
+    # Recheck BOTH complete scopes before the manifest and first mode change.
+    require([scan_tree(path, owner, skip_cache=skip) for path, skip in scopes] == plans,
+            "artifact_changed_before_permission_update")
+    if not pending:
+        print("Release artifact permissions and content match; no manifest or changes required.")
+        return
+    manifest = save_publication_manifest(BASE / "receipts", {
+        "schema_version": "release-permissions-v1", "state": "prepared_not_completion_receipt",
+        "recorded_at": datetime.now(timezone.utc).isoformat(), "commit": commit,
+        "root": str(target), "release_sha256": release_hash, "frontend_receipt_sha256": receipt_hash,
+        "content_before": before, "operation": "public-code r/x only; private .next/cache excluded",
+        "scopes": [{"path": str(path.relative_to(target)), "entries": [asdict(e) for e in plan]}
+                   for (path, _), plan in zip(scopes, plans)],
+    })
+    print(f"Original release artifact permissions saved privately: {manifest}", flush=True)
+    changed = 0
+    for (path, skip), plan in zip(scopes, plans):
+        changed += publish_readable(path, owner, plan, skip_cache=skip)
+    require(fingerprint() == before, "artifact_content_changed_after_permission_update")
+    require([scan_tree(path, owner, skip_cache=skip) for path, skip in scopes]
+            == [[replace(e, mode=runtime_mode(e)) for e in plan] for plan in plans],
+            "artifact_changed_after_permission_update")
+    print(f"Release artifact permissions applied: changed={changed}; content fingerprints unchanged; manifest={manifest}")
 
 
 def archive_commit(commit: str, target: Path) -> None:
@@ -479,6 +563,9 @@ def main() -> int:
         sub.add_parser(action)
     command = sub.add_parser("dependency-permissions")
     command.add_argument("--apply", action="store_true", help="explicitly remove only mode 022 after full preflight and private manifest")
+    command = sub.add_parser("release-permissions")
+    command.add_argument("--commit", required=True)
+    command.add_argument("--apply", action="store_true", help="explicitly add public-code r/x to one staged release after private audit and content checks")
     command = sub.add_parser("runtime")
     command.add_argument("--uv-source", type=Path, required=True)
     for action in ("attest", "stage", "backend-deps", "verify-frontend", "enable-video", "init-identity", "init-usage", "verify-data", "invite", "select"):
@@ -511,6 +598,7 @@ def main() -> int:
             elif args.action == "enable-video": enable_video(args.commit)
             elif args.action == "config-templates": templates()
             elif args.action == "dependency-permissions": dependency_permissions(args.apply)
+            elif args.action == "release-permissions": release_permissions(args.commit, args.apply)
             elif args.action == "install-units": units()
             elif args.action in {"install-http", "enable-tls"}: site(args.action == "enable-tls")
             elif args.action == "check-config":

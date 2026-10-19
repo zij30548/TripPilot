@@ -1,5 +1,15 @@
 # TripPilot Progress
 
+## 最新摘要（2026-10-19，release-1F：发布产物读取权限补修）
+
+- **实际基线 `4b07a68559e8aaa911494b36fd3172358a89f622`，main，fetch同步。Current：确认并补修stage发布可读权限衔接，服务器实际apply／前端验证待用户续行。** 用户只读结果：verifier／receipt可读，artifact_hashes在open `.next/BUILD_ID`报EACCES；祖先755，发布`.next`root700／BUILD_ID root600，源相应为admin700／600。这是用户提供的Linux事实，非代理登录验证；尚未到native检查，不将其记为原生模块失败或通过。
+- **原因／修复**：扫描只拒022等安全异常，copytree保留owner私有mode，复制后root拥有导致web无法读取。本次新stage只规范新复制的node_modules／.next公开代码读／穿越／原有执行能力，不改源；已有目标新增固定SHA的`release-permissions`，默认只查、显式apply才在双树安全扫描、原release／receipt绑定及目标内容指纹核对后写私有原mode清单，再描述符安全fchmod与前后同指纹复核。不改owner、不增022、不chmod链接，不用递归755／整树chown；cache须原web700非链接且不遍历／修改，配置／数据等不在范围。
+- **实际检查**：部署Python **100通过**（原71＋核心13＋controller16），Node **14通过**；原stage真实归档回归补700／600和源不变。包括真实Python→Node→目标实际校验器完整修正、9字段指纹不变及真实错误先于清单／chmod，默认／no-op、两个scope拒绝、部分失败留证、receipt／cache／其他release不变。CLI帮助、语法／链接／敏感信息及差异检查通过；初次新Node夹具的`.next`链接被正确拒绝后修正夹具，原拒绝断言未删。没有业务全套、前端构建、浏览器或Linux服务身份验收，不能把本机临时文件／受控身份映射当服务器已通过。
+- **文件／保护**：本轮仅7份部署工具／测试／文档，清单与规则见[RELEASE_1F当前续行入口](RELEASE_1F.md#2026-10-19发布产物读取权限补修当前续行入口)。原五缓存、数据库、实际配置与浏览器日志共69份文件开工／收口SHA256一致；旧f6b7ca5失败目录、原receipt、权限清单及全部旧证据／台账保持。不连接服务器，真实模型／高德及其他业务API调用 **0**。
+- **Next／停止**：用户普通pull后显式保留`COMMIT=3a41ffdcb3f58be609cbcb0c4c2a822ab023b9c8`，只查release-permissions→核对后单独apply→复查0项／同内容→原verify-frontend。更新的是控制器，不冒称旧产物是新HEAD构建；不重做attest／stage／backend-deps，不改receipt迁就差异。**停在此次权限补修**；服务器实际修正、native／低权限启动／静态检查、生产数据／正式服务与HTTPS均未由本轮完成，不启动新功能。
+
+当前导航：[原因、权限边界与单步续行](RELEASE_1F.md#2026-10-19发布产物读取权限补修当前续行入口)。以下所有旧失败、成绩、调用台账与当时停止点保持原文及历史含义。
+
 ## 最新摘要（2026-10-19，release-1F：服务身份切换命令路径补修）
 
 - **实际基线 `3a41ffdcb3f58be609cbcb0c4c2a822ab023b9c8`，main，fetch同步。Current：两处runuser寻址补修及离线检查完成，服务器前端验证仍待续行。** 用户输出确认权限apply收敛27035项且内容指纹不变、复查0项、配置／attest／stage／最终路径后端依赖安装成功；verify-frontend随后通用失败。受控PATH查找runuser为None，固定`/usr/sbin/runuser`存在并可切web身份；这些是用户提供事实，不是代理登录实测。

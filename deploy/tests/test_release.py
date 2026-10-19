@@ -78,10 +78,16 @@ class DeploymentPreparation(unittest.TestCase):
         (source / "cache/private").write_text("not copied")
         (source / "file").write_text("artifact")
         (source / "inside").symlink_to("file")
+        source.chmod(0o700)
+        (source / "file").chmod(0o600)
         with patch.object(release, "artifact_owner", return_value=(os.getuid(), os.getgid())):
             release.safe_copy_tree(source, self.root / "copy", skip_cache=True)
         self.assertFalse((self.root / "copy/cache").exists())
         self.assertEqual((self.root / "copy/inside").read_text(), "artifact")
+        self.assertEqual(stat.S_IMODE((self.root / "copy").stat().st_mode), 0o755)
+        self.assertEqual(stat.S_IMODE((self.root / "copy/file").stat().st_mode), 0o644)
+        self.assertEqual(stat.S_IMODE(source.stat().st_mode), 0o700)
+        self.assertEqual(stat.S_IMODE((source / "file").stat().st_mode), 0o600)
         (source / "escape").symlink_to("../outside")
         with patch.object(release, "artifact_owner", return_value=(os.getuid(), os.getgid())):
             with self.assertRaises(release.Refused): release.safe_copy_tree(source, self.root / "refused")
@@ -350,6 +356,9 @@ class DeploymentPreparation(unittest.TestCase):
             (source / directory).mkdir(parents=True, exist_ok=True)
         for name, body in {"frontend/src/app.ts": "source", "frontend/.env.local": "never-copy", "backend/.env": "never-copy", "backend/data/old.db": "never-copy", "backend/app/__pycache__/old.pyc": "never-copy", "frontend/node_modules/module.js": "module", "frontend/.next/cache/old": "cache", "frontend/.next/static/chunk.js": "build"}.items():
             (source / name).write_text(body)
+        (source / "frontend/.next").chmod(0o700)
+        (source / "frontend/.next/static/chunk.js").chmod(0o600)
+        (source / "frontend/node_modules/module.js").chmod(0o700)
         subprocess.run(["git", "init", "-q", str(source)], check=True)
         subprocess.run(["git", "-C", str(source), "add", "."], check=True)
         subprocess.run(["git", "-C", str(source), "-c", "user.name=ControlledTest", "-c", "user.email=controlled@example.invalid", "commit", "-qm", "fixture"], check=True)
@@ -374,6 +383,11 @@ class DeploymentPreparation(unittest.TestCase):
             self.assertEqual(list((target / "frontend/.next/cache").iterdir()), [])
             self.assertEqual(stat.S_IMODE(target.stat().st_mode), 0o755)
             self.assertEqual(stat.S_IMODE((target / "frontend/src").stat().st_mode), 0o755)
+            self.assertEqual(stat.S_IMODE((target / "frontend/.next").stat().st_mode), 0o755)
+            self.assertEqual(stat.S_IMODE((target / "frontend/.next/static/chunk.js").stat().st_mode), 0o644)
+            self.assertEqual(stat.S_IMODE((target / "frontend/node_modules/module.js").stat().st_mode), 0o755)
+            self.assertEqual(stat.S_IMODE((source / "frontend/.next").stat().st_mode), 0o700)
+            self.assertEqual(stat.S_IMODE((source / "frontend/.next/static/chunk.js").stat().st_mode), 0o600)
             with self.assertRaises(release.Refused): release.stage(commit, receipt)
 
     def test_select_requires_inactive_services_and_expected_old_identity(self):
