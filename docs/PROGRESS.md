@@ -1,5 +1,15 @@
 # TripPilot Progress
 
+## 最新摘要（2026-10-19，release-1F：服务身份切换命令路径补修）
+
+- **实际基线 `3a41ffdcb3f58be609cbcb0c4c2a822ab023b9c8`，main，fetch同步。Current：两处runuser寻址补修及离线检查完成，服务器前端验证仍待续行。** 用户输出确认权限apply收敛27035项且内容指纹不变、复查0项、配置／attest／stage／最终路径后端依赖安装成功；verify-frontend随后通用失败。受控PATH查找runuser为None，固定`/usr/sbin/runuser`存在并可切web身份；这些是用户提供事实，不是代理登录实测。
+- **原因／修复**：前端verify/native与smoke、视频兼容性入口使用裸runuser，但受控PATH刻意不含/usr/sbin。本次只把两处固定为`/usr/sbin/runuser`，保留PATH、环境／身份、产物、receipt及失败拒绝机制，不改Node校验器、前端或构建。错误发生在启动Node前，不将其解释为原生模块已失败，也不因路径修好就宣称原生检查通过。
+- **实际检查**：新增4项回归，真实临时子进程验证PATH解析，受控身份替身执行前端两步及视频参数／环境；前端verify或smoke失败不发布ready、视频失败不安装drop-in。部署Python **71通过**（原67＋4），Node **14通过**，CLI帮助、语法／链接／敏感信息与差异检查通过。新增调度测试在修正前捕获裸命令失败，修正后通过；不把替身执行称为Linux服务身份／Next／FFmpeg验收。没有业务全套、前端构建或浏览器重验。
+- **文件／保护**：仅`deploy/release.py`、`deploy/tests/test_release.py`、[RELEASE_1F当前续行入口](RELEASE_1F.md#2026-10-19服务身份切换命令路径补修当前续行入口)、本页4文件。五缓存、数据库、实际环境与浏览器日志共69份文件开工／收口SHA256一致；旧失败、receipt、证据和台账保留。真实模型及外部业务API调用 **0**，不连接／修改云服务器。
+- **Next／停止**：用户普通pull更新部署控制器后，显式保留已stage目标`COMMIT=3a41ffdcb3f58be609cbcb0c4c2a822ab023b9c8`，仅续行verify-frontend。不得以新HEAD替代尚不存在的发布目录，不重跑attest／stage／backend-deps或清理旧记录。**停在此次部署补修**；服务器native／低权限启动／静态检查及后续数据、服务和HTTPS仍待用户分步验证，不开始新功能。
+
+当前导航：[原因、检查与服务器单步命令](RELEASE_1F.md#2026-10-19服务身份切换命令路径补修当前续行入口)。以下旧成绩、失败、调用记录及当时停止点原文保留。
+
 ## 最新摘要（2026-10-19，release-1F：权限工具Node导入入口补修）
 
 - **实际基线 `b1fd2228a257c9c2ed69deb1d5b79aa025832635`，main，fetch同步。Current：用户服务器apply失败的跨进程调用缺陷已最小修正，真实服务器继续待验。** 用户检查27065项／27035待收敛，apply报absolute_paths_required；没有清单保存提示，代码首fingerprint失败早于清单创建与fchmod，此次命令未进入权限修改。未连接服务器，不冒称独立核验了其现场。

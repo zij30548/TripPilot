@@ -369,7 +369,7 @@ def frontend_verification(commit: str) -> None:
     env = clean_environment() | front | {"HOME": "/nonexistent"}
     receipt = target / "frontend-reuse.json"
     for action in ("verify", "smoke"):
-        argv = ["runuser", "-u", "trippilot-web", "--", "/usr/bin/node", str(target / "deploy/verify-frontend.mjs"), action,
+        argv = ["/usr/sbin/runuser", "-u", "trippilot-web", "--", "/usr/bin/node", str(target / "deploy/verify-frontend.mjs"), action,
                 "--frontend", str(target / "frontend"), "--receipt", str(receipt)]
         if action == "verify": argv.append("--native")
         run(argv, env=env)
@@ -401,7 +401,7 @@ def enable_video(commit: str) -> None:
     require((target / "backend-ready.json").is_file(), "final_backend_dependencies_required")
     # Explicit compatibility operation only. Missing/old fd support returns
     # failure before any access grant. Existing application limits are unchanged.
-    run(["runuser", "-u", "trippilot-api", "--", str(target / "backend/.venv/bin/python"), "-B",
+    run(["/usr/sbin/runuser", "-u", "trippilot-api", "--", str(target / "backend/.venv/bin/python"), "-B",
          str(target / "deploy/check-video.py"), "synthetic"], cwd=target / "backend", env=clean_environment() | {"HOME": "/nonexistent"})
     ready = target / "video-ready.json"
     proof = {"synthetic_production_decoder_passed": True, "commit": commit}

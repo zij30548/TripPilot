@@ -1,5 +1,32 @@
 # release-1F：可重复的 Linux 部署包与分步手册
 
+## 2026-10-19：服务身份切换命令路径补修（当前续行入口）
+
+实际基线 `3a41ffdcb3f58be609cbcb0c4c2a822ab023b9c8`，main，fetch与origin/main同步。**用户终端输出**确认：依赖权限收敛27035项且内容指纹不变，随后复查`needs_changes=0`、check-config、attest、stage及最终路径backend-deps成功。`verify-frontend`只返回通用失败，尚无Node检查输出。进一步只读诊断显示受控PATH查找`runuser`为None，`/usr/sbin/runuser`存在，绝对路径执行`id`成功切换为trippilot-web。以上来自用户提供的服务器输出，不是代理登录验证；应用服务、生产库初始化及HTTPS仍未完成。
+
+**原因与最小修复**：`clean_environment()`有意只允许`/usr/local/bin:/usr/bin:/bin`，但`frontend_verification()`和`enable_video()`调用裸命令`runuser`，Ubuntu的`/usr/sbin`不在其搜索范围。前端检查因此在启动子进程时失败，尚不能据此判断SWC／unrs／Sharp或Next启动有问题。本次仅把两处命令固定为`/usr/sbin/runuser`；**不扩大PATH、不继承管理员环境、不放宽身份／产物检查，不改Node验证器、构建、依赖或真实配置**。这也修复视频兼容性命令的同类入口，但不是视频兼容性已通过。
+
+新增4项离线回归：在隔离PATH外的临时可执行文件上真实验证裸名失败／绝对路径可启动；受控身份替身实际运行子进程，检查前端`verify --native`和`smoke`均采用固定路径、web身份及原环境，任一步失败不发布ready且不改原receipt；视频检查同样使用api身份，失败不生成ready或安装访问drop-in。替身不切真实身份、不运行Next或FFmpeg，不能冒充Linux原生／权限验收。原生产PATH另行断言不变。部署Python **71项通过**（原67＋4），原Node产物 **14项通过**，CLI帮助、语法／文档链接／敏感信息及差异检查通过。前端源码和产物未改，未重建或重跑业务全套／浏览器。
+
+### 保留已暂存发布目录的服务器下一步（仅供用户执行）
+
+这次只修正工作副本中的部署控制器。已经成功stage及安装后端依赖的发布目标仍是`3a41ffdcb3f58be609cbcb0c4c2a822ab023b9c8`；新控制器可以对该显式SHA执行验证，**不要把COMMIT改成新HEAD后直接验证不存在的新release**，也不需要重跑attest／stage／backend-deps。目标内的Node校验器、receipt及前端内容与本次补修前一致，验证仍核对receipt并执行原生检查／低权限启动／静态哈希，不跳过任何检查。
+
+```sh
+cd /home/admin/apps/trippilot
+git status --short
+git pull --ff-only
+# 使用更新后的部署脚本，继续验证已经暂存的发布目标，不是新HEAD。
+COMMIT=3a41ffdcb3f58be609cbcb0c4c2a822ab023b9c8
+# 应无输出；若相关产物／unit源码已变，停止核对，不跳过此检查。
+git diff --exit-code "$COMMIT" HEAD -- frontend deploy/verify-frontend.mjs deploy/systemd
+sudo python3 -B deploy/release.py verify-frontend --commit "$COMMIT"
+```
+
+仅在成功时预期输出`Final-path native modules, low-privilege startup and static hash verified; no business API requested.`；这不是本轮已取得的服务器结果。若报新的错误，停下保留输出，不删除目录、修改receipt、重复装依赖或绕过校验。验证通过后再按原手册逐步进行数据初始化、选择发布、服务及HTTPS，不在本次补修自动执行；旧f6b7ca5失败目录和旧receipt继续保留。
+
+仅交付4文件：`deploy/release.py`、`deploy/tests/test_release.py`、本页及`PROGRESS.md`。原五缓存、数据库、真实环境及浏览器日志SHA256复核不变；未修改旧证据、账号或数据。本轮没有连接服务器，真实模型／外部业务API调用 **0**。**停在命令路径补修；Linux前端原生与静态验证仍待用户执行，未宣称公网部署完成。** 以下历次命令和停止点保留当时语境，当前续行以本节为准。
+
 ## 2026-10-19：权限修正的Node导入入口补修
 
 实际基线 `b1fd2228a257c9c2ed69deb1d5b79aa025832635`，main，fetch同步。用户执行默认检查得到27065项／待收022为27035项，随后显式apply报`STOP: absolute_paths_required`。这是新增部署工具的Python→Node参数衔接缺陷，不是合法权限被再次拒绝；旧65项Python／14项Node测试的成绩保留，其当时未覆盖真实跨进程组合的缺口在本轮补齐。

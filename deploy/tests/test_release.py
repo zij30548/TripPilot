@@ -182,6 +182,114 @@ class DeploymentPreparation(unittest.TestCase):
         self.assertNotIn("QWEN_API_KEY", env)
         self.assertNotIn("AMAP_WEB_KEY", env)
         self.assertNotIn("/home/admin", json.dumps(env))
+        self.assertEqual(env["PATH"], "/usr/local/bin:/usr/bin:/bin")
+
+    def identity_helper(self, fail_action=None):
+        helper = self.root / "sbin/runuser"
+        helper.parent.mkdir(exist_ok=True)
+        records = self.root / "identity-records.jsonl"
+        records.write_text("")
+        helper.write_text(
+            f"#!{sys.executable}\n"
+            "import json, os, sys\n"
+            f"with open({str(records)!r}, 'a') as stream:\n"
+            "    stream.write(json.dumps({'argv': sys.argv[1:], 'path': os.environ['PATH'], "
+            "'home': os.environ['HOME'], 'cwd': os.getcwd()}) + '\\n')\n"
+            f"raise SystemExit(7 if {fail_action!r} in sys.argv else 0)\n"
+        )
+        helper.chmod(0o755)
+        return helper, records
+
+    def test_absolute_identity_helper_executes_outside_restricted_path(self):
+        helper, records = self.identity_helper()
+        empty_bin = self.root / "empty-bin"
+        empty_bin.mkdir()
+        env = release.clean_environment() | {"PATH": str(empty_bin)}
+        with self.assertRaises(FileNotFoundError): release.run(["runuser", "controlled"], env=env)
+        self.assertEqual(records.read_text(), "")
+        release.run([str(helper), "controlled"], env=env)
+        self.assertEqual(json.loads(records.read_text())["argv"], ["controlled"])
+
+    def test_frontend_verification_dispatches_both_checks_via_fixed_identity_helper(self):
+        commit = "a" * 40
+        target = self.root / "releases" / commit
+        target.mkdir(parents=True)
+        receipt = target / "frontend-reuse.json"
+        receipt.write_bytes(b"unchanged staged receipt")
+        helper, records = self.identity_helper()
+        real_run = release.run
+
+        def controlled_run(argv, **kwargs):
+            self.assertEqual(argv[0], "/usr/sbin/runuser")
+            return real_run([str(helper), *argv[1:]], **kwargs)
+
+        with patch.object(release, "RELEASES", self.root / "releases"), patch("config.check_files", return_value={"frontend": {"TRIPPILOT_BACKEND_ORIGIN": "http://127.0.0.1:8000"}}), patch.object(release, "run", side_effect=controlled_run):
+            release.frontend_verification(commit)
+        entries = [json.loads(line) for line in records.read_text().splitlines()]
+        self.assertEqual(len(entries), 2)
+        for entry, action in zip(entries, ("verify", "smoke")):
+            expected = ["-u", "trippilot-web", "--", "/usr/bin/node", str(target / "deploy/verify-frontend.mjs"), action,
+                        "--frontend", str(target / "frontend"), "--receipt", str(receipt)]
+            if action == "verify": expected.append("--native")
+            self.assertEqual(entry["argv"], expected)
+            self.assertEqual(entry["path"], release.clean_environment()["PATH"])
+            self.assertEqual(entry["home"], "/nonexistent")
+        self.assertEqual(receipt.read_bytes(), b"unchanged staged receipt")
+        self.assertEqual(json.loads((target / "frontend-ready.json").read_text()),
+                         {"frontend_receipt_sha256": release.digest(receipt), "native_and_static_smoke": True})
+
+    def test_frontend_subprocess_failure_never_publishes_readiness(self):
+        commit = "a" * 40
+        target = self.root / "releases" / commit
+        target.mkdir(parents=True)
+        receipt = target / "frontend-reuse.json"
+        receipt.write_bytes(b"preserve original receipt")
+        real_run = release.run
+        for failure in ("verify", "smoke"):
+            with self.subTest(failure=failure):
+                helper, records = self.identity_helper(failure)
+
+                def controlled_run(argv, **kwargs):
+                    self.assertEqual(argv[0], "/usr/sbin/runuser")
+                    return real_run([str(helper), *argv[1:]], **kwargs)
+
+                with patch.object(release, "RELEASES", self.root / "releases"), patch("config.check_files", return_value={"frontend": {}}), patch.object(release, "run", side_effect=controlled_run):
+                    with self.assertRaises(subprocess.CalledProcessError): release.frontend_verification(commit)
+                self.assertFalse((target / "frontend-ready.json").exists())
+                self.assertEqual(receipt.read_bytes(), b"preserve original receipt")
+                self.assertEqual(len(records.read_text().splitlines()), 1 if failure == "verify" else 2)
+
+    def test_video_check_uses_fixed_identity_helper_and_failure_does_not_enable_video(self):
+        commit = "a" * 40
+        target = self.root / "releases" / commit
+        (target / "backend").mkdir(parents=True)
+        (target / "backend-ready.json").write_text("{}")
+        real_run = release.run
+        for failure in ("synthetic", None):
+            with self.subTest(failure=failure):
+                helper, records = self.identity_helper(failure)
+
+                def controlled_run(argv, **kwargs):
+                    if argv == ["systemctl", "daemon-reload"]: return ""  # Never operate the test host's services.
+                    self.assertEqual(argv[0], "/usr/sbin/runuser")
+                    return real_run([str(helper), *argv[1:]], **kwargs)
+
+                with patch.object(release, "RELEASES", self.root / "releases"), patch.object(release, "run", side_effect=controlled_run), patch.object(release, "ensure_directory") as directory, patch.object(release, "install_new_or_identical") as install:
+                    if failure:
+                        with self.assertRaises(subprocess.CalledProcessError): release.enable_video(commit)
+                        self.assertFalse((target / "video-ready.json").exists())
+                        directory.assert_not_called()
+                        install.assert_not_called()
+                    else:
+                        release.enable_video(commit)
+                        install.assert_called_once()
+                        self.assertEqual(json.loads((target / "video-ready.json").read_text()),
+                                         {"synthetic_production_decoder_passed": True, "commit": commit})
+                entry = json.loads(records.read_text())
+                self.assertEqual(entry["argv"], ["-u", "trippilot-api", "--", str(target / "backend/.venv/bin/python"), "-B", str(target / "deploy/check-video.py"), "synthetic"])
+                self.assertEqual(entry["path"], release.clean_environment()["PATH"])
+                self.assertEqual(entry["home"], "/nonexistent")
+                self.assertEqual(entry["cwd"], str(target / "backend"))
 
     def test_backend_import_failure_does_not_publish_readiness_or_repair_partial_venv(self):
         commit = "a" * 40
