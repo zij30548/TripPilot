@@ -78,11 +78,86 @@ class DeploymentPreparation(unittest.TestCase):
         (source / "cache/private").write_text("not copied")
         (source / "file").write_text("artifact")
         (source / "inside").symlink_to("file")
-        release.safe_copy_tree(source, self.root / "copy", skip_cache=True)
+        with patch.object(release, "artifact_owner", return_value=(os.getuid(), os.getgid())):
+            release.safe_copy_tree(source, self.root / "copy", skip_cache=True)
         self.assertFalse((self.root / "copy/cache").exists())
         self.assertEqual((self.root / "copy/inside").read_text(), "artifact")
         (source / "escape").symlink_to("../outside")
-        with self.assertRaises(release.Refused): release.safe_copy_tree(source, self.root / "refused")
+        with patch.object(release, "artifact_owner", return_value=(os.getuid(), os.getgid())):
+            with self.assertRaises(release.Refused): release.safe_copy_tree(source, self.root / "refused")
+
+    def test_stage_checks_both_artifact_trees_before_creating_a_release(self):
+        commit, old_commit = "a" * 40, "b" * 40
+        source, releases = self.root / "checkout", self.root / "releases"
+        for name in ("frontend/node_modules", "frontend/.next/static"):
+            (source / name).mkdir(parents=True, mode=0o755)
+        module = source / "frontend/node_modules/module.js"
+        chunk = source / "frontend/.next/static/chunk.js"
+        module.write_bytes(b"unchanged dependency")
+        chunk.write_bytes(b"unchanged build")
+        module.chmod(0o644)
+        chunk.chmod(0o644)
+        old = releases / old_commit
+        old.mkdir(parents=True)
+        old_failure = old / "failure-marker"
+        old_failure.write_bytes(b"preserve failed release")
+        receipt = self.root / "receipt.json"
+        receipt.write_text(json.dumps({"commit": commit}))
+        old_receipt = self.root / "old-receipt.json"
+        old_receipt.write_bytes(b"preserve old receipt")
+        receipt_bytes = receipt.read_bytes()
+        original_files = {module: module.read_bytes(), chunk: chunk.read_bytes()}
+
+        def controlled_run(argv, **kwargs):
+            if "rev-parse" in argv: return commit
+            if "diff" in argv: return ""
+            return ""  # Successful existing verify-source; permissions are independently checked.
+
+        with patch.object(release, "SOURCE", source), patch.object(release, "RELEASES", releases), patch.object(release, "run", side_effect=controlled_run) as runner, patch.object(release, "artifact_owner", return_value=(os.getuid(), os.getgid())), patch("config.check_files", return_value={"frontend": {}}), patch.object(release, "archive_commit") as archive:
+            for tree in (source / "frontend/node_modules", source / "frontend/.next"):
+                for defect in ("writable_root", "writable_file", "escaping_link"):
+                    with self.subTest(tree=tree.name, defect=defect):
+                        bad = tree / "unsafe"
+                        if defect == "writable_root":
+                            tree.chmod(0o775)
+                        elif defect == "writable_file":
+                            bad.write_bytes(b"unchanged unsafe file")
+                            bad.chmod(0o666)
+                        else:
+                            outside = self.root / "outside"
+                            outside.write_bytes(b"never traverse")
+                            bad.symlink_to(outside)
+                        try:
+                            with self.assertRaises(release.Refused): release.stage(commit, receipt)
+                            self.assertFalse((releases / commit).exists())
+                            archive.assert_not_called()
+                            self.assertEqual(old_failure.read_bytes(), b"preserve failed release")
+                            self.assertEqual(old_receipt.read_bytes(), b"preserve old receipt")
+                            self.assertEqual(receipt.read_bytes(), receipt_bytes)
+                            for path, body in original_files.items(): self.assertEqual(path.read_bytes(), body)
+                            self.assertTrue(any("verify-source" in call.args[0] for call in runner.call_args_list))
+                        finally:
+                            tree.chmod(0o755)
+                            if bad.is_symlink() or bad.exists(): bad.unlink()
+                            runner.reset_mock()
+
+    def test_stage_rejects_hardlinked_artifact_before_creating_release(self):
+        commit = "a" * 40
+        source, releases = self.root / "checkout", self.root / "releases"
+        for name in ("frontend/node_modules", "frontend/.next"):
+            (source / name).mkdir(parents=True, mode=0o755)
+        original = source / "frontend/.next/original"
+        original.write_bytes(b"do not modify hardlinked data")
+        original.chmod(0o644)
+        os.link(original, source / "frontend/.next/linked")
+        receipt = self.root / "receipt.json"
+        receipt.write_text(json.dumps({"commit": commit}))
+        def controlled_run(argv, **kwargs): return commit if "rev-parse" in argv else ""
+        with patch.object(release, "SOURCE", source), patch.object(release, "RELEASES", releases), patch.object(release, "run", side_effect=controlled_run), patch.object(release, "artifact_owner", return_value=(os.getuid(), os.getgid())), patch("config.check_files", return_value={"frontend": {}}), patch.object(release, "archive_commit") as archive:
+            with self.assertRaises(release.Refused): release.stage(commit, receipt)
+            self.assertFalse((releases / commit).exists())
+            archive.assert_not_called()
+            self.assertEqual(original.read_bytes(), b"do not modify hardlinked data")
 
     def test_stage_existing_or_wrong_receipt_stops_before_mutation(self):
         commit = "a" * 40

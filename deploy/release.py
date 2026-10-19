@@ -20,6 +20,7 @@ import stat
 import subprocess
 import tarfile
 from config import ConfigError
+from artifact_permissions import ArtifactError, scan_tree, remove_write_bits
 
 SOURCE = Path("/home/admin/apps/trippilot")
 BASE = Path("/opt/trippilot")
@@ -169,17 +170,50 @@ def excluded(name: str) -> bool:
             or p.suffix in {".sqlite", ".sqlite3", ".db", ".log", ".mp4"})
 
 
+def artifact_owner() -> tuple[int, int]:
+    account = pwd.getpwnam("admin")
+    return account.pw_uid, account.pw_gid
+
+
+def check_artifact_tree(source: Path, *, skip_cache: bool = False) -> None:
+    try:
+        scan_tree(source, artifact_owner(), skip_cache=skip_cache)
+    except ArtifactError as error:
+        raise Refused(str(error)) from None
+
+
+def dependency_fingerprint() -> dict[str, object]:
+    # Reuse the receipt's exact source/lock/BUILD_ID/build/static/dependency hash
+    # implementation. This imports no product code and sends no API requests.
+    script = ("import {pathToFileURL} from 'node:url';"
+              "const {inspectBuild}=await import(pathToFileURL(process.argv[1]));"
+              "console.log(JSON.stringify(await inspectBuild(process.argv[2])));")
+    value = json.loads(run(["/usr/bin/node", "--input-type=module", "-e", script,
+                           str(SOURCE / "deploy/verify-frontend.mjs"), str(SOURCE / "frontend")], capture=True))
+    require(isinstance(value, dict) and len(value) == 9, "artifact_fingerprint_invalid")
+    return value
+
+
+def dependency_permissions(apply: bool = False) -> None:
+    source = SOURCE / "frontend/node_modules"  # No user-supplied path or owner.
+    owner = artifact_owner()
+    plan = scan_tree(source, owner, allow_writable=True)
+    pending = sum(e.kind != "symlink" and bool(e.mode & 0o022) for e in plan)
+    print(f"Dependency permissions checked: entries={len(plan)}, needs_changes={pending}; no files changed.")
+    if not apply:
+        require(pending == 0, "dependency_permissions_need_explicit_apply")
+        return
+    if not pending:
+        print("Dependency permissions already conform; no manifest or changes required.")
+        return
+    commit = run(git_command("rev-parse", "HEAD"), cwd=SOURCE, capture=True)
+    require(SHA.fullmatch(commit) is not None, "full_commit_required")
+    manifest, changed = remove_write_bits(source, owner, plan, BASE / "receipts", dependency_fingerprint, commit=commit)
+    print(f"Dependency permissions applied: changed={changed}; content fingerprints unchanged; manifest={manifest}")
+
+
 def safe_copy_tree(source: Path, destination: Path, *, skip_cache: bool = False) -> None:
-    require(source.is_dir() and not source.is_symlink(), "artifact_directory_required")
-    for directory, folders, files in os.walk(source, followlinks=False):
-        if skip_cache and Path(directory) == source:
-            folders[:] = [entry for entry in folders if entry != "cache"]
-        for name in folders + files:
-            path = Path(directory) / name
-            if path.is_symlink():
-                require(not os.path.isabs(os.readlink(path)) and path.resolve().is_relative_to(source.resolve()), "external_artifact_symlink")
-            else:
-                require(not stat.S_IMODE(path.stat().st_mode) & 0o022, "artifact_group_or_world_writable")
+    check_artifact_tree(source, skip_cache=skip_cache)
     shutil.copytree(source, destination, symlinks=True, ignore=(lambda directory, names: ["cache"] if skip_cache and Path(directory) == source else []))
 
 
@@ -224,6 +258,10 @@ def stage(commit: str, receipt: Path) -> None:
     from config import check_files
     front = check_files(CONFIG)["frontend"]
     run(["/usr/bin/node", str(SOURCE / "deploy/verify-frontend.mjs"), "verify-source", "--source", str(SOURCE), "--commit", commit, "--receipt", str(receipt)], env=clean_environment() | front)
+    # Check BOTH complete copied scopes before creating a release directory.
+    # Copy-time rechecks below still fail closed if a source changes afterwards.
+    check_artifact_tree(SOURCE / "frontend/node_modules")
+    check_artifact_tree(SOURCE / "frontend/.next", skip_cache=True)
     target.mkdir(mode=0o755)  # Partial failures intentionally remain, no retry over it.
     target.chmod(0o755)
     archive_commit(commit, target)
@@ -436,6 +474,8 @@ def main() -> int:
     sub = parser.add_subparsers(dest="action", required=True)
     for action in ("preflight", "layout", "config-templates", "install-units", "check-config", "install-http", "enable-tls"):
         sub.add_parser(action)
+    command = sub.add_parser("dependency-permissions")
+    command.add_argument("--apply", action="store_true", help="explicitly remove only mode 022 after full preflight and private manifest")
     command = sub.add_parser("runtime")
     command.add_argument("--uv-source", type=Path, required=True)
     for action in ("attest", "stage", "backend-deps", "verify-frontend", "enable-video", "init-identity", "init-usage", "verify-data", "invite", "select"):
@@ -467,6 +507,7 @@ def main() -> int:
             elif args.action == "verify-frontend": frontend_verification(args.commit)
             elif args.action == "enable-video": enable_video(args.commit)
             elif args.action == "config-templates": templates()
+            elif args.action == "dependency-permissions": dependency_permissions(args.apply)
             elif args.action == "install-units": units()
             elif args.action in {"install-http", "enable-tls"}: site(args.action == "enable-tls")
             elif args.action == "check-config":
@@ -477,7 +518,7 @@ def main() -> int:
             else: admin(args.commit, {"verify-data": "verify"}.get(args.action, args.action), getattr(args, "username", None))
         return 0
     except (Refused, OSError, ValueError, KeyError, subprocess.SubprocessError) as error:
-        print("Deployment stopped: " + (str(error) if isinstance(error, (Refused, ConfigError)) else "operation_failed_inspect_locally_no_auto_retry"))
+        print("Deployment stopped: " + (str(error) if isinstance(error, (Refused, ConfigError, ArtifactError)) else "operation_failed_inspect_locally_no_auto_retry"))
         return 1
     finally:
         if lock is not None: os.close(lock)

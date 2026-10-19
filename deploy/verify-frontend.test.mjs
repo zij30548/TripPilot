@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { mkdtemp, mkdir, writeFile, rm, symlink, readFile } from 'node:fs/promises';
+import { mkdtemp, mkdir, writeFile, rm, symlink, readFile, chmod, lstat, readlink } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { execFileSync } from 'node:child_process';
@@ -95,6 +95,52 @@ test('all installed dependency bytes and relative in-tree npm links are receipt-
     await rm(join(root, 'node_modules/.bin/next'));
     await symlink('../next/package.json', join(root, 'node_modules/.bin/next'));
     assert.notEqual((await inspectBuild(root)).node_modules_sha256, changed.node_modules_sha256);
+  });
+});
+
+test('removing dependency group/world write bits preserves build receipts, executable bits and npm links', async () => {
+  await fixture(async root => {
+    await mkdir(join(root, 'node_modules/.bin'));
+    await writeFile(join(root, 'node_modules/next/cli.js'), 'controlled executable dependency');
+    await writeFile(join(root, 'node_modules/next/native.node'), 'controlled native dependency bytes');
+    const link = join(root, 'node_modules/.bin/next');
+    await symlink('../next/cli.js', link);
+    const modes = [
+      ['node_modules', 0o775],
+      ['node_modules/.bin', 0o777],
+      ['node_modules/next', 0o775],
+      ['node_modules/next/package.json', 0o664],
+      ['node_modules/next/cli.js', 0o775],
+      ['node_modules/next/native.node', 0o666],
+    ];
+    for (const [path, mode] of modes) await chmod(join(root, path), mode);
+    const before = await inspectBuild(root);
+    const originalStats = await Promise.all(modes.map(([path]) => lstat(join(root, path))));
+    const unrelated = ['package-lock.json', 'src/lib/api-endpoints.ts', '.next/BUILD_ID', '.next/static/chunks/app.js'];
+    const unrelatedModes = await Promise.all(unrelated.map(async path => (await lstat(join(root, path))).mode));
+    const linkBefore = await lstat(link);
+    const linkText = await readlink(link);
+
+    // The Python permission tool is tested separately. Here only metadata changes,
+    // on known ordinary fixture entries, exercise the existing receipt contract.
+    for (const [index, [path]] of modes.entries()) {
+      const info = originalStats[index];
+      assert.ok(info.isFile() || info.isDirectory());
+      await chmod(join(root, path), (info.mode & 0o777) & ~0o022);
+    }
+
+    assert.deepEqual(await inspectBuild(root), before);
+    for (const [index, [path, mode]] of modes.entries()) {
+      const after = await lstat(join(root, path));
+      assert.equal(after.mode & 0o777, mode & ~0o022);
+      assert.equal(after.mode & 0o111, mode & 0o111);
+      assert.equal(after.uid, originalStats[index].uid);
+      assert.equal(after.gid, originalStats[index].gid);
+    }
+    assert.deepEqual(await Promise.all(unrelated.map(async path => (await lstat(join(root, path))).mode)), unrelatedModes);
+    assert.equal(await readlink(link), linkText);
+    assert.equal((await lstat(link)).isSymbolicLink(), true);
+    assert.equal((await lstat(link)).mode, linkBefore.mode);
   });
 });
 

@@ -1,5 +1,66 @@
 # release-1F：可重复的 Linux 部署包与分步手册
 
+## 2026-10-19：Linux依赖权限补修
+
+实际基线 `f6b7ca597299c47d4fae207b7b5b09f04958a30a`，main，与origin/main同步。**用户报告**：服务器layout／runtime／配置检查通过，attest已成功，stage在verify-source通过后报`artifact_group_or_world_writable`；工作副本node_modules有27034项带group/world写位，前20项为0775目录，.next未发现此类项。旧失败发布目录尚无node_modules／.next／release.json。以上不是代理登录实测，本轮没有操作服务器。
+
+原因是原stage先建目标目录、解包源码，再在复制产物时检查权限；内容receipt校验不含POSIX mode，因此verify-source成功不能证明权限可发布。本次保留安全拒绝，新增标准库[权限模块](../deploy/artifact_permissions.py)和固定命令，并把**两棵实际复制产物的完整权限／链接预检提前到创建新release目录之前**，复制时仍复检。`.next/cache`继续按原规则不复制、不纳入检查，不能据此修改其他产物。后续磁盘／复制故障仍可能留下半份目录，须保留调查，不承诺所有故障都不留目录。
+
+### 固定范围、审计与失败语义
+
+- `dependency-permissions`默认只检查，固定作用于`/home/admin/apps/trippilot/frontend/node_modules`，不接受路径或owner参数；需要收敛时显示`needs_changes=N`并非零退出，提示`dependency_permissions_need_explicit_apply`。不修改目录树、不生成权限清单；部署管理锁沿用原机制。
+- 仅显式`--apply`才修改：完整预检后，先在既有root0700的`/opt/trippilot/receipts/`独占创建`dependency-permissions-<随机ID>.json`，root0600并fsync文件／目录，保存原相对路径、类型、dev/inode、uid/gid、mode、nlink、mtime、链接文本、提交和内容指纹。清单是**原权限记录／prepared状态，不是完成收据或新的frontend receipt**；不包含文件正文、密钥或真实.env，不进入Git或公开证据。
+- 只对普通文件／目录执行`原mode & ~0o022`，含node_modules根目录；例如0775→0755、0664→0644，0751、0640等原样保留。属主／属组、读取与执行位均保留；不使用递归755、不chown。预期每项为admin的UID和主GID；遇其他归属先拒绝调查，不自动改归属。
+- 扫描不遍历符号链接，修正不打开／chmod链接；仅验证内部相对链接的文本和目标归属，链接须存在且留在本树。绝对／越界／悬空／循环链接、普通文件硬链接、非普通文件／目录／符号链接以及setuid／setgid／sticky特殊位均拒绝。修改通过逐级`dir_fd`＋`O_NOFOLLOW`打开并fstat核对，前后复核条目集合、身份与元数据。
+- 修改前后复用[已有inspectBuild](../deploy/verify-frontend.mjs)核对源码、锁、BUILD_ID、build、static和全部依赖内容哈希；可变cache仍按原receipt排除。只有mode改变不改变这些指纹，可继续复用经核对的同机Linux产物，不重装依赖或机械重建。工具不读取真实.env或调用业务接口。
+- 任一预检失败不开始chmod；清单无法可靠保存也不修改。中途失败保留原清单与已经收紧的现场，不自动回滚可写位、不删除重做。清单路径先输出，只有完整复验通过才输出`content fingerprints unchanged`。异常后应调查，不把再次权限检查通过当作上次内容复验成功。
+
+**操作前停止npm安装、构建及其他工作副本写入，并保持其停止直到stage完成。** 部署锁只能互斥本项目脚本，不能阻止admin另开终端修改文件；描述符和版本检查不是对有目录写权限的恶意并发操作者的完整隔离。POSIX权限收敛也不是完整Linux安全审计。
+
+### 保留旧失败记录，使用新提交续行（仅供用户执行）
+
+旧`/opt/trippilot/releases/f6b7ca597299c47d4fae207b7b5b09f04958a30a`失败目录及同SHA旧receipt必须保留，不删、不覆盖、不重新attest旧SHA。补修普通拉取后设置**新COMMIT**，新receipt／新release按原独占创建规则生成；已有Python、布局和配置不重装／重建。
+
+```sh
+cd /home/admin/apps/trippilot
+git status --short
+git fetch origin
+# 确认没有冲突或不明改动后正常前进。
+git pull --ff-only
+COMMIT=$(git rev-parse HEAD)
+git diff --exit-code f6b7ca597299c47d4fae207b7b5b09f04958a30a HEAD -- frontend
+
+# 先只检查；若唯一原因是需要收敛022，此步非零退出是预期。
+sudo python3 -B deploy/release.py dependency-permissions
+```
+
+仅在完整预检未发现异常归属、链接或其他安全问题时，单独执行：
+
+```sh
+sudo python3 -B deploy/release.py dependency-permissions --apply
+sudo python3 -B deploy/release.py dependency-permissions
+sudo python3 -B deploy/release.py check-config
+sudo python3 -B deploy/release.py attest --commit "$COMMIT" --confirm-existing-build
+sudo python3 -B deploy/release.py stage --commit "$COMMIT" --receipt "/opt/trippilot/receipts/$COMMIT.json"
+```
+
+预期：前端源码差异为空；apply先输出私有清单路径，再输出实际修改数和`content fingerprints unchanged`（数量以完整扫描为准，不固定为27034）；复查`needs_changes=0`；配置检查通过；新receipt生成，stage在新目录输出`Release staged`。如果已无需修改，apply明确no-op且不再建清单。之后按原手册逐条`backend-deps`、`verify-frontend`，再单独做初始化／服务／HTTPS；本次补修没有执行这些服务器动作。
+
+### 本次定向验证与文件
+
+部署Python **65项通过**（此前53＋权限核心10＋stage前置2），Node产物验证 **14项通过**（此前13＋mode不改内容指纹1）。含实际临时文件／目录的022收敛、执行位与uid/gid、无关文件／链接不变、硬链接／特殊文件／owner／特殊位拒绝、换链接／陈旧plan拒绝、清单持久化失败不修改、中途失败留证与第二次no-op；stage两树任一失败不建新目录，旧失败目录／receipt保留。Node使用受控产物核对完整inspectBuild结果不变。首次新竞态测试漏传原plan造成夹具KeyError，修正夹具后安全拒绝及外部文件不变断言通过，没有放宽生产规则。
+
+```sh
+backend/.venv/bin/python -B -Werror::ResourceWarning -m unittest discover -s deploy/tests -q
+node --test deploy/verify-frontend.test.mjs
+python3 -B deploy/release.py dependency-permissions --help
+git diff --check
+```
+
+语法、文档链接、敏感信息及差异检查通过；原五缓存、数据库、环境及浏览器日志哈希复核不变。未运行业务全套验收／前端构建或真实Linux权限操作；服务器实际执行结果仍待用户提供，不能用Mac临时文件测试冒充Ubuntu已发布成功。真实模型和外部业务API调用 **0**。
+
+仅交付7文件：`deploy/artifact_permissions.py`、`deploy/release.py`、`deploy/tests/test_artifact_permissions.py`、`deploy/tests/test_release.py`、`deploy/verify-frontend.test.mjs`、本页及`PROGRESS.md`。业务／前端源码、实际配置、数据库和旧证据不改。**停在本次依赖权限补修，未启动应用、初始化生产库或签发证书。**
+
 ## 2026-10-19：千问北京业务空间地址兼容补修
 
 实际基线 `0db7a8aeb5240e7d067e856b7429128f1b5f7429`，main，开工fetch后与origin/main同步。用户报告服务器已完成 `layout`、`runtime`、`config-templates`，尚未填正式凭据、attest、stage或启动服务；这是用户提供的执行状态，本轮没有连接服务器核验。以下原部署包记录保留。

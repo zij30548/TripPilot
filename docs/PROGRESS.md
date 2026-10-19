@@ -1,5 +1,16 @@
 # TripPilot Progress
 
+## 最新摘要（2026-10-19，release-1F：Linux依赖权限补修）
+
+- **实际基线 `f6b7ca597299c47d4fae207b7b5b09f04958a30a`，main，开工fetch同步。Current：固定依赖权限检查／显式收敛与stage前置预检完成，本轮不操作服务器。** 用户报告attest成功、stage在verify-source后因node_modules有27034项group/world可写而失败，.next同类项为0；尚未启动应用／初始化生产库／签证书。这是用户提供的现状，不称代理已登录实测。
+- **最小修复**：新增标准库artifact_permissions；`dependency-permissions`默认只读检查，只有`--apply`对固定服务器工作副本node_modules执行普通文件／目录`mode & ~022`，保留uid/gid及读取／执行位，不遍历或chmod符号链接。完整预检拒绝异常admin归属、特殊文件／特殊位、普通文件硬链接和越界／无效链接；先root0600独占保存原权限清单并fsync，再描述符O_NOFOLLOW逐项核对／fchmod。错误保留清单与现场，不自动恢复可写位。部署锁不阻止另行npm/build，操作员须停止其他写入。
+- **发布／内容**：stage对node_modules与实际复制的.next（原cache排除）完整检查先于新目录创建，复制时仍复检；后续其他故障仍可能留半份目录，不放宽原拒绝。apply前后复用现有inspectBuild核对源码／锁／BUILD_ID／build／static／deps字节指纹，Node受控回归证明仅收022不改receipt内容。旧f6b7ca5失败目录及旧receipt保留；补修用新SHA、新receipt、新发布目录，不清理重试旧目录，不重装Python／覆盖配置或机械重建前端。
+- **实际检查**：部署Python **65通过**（原53＋核心权限10＋stage2），Node产物 **14通过**（原13＋内容指纹1）；CLI帮助、语法、链接／敏感信息和差异检查。包括真实临时文件权限／执行位／owner／链接／无关内容、硬链接／特殊位拒绝、清单写失败／部分chmod失败、陈旧plan／换链接、no-op，以及第二棵树失败不建目录、保留旧记录。首次新竞态夹具漏传plan的KeyError已修，保留安全拒绝与外部文件不变断言。仅本轮工具回归，未重复业务全套／前端构建／浏览器，也未冒称Linux实操通过。
+- **文件／保护**：7个交付文件及续行命令见[release-1F权限补修](RELEASE_1F.md#2026-10-19linux依赖权限补修)：新权限模块与测试、release.py、原stage测试、Node产物测试、本报告和本页。原五缓存、数据库、环境及浏览器日志开工／收口哈希保持，旧证据／台账不改、不提交。
+- **调用／Next／停止**：真实千问及外部业务API调用 **0**，无服务器操作。用户正常更新代码→停止其他源树写入→默认检查→显式apply→复查0项→check-config→新SHA attest／stage，再按原手册逐段验证后续。**停在本次部署权限补修**；不自动启动服务、初始化数据、签证书或开始新功能。
+
+当前导航：[权限语义与测试](RELEASE_1F.md#固定范围审计与失败语义) → [服务器续行清单](RELEASE_1F.md#保留旧失败记录使用新提交续行仅供用户执行)。以下旧记录、失败、成绩、额度与当时停止点原文保留。
+
 ## 最新摘要（2026-10-19，release-1F：千问北京业务空间地址兼容补修）
 
 - **实际基线 `0db7a8aeb5240e7d067e856b7429128f1b5f7429`，main，开工fetch同步。Current：部署层千问URL兼容补修及离线验证完成。** 用户报告服务器已完成layout／runtime／config-templates，未填正式凭据、attest、stage或启动服务；本轮未连接服务器，不写成代理实测。上一轮Agent路线只规划，未开始实施。
