@@ -213,6 +213,8 @@ git diff --check
 
 ## 后续规划（尚未实施）
 
+后续开发统一遵循[Harness工程约定](docs/HARNESS_ENGINEERING.md)：分清开发环境、产品运行与评测三层，逐阶段检查目标、上下文、工具、执行、状态、记忆、恢复、安全、额度、可观测性、评测及工程反馈12个维度。它是必查规范，不是“全部能力已实现”，也不追加模型额度或自动实施下一阶段。
+
 当前按用户新决策先做本地聊天式重构，生产MySQL切换暂缓；受控上线／演示目标保留，不能以新功能代替部署和安全门槛，也不因用户已报告HTTPS登录就宣称全部公开上线门槛通过。计划先做多轮需求、工具／Skill注册、真实旅行闭环基线，再有界Agent、任务恢复、偏好与检索，MCP适配和多Agent按真实需要安排。每个小版本单独审查旧入口退役和受控发布，不必等多Agent做完。现有单次工具选择不是执行循环，行程存档也不是任务恢复或长期记忆。
 
 具体编号、依赖、验收、教学与停止点统一见[聊天重构分阶段计划](docs/CHAT_REBUILD_PLAN.md)，架构原理见[Agent演进路线](docs/AGENT_EVOLUTION.md)，长期产品方向见[产品路线图](docs/ROADMAP.md)。MCP不是loop前提，多Agent须证明收益；知识库生成式问答继续暂缓。这些方向不是一次性开发、部署或模型调用授权。
@@ -225,6 +227,7 @@ git diff --check
 - [ROADMAP](docs/ROADMAP.md)：依赖、优先级、待细化事项；不是实施授权。
 - [PROGRESS](docs/PROGRESS.md)：最新摘要、实际交付、历史失败与停止点。
 - [聊天重构分阶段计划](docs/CHAT_REBUILD_PLAN.md)：chat-1～chat-9的用户成果、依赖、非目标、验收和面试追问；实际状态另看chat-1报告与PROGRESS。
+- [Harness工程约定](docs/HARNESS_ENGINEERING.md)：12项必查原则、当前代码依据／缺口、阶段交付卡与机械验收要求，不是能力完成证明。
 - [chat-1实现／验收／面试原理](docs/CHAT_1.md)：聊天与持久意向、独立迁移、受控Chrome及真实语义待验；不自动开始chat-2。
 - [release-1C](docs/RELEASE_1C.md)：完整接口盘点、同源访问、服务端配置、受控生产转发／取消验证和剩余部署缺口。
 - [release-1E](docs/RELEASE_1E.md)：实际发送盘点、额度单位／默认值、独立SQLite初始化、错误与未覆盖费用风险。

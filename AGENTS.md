@@ -9,6 +9,13 @@ Always read:
 
 in that order before making architectural or product decisions. Also read applicable directory instructions. Before changing frontend code, follow frontend/AGENTS.md and read the relevant installed Next.js documentation.
 
+## Harness engineering requirements
+
+- Before Agent/runtime, architecture, evaluation or stage-planning work, read docs/HARNESS_ENGINEERING.md after the required product documents. Its H01-H12 checklist is a mandatory cross-stage engineering agreement, not new feature, deployment or model-call authorization.
+- Distinguish the development harness, product runtime harness and evaluation harness. Review all 12 dimensions in each stage report; mark implemented/verified, implemented/unverified, planned gap or not applicable with reasons. Do not claim universal industry certification or complete implementation merely because this documentation exists.
+- Enforce important invariants with strict boundaries and relevant executable checks, not prompts alone. Record absent enforcement honestly; turn recurring failures into scoped regression/structural checks. Preserve explicit user confirmation, account/version isolation, bounded execution, durable attempt accounting and unknown-result no-blind-retry semantics.
+- Keep repository context navigable, work in authorized increments, validate outcomes (not only model text/HTTP 200), retain failures and update the handoff/stopping point. Harness/Skill/MCP/framework names do not prove quality; real semantic acceptance, production backup/recovery and future loop/memory capabilities remain separately gated.
+
 ## Product facts, roadmap and authorization
 
 - Latest 2026-10-20 implementation: chat-1 makes `/` the chat/intent-confirmation entry; the old workspace is isolated at `/legacy`, not mounted behind chat. Read docs/CHAT_1.md for current checks/limits and docs/CHAT_REBUILD_PLAN.md for chat-1 through chat-9 dependencies. Multi-turn request wiring and persistence are implemented/offline-verified, but real model semantic acceptance is NOT complete (this round's real calls=0); do not mark the whole stage accepted or start chat-2 automatically. chat-storage-v1 is an explicitly migrated extension in the same configured private DB; old stores remain usable but chat returns migration_required. Never auto-add tables, switch production, or use an old backup format that omits chat. Production MySQL cutover remains deferred. Retiring old UI does not authorize deleting user databases, quotas, historical evaluations or reusable security. Do not skip the authoritative-workspace, single-cost-rule and explicit schema-migration prerequisites for later tools/loops.
