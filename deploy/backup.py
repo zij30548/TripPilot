@@ -24,6 +24,7 @@ LIVE = Path("/var/lib/trippilot")
 BACKUPS = Path("/var/backups/trippilot")
 FILES = ("identity.sqlite3", "usage.sqlite3", "usage.sqlite3.identity")
 VERSION = "trippilot-stopped-backup-v1"
+BACKEND_CONFIG = Path("/etc/trippilot/backend.env")
 NAME = re.compile(r"[a-zA-Z0-9][a-zA-Z0-9_.-]{0,79}")
 IDENTIFIER = re.compile(r"[0-9a-f]{32}\n")
 IDENTITY_COLUMNS = {
@@ -331,6 +332,27 @@ def production_root() -> None:
         raise Refused("backup_root_owner")
 
 
+def require_sqlite_backend(path: Path = BACKEND_CONFIG) -> None:
+    """Never infer active storage from sudo's inherited environment or old files.
+
+    Read the protected service configuration before *creating* a SQLite backup.
+    Historical manifest verification/isolated drills remain available and do not
+    claim to back up an active MySQL deployment. Missing/invalid config stops.
+    """
+    from config import BACKEND, parse, validate_mysql
+    private_file(path)
+    info = path.stat()
+    if (info.st_uid != 0 or info.st_gid != 0 or stat.S_IMODE(info.st_mode) != 0o600
+            or info.st_size > 16384):
+        raise Refused("root_backend_configuration_required")
+    values = parse(path.read_text(), BACKEND)
+    if validate_mysql(values):
+        raise Refused("active_mysql_requires_mysql_backup_tool")
+    if (values["TRIPPILOT_DATABASE_PATH"] != str(LIVE / "identity.sqlite3")
+            or values["BUSINESS_USAGE_PATH"] != str(LIVE / "usage.sqlite3")):
+        raise Refused("sqlite_backend_paths_mismatch")
+
+
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("command", choices=("backup", "verify", "restore-drill"))
@@ -346,6 +368,7 @@ def main() -> int:
         if arguments.command == "backup":
             if not arguments.confirm_no_other_writers or arguments.drill:
                 raise Refused("explicit_stopped_writer_confirmation_required")
+            require_sqlite_backend()
             backup_pair(LIVE, batch, ensure_stopped=systemd_stopped)
         elif arguments.command == "verify":
             if arguments.drill:

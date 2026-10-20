@@ -8,11 +8,14 @@ import json
 import os
 from pathlib import Path
 import sqlite3
+import sys
 import tempfile
 import unittest
 from unittest.mock import Mock, patch
+from types import SimpleNamespace
 
 ROOT = Path(__file__).resolve().parents[2]
+sys.path.insert(0, str(ROOT / "deploy"))
 SPEC = importlib.util.spec_from_file_location("release_backup", ROOT / "deploy" / "backup.py")
 assert SPEC is not None and SPEC.loader is not None
 backup = importlib.util.module_from_spec(SPEC)
@@ -240,6 +243,43 @@ class BackupTests(unittest.TestCase):
             self.assertEqual(command.call_args.args[0][0], "/usr/bin/systemctl")
             self.assertIn("trippilot-api.service", command.call_args.args[0])
             self.assertNotIn("trippilot-backend.service", command.call_args.args[0])
+
+    def test_sqlite_cli_reads_root_service_configuration_instead_of_inherited_environment(self) -> None:
+        # All text and ownership metadata below are synthetic; never read /etc.
+        config_text = (ROOT / "deploy/env/backend.env.example").read_text()
+        path = Mock(spec=Path)
+        path.read_text.return_value = config_text
+        path.stat.return_value = SimpleNamespace(st_uid=0, st_gid=0, st_mode=0o100600, st_size=len(config_text))
+        with patch.object(backup, "private_file") as private, patch.dict(os.environ, {"TRIPPILOT_MYSQL_URL": "ignored-inherited-value"}):
+            backup.require_sqlite_backend(path)
+            private.assert_called_once_with(path)
+        path.read_text.return_value = config_text.replace("TRIPPILOT_MYSQL_URL=", "TRIPPILOT_MYSQL_URL=mysql+pymysql://trippilot:synthetic_URLsafe_only_32_chars@127.0.0.1:3306/trippilot") \
+            .replace("BUSINESS_USAGE_IDENTITY_PATH=", "BUSINESS_USAGE_IDENTITY_PATH=/var/lib/trippilot/usage.sqlite3.identity")
+        with patch.object(backup, "private_file"), patch.dict(os.environ, {"TRIPPILOT_MYSQL_URL": ""}):
+            with self.assertRaisesRegex(backup.Refused, "active_mysql_requires_mysql_backup_tool"):
+                backup.require_sqlite_backend(path)
+
+    def test_service_config_missing_unsafe_or_unknown_never_falls_back_to_old_sqlite_files(self) -> None:
+        with self.assertRaises(FileNotFoundError): backup.require_sqlite_backend(self.root / "missing.env")
+        path = Mock(spec=Path)
+        path.read_text.return_value = (ROOT / "deploy/env/backend.env.example").read_text()
+        for uid, gid, mode in ((1, 0, 0o100600), (0, 1, 0o100600), (0, 0, 0o100640)):
+            path.stat.return_value = SimpleNamespace(st_uid=uid, st_gid=gid, st_mode=mode, st_size=100)
+            with patch.object(backup, "private_file"), self.assertRaisesRegex(backup.Refused, "root_backend_configuration_required"):
+                backup.require_sqlite_backend(path)
+        path.stat.return_value = SimpleNamespace(st_uid=0, st_gid=0, st_mode=0o100600, st_size=100)
+        path.read_text.return_value = "UNRECOGNIZED=backend\n"
+        with patch.object(backup, "private_file"), self.assertRaises(ValueError): backup.require_sqlite_backend(path)
+
+    def test_active_mysql_refuses_sqlite_backup_before_destination_creation(self) -> None:
+        import sys
+        argv = ["backup.py", "backup", "--batch", "controlled-only", "--confirm-no-other-writers"]
+        with patch.object(sys, "argv", argv), patch.object(backup, "production_root"), \
+                patch.object(backup, "require_sqlite_backend", side_effect=backup.Refused("active_mysql_requires_mysql_backup_tool")) as selected, \
+                patch.object(backup, "backup_pair") as create:
+            self.assertEqual(backup.main(), 1)
+            selected.assert_called_once_with()
+            create.assert_not_called()
 
 
 if __name__ == "__main__":

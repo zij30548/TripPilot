@@ -57,6 +57,9 @@ def _default_limits() -> dict[str, DailyLimit]:
 class UsageSettings(BaseSettings):
     model_config = SettingsConfigDict(env_file=BACKEND_ENV_FILE, env_file_encoding="utf-8", extra="ignore")
     business_usage_path: str = str(DEFAULT_PATH)
+    # MySQL retains this independently stored anchor. It is not a fresh quota
+    # identity and runtime must never recreate it when absent.
+    business_usage_identity_path: str | None = None
     business_rate_window_seconds: StrictInt = Field(default=60, ge=1, le=3600)
     business_rate_account_limit: StrictInt = Field(default=60, ge=0, le=SAFE_MAXIMUM)
     business_rate_global_limit: StrictInt = Field(default=300, ge=0, le=SAFE_MAXIMUM)
@@ -381,4 +384,10 @@ class UsageStore:
 
 
 def get_usage_store() -> UsageStore:
+    # Selection is configuration-based, never an availability fallback. A
+    # configured MySQL failure must not silently replenish the legacy ledger.
+    from app.mysql_storage import mysql_configured
+    if mysql_configured():
+        from app.mysql_usage import MySQLUsageStore
+        return MySQLUsageStore()
     return UsageStore()

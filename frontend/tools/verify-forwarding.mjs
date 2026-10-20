@@ -28,7 +28,7 @@ export const SYNTHETIC_AUTH_HEADERS = Object.freeze({
   "x-csrf-token": "controlled-not-a-csrf-token",
 });
 export const CONTROLLED_ENDPOINTS = [
-  ["GET", "/auth/session"], ["POST", "/auth/login"],
+  ["GET", "/auth/session"], ["POST", "/auth/login"], ["POST", "/auth/register"],
   ["POST", "/auth/logout"], ["GET", "/usage"],
   ["GET", "/places/search"], ["POST", "/places/candidates"],
   ["POST", "/trips/schedule-preview"], ["POST", "/weather/forecast"],

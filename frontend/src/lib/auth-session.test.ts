@@ -185,6 +185,82 @@ describe("invitation identity transport", () => {
     pending.resolve(response(session())); expect(await first).toBe(true);
   });
 
+  it("registration uses the pre-login CSRF and cannot run in parallel or silently authenticate", async () => {
+    const pending = deferred<ReturnType<typeof response>>();
+    const fetcher = vi.fn().mockResolvedValueOnce(response(anonymous())).mockReturnValueOnce(pending.promise);
+    vi.stubGlobal("fetch", fetcher); stop = auth.startAuthLifecycle(); await flush();
+    const expectedEpoch = auth.authSnapshot().epoch;
+    const first = auth.registerAccount("new-account", "controlled-password", "i".repeat(43), { signal: new AbortController().signal, expectedEpoch });
+    await expect(auth.registerAccount("new-account", "second-password", "i".repeat(43), { signal: new AbortController().signal, expectedEpoch })).rejects.toMatchObject({ name: "AbortError" });
+    expect(await auth.login("other", "controlled-password", expectedEpoch)).toBe(false);
+    expect(fetcher).toHaveBeenCalledTimes(2);
+    const init = fetcher.mock.calls[1][1];
+    expect(init.credentials).toBe("same-origin"); expect(init.cache).toBe("no-store");
+    expect(new Headers(init.headers).get("X-CSRF-Token")).toBe(csrf);
+    expect(JSON.parse(init.body)).toEqual({ username: "new-account", password: "controlled-password", invitation_code: "i".repeat(43) });
+    pending.resolve(response({ registered: true })); await first;
+    expect(auth.authSnapshot().phase).toBe("anonymous"); expect(auth.authSnapshot().epoch).toBe(expectedEpoch);
+    expect(JSON.stringify(auth.authSnapshot())).not.toContain("controlled-password");
+  });
+
+  it("registration rejects unexpected success fields instead of accepting a session or echoed secrets", async () => {
+    const fetcher = vi.fn().mockResolvedValueOnce(response(anonymous()))
+      .mockResolvedValueOnce(response({ registered: true, invitation_code: "private-value" }))
+      .mockResolvedValueOnce({ ok: true, status: 200, json: async () => { throw new SyntaxError("raw-secret-must-not-appear"); } });
+    vi.stubGlobal("fetch", fetcher); stop = auth.startAuthLifecycle(); await flush();
+    const options = () => ({ signal: new AbortController().signal, expectedEpoch: auth.authSnapshot().epoch });
+    await expect(auth.registerAccount("account", "controlled-password", "i".repeat(43), options())).rejects.toThrow("响应无效");
+    await expect(auth.registerAccount("account", "controlled-password", "i".repeat(43), options())).rejects.toThrow("响应无效");
+    expect(auth.authSnapshot().phase).toBe("anonymous");
+  });
+
+  it("registration cannot write after anonymous → authenticated → anonymous, including a late JSON body", async () => {
+    const body = deferred<object>();
+    const fetcher = vi.fn().mockResolvedValueOnce(response(anonymous()))
+      .mockResolvedValueOnce({ ok: true, status: 200, json: () => body.promise })
+      .mockResolvedValueOnce(response(session())).mockResolvedValueOnce(response(anonymous()));
+    vi.stubGlobal("fetch", fetcher); stop = auth.startAuthLifecycle(); await flush();
+    const epoch = auth.authSnapshot().epoch;
+    const result = auth.registerAccount("account", "controlled-password", "i".repeat(43), { signal: new AbortController().signal, expectedEpoch: epoch });
+    await flush(); await auth.checkSession(); await auth.checkSession();
+    body.resolve({ registered: true }); await expect(result).rejects.toMatchObject({ name: "AbortError" });
+    await expect(auth.registerAccount("account", "controlled-password", "i".repeat(43), { signal: new AbortController().signal, expectedEpoch: epoch })).rejects.toMatchObject({ name: "AbortError" });
+    expect(fetcher).toHaveBeenCalledTimes(4);
+  });
+
+  it("registration cancellation releases its own operation slot and old finally cannot release a newer slot", async () => {
+    const old = deferred<ReturnType<typeof response>>(); const next = deferred<ReturnType<typeof response>>();
+    const fetcher = vi.fn().mockResolvedValueOnce(response(anonymous())).mockReturnValueOnce(old.promise).mockReturnValueOnce(next.promise);
+    vi.stubGlobal("fetch", fetcher); stop = auth.startAuthLifecycle(); await flush();
+    const epoch = auth.authSnapshot().epoch; const controller = new AbortController();
+    const first = auth.registerAccount("account", "controlled-password", "i".repeat(43), { signal: controller.signal, expectedEpoch: epoch });
+    controller.abort();
+    const second = auth.registerAccount("account", "other-controlled-password", "j".repeat(43), { signal: new AbortController().signal, expectedEpoch: epoch });
+    old.resolve(response({ registered: true })); await expect(first).rejects.toMatchObject({ name: "AbortError" });
+    await expect(auth.registerAccount("account", "controlled-password", "k".repeat(43), { signal: new AbortController().signal, expectedEpoch: epoch })).rejects.toMatchObject({ name: "AbortError" });
+    expect(fetcher).toHaveBeenCalledTimes(3); next.resolve(response({ registered: true })); await second;
+  });
+
+  it.each([
+    [400, "账号或邀请码"], [403, "安全校验"], [429, "过于频繁"], [503, "暂不可用"], [422, "格式"], [408, "尚未确认"],
+  ])("registration maps HTTP %i safely without reading or reflecting a raw failure", async (status, message) => {
+    const json = vi.fn(() => { throw new Error("private server details"); });
+    vi.stubGlobal("fetch", vi.fn().mockResolvedValueOnce(response(anonymous())).mockResolvedValueOnce({ ok: false, status, json }));
+    stop = auth.startAuthLifecycle(); await flush();
+    await expect(auth.registerAccount("account", "controlled-password", "i".repeat(43), { signal: new AbortController().signal, expectedEpoch: auth.authSnapshot().epoch })).rejects.toThrow(message);
+    expect(json).not.toHaveBeenCalled(); expect(auth.authSnapshot().phase).toBe("anonymous");
+  });
+
+  it("registration timeout reports uncertain completion and does not retry or create a login", async () => {
+    vi.useFakeTimers();
+    const fetcher = vi.fn().mockResolvedValueOnce(response(anonymous())).mockImplementationOnce((_url, init) => new Promise((_resolve, reject) => init.signal.addEventListener("abort", () => reject(new DOMException("timeout", "AbortError")))));
+    vi.stubGlobal("fetch", fetcher); stop = auth.startAuthLifecycle(); await flush();
+    const result = auth.registerAccount("account", "controlled-password", "i".repeat(43), { signal: new AbortController().signal, expectedEpoch: auth.authSnapshot().epoch });
+    const rejected = expect(result).rejects.toThrow("服务端可能已创建账号");
+    await vi.advanceTimersByTimeAsync(10_000); await rejected;
+    expect(fetcher).toHaveBeenCalledTimes(2); expect(auth.authSnapshot().phase).toBe("anonymous");
+  });
+
   it("failed logout keeps old work cleared and distinguishes uncertain server revocation", async () => {
     const pending = deferred<ReturnType<typeof response>>();
     vi.stubGlobal("fetch", vi.fn().mockResolvedValueOnce(response(session())).mockReturnValueOnce(pending.promise));

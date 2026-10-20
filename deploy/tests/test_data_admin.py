@@ -21,7 +21,7 @@ class ExplicitDataInitialization(unittest.TestCase):
         self.temp = tempfile.TemporaryDirectory()
         self.root = Path(self.temp.name).resolve()
         self.root.chmod(0o700)
-        self.env = patch.dict(os.environ, {"TRIPPILOT_DATABASE_PATH": str(self.root / "identity.sqlite3"), "BUSINESS_USAGE_PATH": str(self.root / "usage.sqlite3")})
+        self.env = patch.dict(os.environ, {"TRIPPILOT_DATABASE_PATH": str(self.root / "identity.sqlite3"), "BUSINESS_USAGE_PATH": str(self.root / "usage.sqlite3"), "TRIPPILOT_MYSQL_URL": "", "BUSINESS_USAGE_IDENTITY_PATH": ""})
         self.env.start()
 
     def tearDown(self):
@@ -86,6 +86,28 @@ class ExplicitDataInitialization(unittest.TestCase):
         (self.root / ".usage-initialized").touch(mode=0o600)
         with self.assertRaises(ValueError): data_admin.initialize_identity(self.root)
         self.assertFalse((self.root / "identity.sqlite3").exists())
+
+    def test_mysql_selection_refuses_both_sqlite_initializers_before_any_files(self):
+        with patch.dict(os.environ, {"TRIPPILOT_MYSQL_URL": "mysql+pymysql://synthetic-not-a-connection"}):
+            for initializer in (data_admin.initialize_identity, data_admin.initialize_usage):
+                with self.assertRaisesRegex(ValueError, "mysql_requires_explicit_migration"):
+                    initializer(self.root)
+        self.assertEqual(list(self.root.iterdir()), [])
+
+    def test_mysql_verify_calls_actual_mysql_validator_not_stale_sqlite_pair(self):
+        with patch.dict(os.environ, {"TRIPPILOT_MYSQL_URL": "mysql+pymysql://synthetic-not-a-connection"}), \
+                patch("tools.mysql_migration.verify") as mysql_verify, patch("backup.inspect_pair") as sqlite_verify:
+            self.assertIn("MySQL", data_admin.verify_active_storage(self.root))
+            mysql_verify.assert_called_once_with()
+            sqlite_verify.assert_not_called()
+            mysql_verify.side_effect = ValueError("synthetic failure")
+            with self.assertRaises(ValueError): data_admin.verify_active_storage(self.root)
+            sqlite_verify.assert_not_called()
+
+    def test_sqlite_verification_remains_read_only_when_no_mysql_selected(self):
+        with patch("backup.inspect_pair") as sqlite_verify:
+            self.assertIn("verified read-only", data_admin.verify_active_storage(self.root))
+            sqlite_verify.assert_called_once_with(self.root)
 
 
 if __name__ == "__main__": unittest.main()

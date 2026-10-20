@@ -11,6 +11,14 @@ import { pathToFileURL } from 'node:url';
 export const ORIGIN = 'http://127.0.0.1:8000';
 const VERSION = 'frontend-release-v1';
 const NEXT = '16.3.8';
+const LEGACY_API_PATHS = Object.freeze([
+  '/api/auth/session', '/api/auth/login', '/api/auth/logout', '/api/usage',
+  '/api/places/search', '/api/places/candidates', '/api/trips/schedule-preview',
+  '/api/weather/forecast', '/api/trips/schedule-explanation', '/api/trips/adjustment-intent',
+  '/api/trips/itinerary-query', '/api/media/landmark', '/api/media/video-frames',
+  '/api/saved-trips', '/api/knowledge/search', '/api/knowledge/answer',
+  '/api/routes/walking', '/api/routes/transit', '/api/trips/plan',
+]);
 const sha = data => createHash('sha256').update(data).digest('hex');
 const fail = code => { throw new Error(code); };
 
@@ -76,7 +84,12 @@ export async function sourceHash(frontend) {
 export async function checkRewrites(frontend, manifest) {
   const source = await readFile(join(frontend, 'src/lib/api-endpoints.ts'), 'utf8');
   const api = [...source.matchAll(/:\s*"(\/api\/[a-z/-]+)"/g)].map(match => match[1]);
-  if (api.length !== 19 || new Set(api).size !== api.length) fail('endpoint_allowlist_changed');
+  // Accept the old attested surface or precisely its new invitation-registration
+  // resource. Neither an arbitrary 20th path nor a same-count substitution passes.
+  const allowed = new Set([...LEGACY_API_PATHS, '/api/auth/register']);
+  if (![LEGACY_API_PATHS.length, LEGACY_API_PATHS.length + 1].includes(api.length) ||
+      new Set(api).size !== api.length || api.some(path => !allowed.has(path)) ||
+      !LEGACY_API_PATHS.every(path => api.includes(path))) fail('endpoint_allowlist_changed');
   const expected = api.map(path => ({ source: path, destination: ORIGIN + path.slice(4) }));
   expected.push(
     { source: '/api/health', destination: `${ORIGIN}/health` },

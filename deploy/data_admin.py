@@ -15,12 +15,20 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "backend"))
 DATA = Path("/var/lib/trippilot")
 
 
+def mysql_selected() -> bool:
+    # This deployment entry point receives the root-controlled EnvironmentFile
+    # through systemd-run. Do not silently read a release checkout's dotenv.
+    return bool(os.environ.get("TRIPPILOT_MYSQL_URL", ""))
+
+
 def validate_environment() -> None:
     from app.auth import AuthSettings
     from app.config import Settings
     from app.business_usage import UsageSettings
     from app.storage import StorageSettings
     auth, settings, usage, storage = AuthSettings(_env_file=None), Settings(_env_file=None), UsageSettings(_env_file=None), StorageSettings(_env_file=None)
+    from config import validate_mysql
+    validate_mysql({key: os.environ.get(key, "") for key in ("TRIPPILOT_MYSQL_URL", "BUSINESS_USAGE_IDENTITY_PATH")})
     if (not auth.auth_cookie_secure or auth.auth_allowed_origins != ("https://trip.zijinglab.com",)
             or settings.amap_allowed_page_origins != ("https://trip.zijinglab.com",)
             or usage.business_usage_path != str(DATA / "usage.sqlite3")
@@ -29,6 +37,7 @@ def validate_environment() -> None:
 
 
 def initialize_identity(directory: Path) -> str:
+    if mysql_selected(): raise ValueError("mysql_requires_explicit_migration_not_sqlite_init")
     from backup import IDENTITY_COLUMNS, inspect_database, private_directory
     from app.storage import engine_for
     private_directory(directory)
@@ -47,6 +56,7 @@ def initialize_identity(directory: Path) -> str:
 
 
 def initialize_usage(directory: Path) -> str:
+    if mysql_selected(): raise ValueError("mysql_requires_explicit_migration_not_sqlite_init")
     from app.business_usage import UsageStore
     from backup import IDENTITY_COLUMNS, inspect_database, private_directory, private_file, write_new
     private_directory(directory)
@@ -74,6 +84,16 @@ def initialize_usage(directory: Path) -> str:
     return message
 
 
+def verify_active_storage(directory: Path) -> str:
+    if mysql_selected():
+        from tools.mysql_migration import verify
+        verify()
+        return "MySQL private storage, persistent usage and existing external anchor verified; SQLite files were not treated as active."
+    from backup import inspect_pair
+    inspect_pair(directory)
+    return "Identity, usage ledger and anchor verified read-only."
+
+
 def main() -> int:
     try:
         os.umask(0o077)
@@ -86,12 +106,9 @@ def main() -> int:
         elif action == "init-usage":
             print(initialize_usage(DATA))
         elif action == "verify":
-            from backup import inspect_pair
-            inspect_pair(DATA)
-            print("Identity, usage ledger and anchor verified read-only.")
+            print(verify_active_storage(DATA))
         elif action == "invite":
-            from backup import inspect_pair
-            inspect_pair(DATA)
+            verify_active_storage(DATA)
             import runpy
             sys.argv = ["account_admin", "create", *sys.argv[2:]]
             runpy.run_module("tools.account_admin", run_name="__main__")

@@ -8,11 +8,11 @@ const digest = (body) => createHash("sha256").update(body).digest("hex");
 
 test("all current resources include identity and usage; authentication transport evidence contains only booleans", async () => {
   const identityAndUsage = [
-    ["GET", "/auth/session"], ["POST", "/auth/login"],
+    ["GET", "/auth/session"], ["POST", "/auth/login"], ["POST", "/auth/register"],
     ["POST", "/auth/logout"], ["GET", "/usage"],
   ];
-  assert.equal(CONTROLLED_ENDPOINTS.length, 19);
-  assert.equal(new Set(CONTROLLED_ENDPOINTS.map(([method, path]) => `${method} ${path}`)).size, 19);
+  assert.equal(CONTROLLED_ENDPOINTS.length, 20);
+  assert.equal(new Set(CONTROLLED_ENDPOINTS.map(([method, path]) => `${method} ${path}`)).size, 20);
   for (const endpoint of identityAndUsage) assert.ok(CONTROLLED_ENDPOINTS.some(([method, path]) => method === endpoint[0] && path === endpoint[1]));
   const backend = await startControlledBackend({ port: 0 });
   try {

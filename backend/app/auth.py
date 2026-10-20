@@ -20,7 +20,9 @@ from fastapi import Depends, HTTPException, Request
 from pydantic import Field, field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 from sqlalchemy import delete
-from sqlalchemy.exc import SQLAlchemyError
+from sqlalchemy.dialects.mysql import insert as mysql_insert
+from sqlalchemy.engine import Engine
+from sqlalchemy.exc import IntegrityError, SQLAlchemyError
 from sqlmodel import Session, select
 from starlette.concurrency import run_in_threadpool
 from starlette.datastructures import Headers
@@ -28,7 +30,8 @@ from starlette.responses import JSONResponse
 from starlette.types import ASGIApp, Receive, Scope, Send
 
 from app.config import BACKEND_ENV_FILE, normalize_map_page_origin
-from app.identity_models import AccountRow, LoginBucketRow, SessionRow
+from app.identity_models import AccountRow, InvitationRow, LoginBucketRow, SessionRow
+from app.mysql_storage import current_mysql_engine, mysql_configured
 from app.storage import StorageError, database_path, engine_for
 from app.usage_runtime import bind_usage_context, reset_usage_context
 
@@ -37,7 +40,12 @@ USERNAME_PATTERN = re.compile(r"[a-z0-9_.-]{3,48}")
 PASSWORD_HASHER = PasswordHasher()  # Argon2id, library's RFC 9106 low-memory profile.
 _DUMMY_HASH = PASSWORD_HASHER.hash(secrets.token_urlsafe(32))
 _HASH_CAPACITY = BoundedSemaphore(2)
-PUBLIC_ENDPOINTS = frozenset({("GET", "/health"), ("GET", "/auth/session"), ("POST", "/auth/login")})
+PUBLIC_ENDPOINTS = frozenset({("GET", "/health"), ("GET", "/auth/session"), ("POST", "/auth/login"), ("POST", "/auth/register")})
+
+
+def identity_engine() -> Engine:
+    """No fallback after a MySQL selection or validation failure."""
+    return current_mysql_engine() if mysql_configured() else engine_for(str(database_path()))
 
 
 class AuthSettings(BaseSettings):
@@ -96,7 +104,7 @@ def resolve_identity(scope: Scope) -> tuple[AccountRow, SessionRow] | None:
     if token is None:
         return None
     digest = hashlib.sha256(token.encode("ascii")).hexdigest()
-    with Session(engine_for(str(database_path())), expire_on_commit=False) as db:
+    with Session(identity_engine(), expire_on_commit=False) as db:
         session = db.exec(select(SessionRow).where(SessionRow.token_hash == digest)).first()
         if session is None or session.expires_at <= now_seconds():
             return None
@@ -186,20 +194,38 @@ def reserve_login_attempt(username: str) -> None:
     No forwarded IP is trusted. SQLite serializes reservation across workers;
     global admission also bounds attacker-chosen username bucket growth.
     """
+    reserve_identity_attempt("login", username)
+
+
+def reserve_identity_attempt(kind: str, username: str) -> None:
+    """Global row first: serialize admission and bound arbitrary subject growth.
+
+    MySQL uses an InnoDB locking read, SQLite retains BEGIN IMMEDIATE. Password
+    hashing happens later, outside this short persistent limiter transaction.
+    """
     now = now_seconds()
-    with Session(engine_for(str(database_path()))) as db:
-        db.connection().exec_driver_sql("BEGIN IMMEDIATE")
-        plans = [("global", 300, 30), ("username:" + username, 900, 5)]
+    with Session(identity_engine()) as db:
+        mysql = db.bind.dialect.name == "mysql"
+        if not mysql:
+            db.connection().exec_driver_sql("BEGIN IMMEDIATE")
+        plans = ([("global", 300, 30), ("username:" + username, 900, 5)] if kind == "login"
+                 else [("registration:global", 900, 10), ("registration:username:" + username, 3600, 3)])
         buckets: list[LoginBucketRow] = []
         for key, seconds, maximum in plans:
             identifier = hashlib.sha256(key.encode()).hexdigest()
-            bucket = db.get(LoginBucketRow, identifier)
+            if mysql:
+                create = mysql_insert(LoginBucketRow).values(id=identifier, window_start=now, attempts=0)
+                db.execute(create.on_duplicate_key_update(id=create.inserted.id))
+                bucket = db.exec(select(LoginBucketRow).where(LoginBucketRow.id == identifier).with_for_update()).one()
+            else:
+                bucket = db.get(LoginBucketRow, identifier)
             if bucket is None:
                 bucket = LoginBucketRow(id=identifier, window_start=now, attempts=0)
             elif now - bucket.window_start >= seconds:
                 bucket.window_start, bucket.attempts = now, 0
             if bucket.attempts >= maximum:
-                raise auth_error("login_rate_limited", 429, "登录尝试过多，请稍后再试。")
+                code = "login_rate_limited" if kind == "login" else "registration_rate_limited"
+                raise auth_error(code, 429, "尝试过多，请稍后主动重试。")
             buckets.append(bucket)
         for bucket in buckets:
             bucket.attempts += 1
@@ -213,7 +239,7 @@ def login(username: str, password: str, old_token: str | None) -> tuple[dict[str
     if not _HASH_CAPACITY.acquire(blocking=False):
         raise auth_error("login_busy", 429, "登录验证忙，请稍后主动重试。")
     try:
-        with Session(engine_for(str(database_path())), expire_on_commit=False) as db:
+        with Session(identity_engine(), expire_on_commit=False) as db:
             account = db.exec(select(AccountRow).where(AccountRow.username == username)).first()
             encoded = account.password_hash if account is not None else _DUMMY_HASH
             try:
@@ -222,6 +248,17 @@ def login(username: str, password: str, old_token: str | None) -> tuple[dict[str
                 valid = False
             if not valid or account is None or account.disabled:
                 raise auth_error("invalid_credentials", 401, "账号或密码不正确，或账号不可用。")
+            mysql = db.bind.dialect.name == "mysql"
+            if mysql:
+                # Password work is intentionally outside the row lock. Once
+                # acquired, re-read current values (not the identity-map copy)
+                # before publishing a session. This serializes same-user login
+                # admission with revocation/disable without trusting a stale
+                # password check performed while another transaction committed.
+                account = db.exec(select(AccountRow).where(AccountRow.id == account.id)
+                                  .with_for_update().execution_options(populate_existing=True)).first()
+                if account is None or account.disabled or account.password_hash != encoded:
+                    raise auth_error("invalid_credentials", 401, "账号或密码不正确，或账号不可用。")
             if PASSWORD_HASHER.check_needs_rehash(account.password_hash):
                 account.password_hash = PASSWORD_HASHER.hash(password)
                 db.add(account)
@@ -230,8 +267,12 @@ def login(username: str, password: str, old_token: str | None) -> tuple[dict[str
             now = now_seconds()
             # Bounded retention: expired sessions are never accepted and can be removed.
             db.exec(delete(SessionRow).where(SessionRow.expires_at <= now))
-            sessions = db.exec(select(SessionRow).where(SessionRow.user_id == account.id)
-                               .order_by(SessionRow.created_at.desc(), SessionRow.id.desc())).all()
+            session_query = select(SessionRow).where(SessionRow.user_id == account.id).order_by(SessionRow.created_at.desc(), SessionRow.id.desc())
+            if mysql:
+                # A locking read is also a current read under a server's default
+                # REPEATABLE READ, so a waiter sees the preceding login's session.
+                session_query = session_query.with_for_update()
+            sessions = db.exec(session_query).all()
             for obsolete in sessions[7:]:
                 db.delete(obsolete)
             token = secrets.token_urlsafe(32)
@@ -246,7 +287,7 @@ def login(username: str, password: str, old_token: str | None) -> tuple[dict[str
 
 
 def logout(session_id: str) -> None:
-    with Session(engine_for(str(database_path()))) as db:
+    with Session(identity_engine()) as db:
         db.exec(delete(SessionRow).where(SessionRow.id == session_id))
         db.commit()
 
@@ -257,22 +298,90 @@ def create_account(username: str, password: str) -> str:
     identifier = uuid4().hex
     account = AccountRow(id=identifier, username=username, password_hash=PASSWORD_HASHER.hash(password),
                          created_at=now_seconds())
-    with Session(engine_for(str(database_path()))) as db:
+    with Session(identity_engine()) as db:
         db.add(account)
         db.commit()
     return identifier
 
 
 def revoke_account(username: str, *, disable: bool = False) -> int:
-    with Session(engine_for(str(database_path()))) as db:
-        account = db.exec(select(AccountRow).where(AccountRow.username == username)).first()
+    with Session(identity_engine()) as db:
+        mysql = db.bind.dialect.name == "mysql"
+        query = select(AccountRow).where(AccountRow.username == username)
+        if mysql:
+            query = query.with_for_update().execution_options(populate_existing=True)
+        account = db.exec(query).first()
         if account is None:
             raise ValueError("account_not_found")
         if disable:
             account.disabled = True
             db.add(account)
-        rows = db.exec(select(SessionRow).where(SessionRow.user_id == account.id)).all()
+        session_query = select(SessionRow).where(SessionRow.user_id == account.id)
+        if mysql:
+            session_query = session_query.with_for_update()
+        rows = db.exec(session_query).all()
         for session in rows:
             db.delete(session)
         db.commit()
         return len(rows)
+
+
+def register_account(username: str, password: str, invitation_code: str) -> None:
+    """Hash first, then consume exactly one invite in the account transaction.
+
+    The caller never receives the invitation record or whether a username exists.
+    Commit uncertainty is not an invitation to retry automatically: subsequent
+    manual login/registration is authoritative, not a fabricated success.
+    """
+    if (USERNAME_PATTERN.fullmatch(username) is None or not 12 <= len(password) <= 128
+            or TOKEN_PATTERN.fullmatch(invitation_code) is None):
+        raise auth_error("invalid_registration", 422)
+    if not mysql_configured():
+        raise auth_error("registration_unavailable", 503, "自助注册暂不可用，请联系管理员。")
+    reserve_identity_attempt("registration", username)
+    if not _HASH_CAPACITY.acquire(blocking=False):
+        raise auth_error("registration_busy", 429, "账号处理忙，请稍后主动重试。")
+    try:
+        encoded = PASSWORD_HASHER.hash(password)
+        with Session(identity_engine()) as db:
+            digest = hashlib.sha256(invitation_code.encode("ascii")).hexdigest()
+            invitation = db.exec(select(InvitationRow).where(InvitationRow.token_hash == digest).with_for_update()).first()
+            now = now_seconds()
+            if (invitation is None or invitation.revoked or invitation.expires_at <= now
+                    or invitation.consumed_by is not None or invitation.consumed_at is not None):
+                raise auth_error("registration_rejected", 400, "无法完成注册，请检查账号及邀请码，或联系管理员。")
+            account = AccountRow(id=uuid4().hex, username=username, password_hash=encoded, created_at=now)
+            db.add(account)
+            db.flush()  # Unique username and FK are checked before consuming.
+            invitation.consumed_by, invitation.consumed_at = account.id, now
+            db.add(invitation)
+            db.commit()
+    except IntegrityError:
+        raise auth_error("registration_rejected", 400, "无法完成注册，请检查账号及邀请码，或联系管理员。") from None
+    finally:
+        _HASH_CAPACITY.release()
+
+
+def create_invitation(valid_hours: int = 24) -> tuple[str, str]:
+    if not isinstance(valid_hours, int) or isinstance(valid_hours, bool) or not 1 <= valid_hours <= 720:
+        raise ValueError("invalid_invitation_expiry")
+    engine = current_mysql_engine()
+    token, identifier, now = secrets.token_urlsafe(32), uuid4().hex, now_seconds()
+    row = InvitationRow(id=identifier, token_hash=hashlib.sha256(token.encode("ascii")).hexdigest(),
+                        created_at=now, expires_at=now + valid_hours * 3600)
+    with Session(engine) as db:
+        db.add(row)
+        db.commit()
+    return identifier, token
+
+
+def revoke_invitation(identifier: str) -> None:
+    if re.fullmatch(r"[0-9a-f]{32}", identifier) is None:
+        raise ValueError("invalid_invitation_id")
+    with Session(current_mysql_engine()) as db:
+        row = db.exec(select(InvitationRow).where(InvitationRow.id == identifier).with_for_update()).first()
+        if row is None:
+            raise ValueError("invitation_not_found")
+        row.revoked = True
+        db.add(row)
+        db.commit()

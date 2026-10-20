@@ -14,6 +14,7 @@ BACKEND = frozenset({"AMAP_WEB_KEY", "AMAP_JS_KEY", "AMAP_JS_SECURITY_CODE", "AM
     "QWEN_API_KEY", "QWEN_BASE_URL", "QWEN_MODEL", "QWEN_VISION_MODEL", "AUTH_COOKIE_SECURE", "AUTH_ALLOWED_ORIGINS",
     "AUTH_SESSION_SECONDS", "TRIPPILOT_DATABASE_PATH", "BUSINESS_USAGE_PATH", "BUSINESS_RATE_WINDOW_SECONDS",
     "BUSINESS_RATE_ACCOUNT_LIMIT", "BUSINESS_RATE_GLOBAL_LIMIT", "BUSINESS_DAILY_LIMITS"})
+BACKEND_OPTIONAL = frozenset({"TRIPPILOT_MYSQL_URL", "BUSINESS_USAGE_IDENTITY_PATH"})
 FRONTEND = frozenset({"TRIPPILOT_BACKEND_ORIGIN", "NEXT_PUBLIC_AMAP_JS_KEY"})
 ORIGIN = "https://trip.zijinglab.com"
 
@@ -25,10 +26,13 @@ class ConfigError(ValueError):
 def parse(text: str, allowed: frozenset[str]) -> dict[str, str]:
     if len(text.encode()) > 16384: raise ConfigError("config_too_large")
     output: dict[str, str] = {}
+    # Keep every historical required key exact. Only these two explicitly named
+    # backend keys may be omitted, so an existing production file remains valid.
+    optional = BACKEND_OPTIONAL if allowed == BACKEND else frozenset()
     for line in text.splitlines():
         if not line or line.startswith("#"): continue
         key, separator, raw = line.partition("=")
-        if not separator or key not in allowed or key in output: raise ConfigError("config_key_or_duplicate")
+        if not separator or key not in allowed | optional or key in output: raise ConfigError("config_key_or_duplicate")
         if raw.startswith("'") and raw.endswith("'") and len(raw) >= 2:
             value = raw[1:-1]
             if "'" in value: raise ConfigError("config_quote")
@@ -37,11 +41,37 @@ def parse(text: str, allowed: frozenset[str]) -> dict[str, str]:
             if any(c.isspace() or c in "'\"#\\" for c in value): raise ConfigError("config_syntax")
         if any(ord(c) < 32 or c in "\\$`%" for c in value): raise ConfigError("config_unsupported_expansion")
         output[key] = value
-    if set(output) != allowed: raise ConfigError("config_exact_keys_required")
+    if not allowed <= set(output) or set(output) - allowed - optional: raise ConfigError("config_exact_keys_required")
     return output
 
 
+def validate_mysql(backend: dict[str, str]) -> bool:
+    """Deployment policy is intentionally narrower than trusted backend URLs.
+
+    One same-host MySQL instance/database; URL-safe credentials need no percent
+    escaping in the deliberately restricted EnvironmentFile dialect. Never echo
+    this URL: it contains the database password.
+    """
+    raw = backend.get("TRIPPILOT_MYSQL_URL", "")
+    anchor = backend.get("BUSINESS_USAGE_IDENTITY_PATH", "")
+    if anchor not in {"", "/var/lib/trippilot/usage.sqlite3.identity"}:
+        raise ConfigError("production_usage_anchor_required")
+    if not raw:
+        return False
+    matched = re.fullmatch(
+        r"mysql\+pymysql://(?P<username>[A-Za-z0-9_]{1,32}):(?P<password>[A-Za-z0-9_-]{16,256})"
+        r"@127\.0\.0\.1:3306/trippilot(?:\?charset=utf8mb4)?", raw, re.ASCII,
+    )
+    if (not matched or matched.group("username").lower() == "root"
+            or "REPLACE" in matched.group("password")):
+        raise ConfigError("production_loopback_mysql_required")
+    if anchor != "/var/lib/trippilot/usage.sqlite3.identity":
+        raise ConfigError("production_usage_anchor_required")
+    return True
+
+
 def validate(backend: dict[str, str], frontend: dict[str, str]) -> None:
+    validate_mysql(backend)
     if (backend["AUTH_COOKIE_SECURE"] != "true"
         or backend["TRIPPILOT_DATABASE_PATH"] != "/var/lib/trippilot/identity.sqlite3"
         or backend["BUSINESS_USAGE_PATH"] != "/var/lib/trippilot/usage.sqlite3"

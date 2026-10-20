@@ -1,5 +1,13 @@
 # release-1F：可重复的 Linux 部署包与分步手册
 
+## 2026-10-20：MySQL与注册增量的部署边界
+
+用户在旧版本上已报告服务active、HTTPS200及成功登录；不是本轮代理远程验收。最新实现新增邀请码注册和MySQL全迁能力，**线上库仍未由本轮切换**，先读[MYSQL_REGISTRATION](MYSQL_REGISTRATION.md)再决定升级。
+
+部署配置支持仅后端两个可选键，旧配置不被自动重建；MySQL模式`verify-data`验证实际MySQL+原额度锚，旧SQLite初始化明确拒绝。创建新的SQLite备份会先读取受保护活动配置，MySQL模式拒绝误备旧库，须改用新MySQL一致性备份工具。旧备份验证／隔离演练仍可使用，不授权回滚额度。业务源码和前端改变须新SHA／新构建／新receipt，旧19资源产物和新增注册后的20资源均有明确白名单兼容，不能把旧构建当本轮新功能。
+
+本轮只在本地独立MySQL和受控浏览器验证，不执行服务器安装／迁移／新账号创建或服务切换。下面旧失败、续行步骤及当时未部署的结论均保留原文，不误读为当前服务器重新失败。
+
 ## 2026-10-19：发布产物读取权限补修（当前续行入口）
 
 实际基线 `4b07a68559e8aaa911494b36fd3172358a89f622`，main，fetch与origin/main同步。本轮**用户提供的服务器证据**：更新控制器后Node验证器已可启动；verifier_load／receipt_read通过，artifact_hashes报EACCES。定点诊断为open `.next/BUILD_ID`；namei显示所有祖先目录755，目标`.next`为root:root 700、BUILD_ID为root:root 600；工作副本同目录／文件分别为admin:admin 700／600。没有证据表明原生模块检查已经执行或失败；应用、生产库初始化与HTTPS仍未完成。本轮没有登录服务器。

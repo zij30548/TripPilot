@@ -34,8 +34,9 @@ class StorageError(Exception):
 
 class StorageMetadata(SQLModel, table=True):
     __tablename__ = "storage_metadata"
-    key: str = Field(primary_key=True)
-    value: str
+    __table_args__ = {"mysql_engine": "InnoDB", "mysql_charset": "utf8mb4", "mysql_collate": "utf8mb4_bin"}
+    key: str = Field(primary_key=True, max_length=64)
+    value: str = Field(max_length=256)
 
 
 class StorageSettings(BaseSettings):
@@ -109,7 +110,10 @@ def engine_for(path: str) -> Engine:
                 if "saved_trips" not in tables:
                     raise StorageError("invalid_storage_schema")
                 _validate_archive_schema(connection)
-            SQLModel.metadata.create_all(connection)
+            # Invitation redemption is MySQL-only. Do not silently expand the
+            # historical identity-v1 SQLite schema as a side effect of imports.
+            tables_to_create = [table for name, table in SQLModel.metadata.tables.items() if name != "invitations"]
+            SQLModel.metadata.create_all(connection, tables=tables_to_create)
             if not tables:
                 connection.execute(text("INSERT INTO storage_metadata (key, value) VALUES ('version', :version)"), {"version": STORAGE_VERSION})
         target.chmod(0o600)
@@ -124,9 +128,16 @@ def engine_for(path: str) -> Engine:
         raise StorageError("storage_unavailable") from None
 
 
+def current_engine(path: Path | None = None) -> Engine:
+    from app.mysql_storage import current_mysql_engine, mysql_configured
+    if mysql_configured():
+        return current_mysql_engine()
+    return engine_for(str(path if path is not None else database_path()))
+
+
 def get_session(path: Annotated[Path, Depends(database_path)]) -> Iterator[Session]:
     try:
-        with Session(engine_for(str(path)), expire_on_commit=False) as session:
+        with Session(current_engine(path), expire_on_commit=False) as session:
             yield session
     except (SQLAlchemyError, OSError):
         raise StorageError("storage_unavailable") from None

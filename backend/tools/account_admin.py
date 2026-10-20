@@ -1,7 +1,9 @@
 """Local operator only: python -B -m tools.account_admin create USERNAME.
 
 Passwords are read twice with getpass, never command arguments or environment.
-Database selection is the trusted TRIPPILOT_DATABASE_PATH configuration only.
+Database selection uses trusted TRIPPILOT_MYSQL_URL when explicitly configured,
+otherwise the historical TRIPPILOT_DATABASE_PATH. Selection failures never fall
+back to a different database.
 """
 import argparse
 import getpass

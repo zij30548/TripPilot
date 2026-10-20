@@ -69,6 +69,26 @@ test('changed origin, extra forwarding path and malformed build ID stop reuse', 
   });
 });
 
+test('registration is an explicit additive resource; old allowlist remains verifiable, substitutions do not', async () => {
+  await fixture(async (root, manifest) => {
+    await checkRewrites(root, manifest);
+    const file = join(root, 'src/lib/api-endpoints.ts');
+    const current = await readFile(file, 'utf8');
+    assert.ok(current.includes('"/api/auth/register"'));
+    const legacy = current.replace(/^.*authRegister:.*\n/m, '');
+    await writeFile(file, legacy);
+    const oldManifest = structuredClone(manifest);
+    oldManifest.rewrites.beforeFiles = oldManifest.rewrites.beforeFiles.filter(rule => rule.source !== '/api/auth/register');
+    await checkRewrites(root, oldManifest);
+    for (const invalid of [current.replace('/api/auth/register', '/api/auth/unreviewed'),
+      current.replace('/api/auth/login', '/api/auth/register'),
+      current.replace('/api/trips/plan', '/api/trips/unknown')]) {
+      await writeFile(file, invalid);
+      await assert.rejects(checkRewrites(root, manifest), /endpoint_allowlist_changed/);
+    }
+  });
+});
+
 test('artifact symlinks and lock/installed version mismatch are rejected', async () => {
   await fixture(async root => {
     await symlink('/etc/passwd', join(root, '.next/static/chunks/link'));

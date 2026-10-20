@@ -3,6 +3,7 @@
 export const API_ENDPOINTS = Object.freeze({
   authSession: "/api/auth/session",
   authLogin: "/api/auth/login",
+  authRegister: "/api/auth/register",
   authLogout: "/api/auth/logout",
   usage: "/api/usage",
   places: "/api/places/search",

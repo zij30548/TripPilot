@@ -182,6 +182,66 @@ export async function login(username: string, password: string, expectedEpoch = 
   } finally { if (version === operationVersion) operation = null; }
 }
 
+/** One explicit registration attempt. No session acceptance, automatic login or retry. */
+export async function registerAccount(
+  username: string, password: string, invitationCode: string,
+  { signal, expectedEpoch }: { signal: AbortSignal; expectedEpoch: number },
+): Promise<void> {
+  const csrf = state.session?.csrf_token;
+  if (!csrf || operation || state.verifying || state.phase !== "anonymous" || expectedEpoch !== state.epoch || signal.aborted) {
+    throw new DOMException("注册状态已变化，请重新检查登录状态。", "AbortError");
+  }
+  const version = ++operationVersion;
+  const controller = new AbortController();
+  operation = controller;
+  const current = () => version === operationVersion && expectedEpoch === state.epoch &&
+    state.phase === "anonymous" && !state.verifying && state.session?.csrf_token === csrf && !controller.signal.aborted;
+  const cancel = () => {
+    controller.abort();
+    // Release the operation slot immediately, even if an old transport ignores abort.
+    if (version === operationVersion) { operationVersion += 1; operation = null; }
+  };
+  signal.addEventListener("abort", cancel, { once: true });
+  let timedOut = false;
+  const timer = setTimeout(() => { timedOut = true; controller.abort(); }, AUTH_TIMEOUT_MS);
+  try {
+    const response = await fetch(API_ENDPOINTS.authRegister, {
+      method: "POST", credentials: "same-origin", cache: "no-store", signal: controller.signal,
+      headers: { "Content-Type": "application/json", "X-CSRF-Token": csrf },
+      body: JSON.stringify({ username, password, invitation_code: invitationCode }),
+    });
+    if (timedOut) throw new Error("timeout");
+    if (!current()) throw new DOMException("注册请求已失效。", "AbortError");
+    if (!response.ok) {
+      if (response.status === 429) throw new Error("注册尝试过于频繁或服务正忙，请稍后再试；不会自动重试。");
+      if (response.status === 403) throw new Error("注册安全校验失败，请重新检查登录状态后再试。");
+      if ([400, 409].includes(response.status)) throw new Error("账号或邀请码无法用于注册，请检查后再试或联系管理员。");
+      if ([413, 422].includes(response.status)) throw new Error("注册信息格式不正确，请检查账号、密码和邀请码。");
+      if ([408, 499].includes(response.status)) throw new Error("注册结果尚未确认，请先尝试登录；不要连续提交注册。");
+      throw new Error("注册服务暂不可用，请联系管理员或稍后手动重试。");
+    }
+    let result: unknown;
+    try { result = await response.json(); }
+    catch { throw new Error("注册结果响应无效，尚未确认注册结果；请先尝试登录。"); }
+    if (timedOut) throw new Error("timeout");
+    if (!current()) throw new DOMException("注册请求已失效。", "AbortError");
+    if (!record(result) || !exact(result, ["registered"]) || result.registered !== true) {
+      throw new Error("注册结果响应无效，尚未确认注册结果；请先尝试登录。");
+    }
+  } catch (error) {
+    if (timedOut) throw new Error("注册等待超时，服务端可能已创建账号。请先尝试登录；不会自动重试。");
+    if (!current()) throw new DOMException("注册请求已失效。", "AbortError");
+    if (error instanceof TypeError || !(error instanceof Error)) {
+      throw new Error("连接中断，注册结果尚未确认。请先尝试登录；不会自动重试。");
+    }
+    throw error;
+  } finally {
+    clearTimeout(timer);
+    signal.removeEventListener("abort", cancel);
+    if (version === operationVersion) operation = null;
+  }
+}
+
 export async function logout(expectedEpoch = state.epoch): Promise<void> {
   if (expectedEpoch !== state.epoch || state.phase !== "authenticated") return;
   const csrf = state.session?.csrf_token;

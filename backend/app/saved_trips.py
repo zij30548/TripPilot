@@ -7,7 +7,8 @@ from typing import Annotated
 from uuid import uuid4
 
 from fastapi import Depends
-from sqlalchemy import UniqueConstraint
+from sqlalchemy import Column, Text, UniqueConstraint
+from sqlalchemy.dialects.mysql import MEDIUMTEXT
 from sqlalchemy.exc import IntegrityError, SQLAlchemyError
 from sqlmodel import Field, Session, SQLModel, select
 
@@ -15,27 +16,30 @@ from app.integrations.qwen import strict_json
 from app.schemas.saved_trip import MAX_BODY_BYTES, SaveTrip, SavedDetail, SavedList, SavedSnapshot, SavedSummary, snapshot_adapter
 
 from app.storage import DEFAULT_PATH, StorageError as ArchiveError, database_path, engine_for
+from app.mysql_storage import current_mysql_engine, mysql_configured
 
 
 class SavedTripRow(SQLModel, table=True):
     __tablename__ = "saved_trips"
-    __table_args__ = (UniqueConstraint("owner_id", "operation_id", name="uq_saved_trips_owner_operation"),)
-    id: str = Field(primary_key=True)
-    owner_id: str | None = Field(default=None, foreign_key="accounts.id", index=True)
-    operation_id: str
-    name: str
-    saved_at: str = Field(index=True)
-    schema_version: str
-    start_date: str
-    end_date: str
-    transport_mode: str
-    status: str
-    snapshot_json: str
+    __table_args__ = (UniqueConstraint("owner_id", "operation_id", name="uq_saved_trips_owner_operation"),
+                      {"mysql_engine": "InnoDB", "mysql_charset": "utf8mb4", "mysql_collate": "utf8mb4_bin"})
+    id: str = Field(primary_key=True, max_length=32)
+    owner_id: str | None = Field(default=None, foreign_key="accounts.id", index=True, max_length=32)
+    operation_id: str = Field(max_length=32)
+    name: str = Field(max_length=80)
+    saved_at: str = Field(index=True, max_length=40)
+    schema_version: str = Field(max_length=32)
+    start_date: str = Field(max_length=10)
+    end_date: str = Field(max_length=10)
+    transport_mode: str = Field(max_length=16)
+    status: str = Field(max_length=16)
+    snapshot_json: str = Field(sa_column=Column(Text().with_variant(MEDIUMTEXT(), "mysql"), nullable=False))
 
 
 def get_session(path: Annotated[Path, Depends(database_path)]) -> Iterator[Session]:
     try:
-        with Session(engine_for(str(path)), expire_on_commit=False) as session:
+        engine = current_mysql_engine() if mysql_configured() else engine_for(str(path))
+        with Session(engine, expire_on_commit=False) as session:
             yield session
     except (SQLAlchemyError, OSError):
         raise ArchiveError("storage_unavailable") from None

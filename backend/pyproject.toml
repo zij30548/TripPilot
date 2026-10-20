@@ -8,5 +8,6 @@ dependencies = [
     "httpx>=0.28.1",
     "pillow==12.3.0",
     "pydantic-settings>=2.15.0",
+    "pymysql[rsa]==1.2.3",
     "sqlmodel>=0.0.42",
 ]
