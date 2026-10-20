@@ -1,7 +1,6 @@
 import type { Metadata } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
 import "./globals.css";
-import { DESTINATIONS } from "@/lib/destinations";
 import { AuthenticationBoundary } from "@/components/auth/authentication-boundary";
 
 const geistSans = Geist({
@@ -15,8 +14,8 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "TripPilot｜单城旅行规划助手",
-  description: `选择${DESTINATIONS.map(d => d.name).join("、")}，确认地点，主动生成真实交通参考的 1～7 日草案；预算单独核对。`,
+  title: "TripPilot｜先聊清楚，再出发",
+  description: "通过多轮表达与明确确认，整理你的旅行需求。地点与行程仍需真实数据核对，模型不会自动预订或执行。",
 };
 
 export default function RootLayout({ children }: LayoutProps<"/">) {

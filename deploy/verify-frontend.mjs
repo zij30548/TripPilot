@@ -84,18 +84,24 @@ export async function sourceHash(frontend) {
 export async function checkRewrites(frontend, manifest) {
   const source = await readFile(join(frontend, 'src/lib/api-endpoints.ts'), 'utf8');
   const api = [...source.matchAll(/:\s*"(\/api\/[a-z/-]+)"/g)].map(match => match[1]);
-  // Accept the old attested surface or precisely its new invitation-registration
-  // resource. Neither an arbitrary 20th path nor a same-count substitution passes.
-  const allowed = new Set([...LEGACY_API_PATHS, '/api/auth/register']);
-  if (![LEGACY_API_PATHS.length, LEGACY_API_PATHS.length + 1].includes(api.length) ||
+  // Accept only the legacy surface, registration increment, or the explicit
+  // registration+chat increment. Same-count substitutions never pass.
+  const allowed = new Set([...LEGACY_API_PATHS, '/api/auth/register', '/api/chat/conversations']);
+  const chat = api.includes('/api/chat/conversations');
+  if (![LEGACY_API_PATHS.length, LEGACY_API_PATHS.length + 1, LEGACY_API_PATHS.length + 2].includes(api.length) ||
       new Set(api).size !== api.length || api.some(path => !allowed.has(path)) ||
-      !LEGACY_API_PATHS.every(path => api.includes(path))) fail('endpoint_allowlist_changed');
+      !LEGACY_API_PATHS.every(path => api.includes(path)) ||
+      (chat && !api.includes('/api/auth/register'))) fail('endpoint_allowlist_changed');
   const expected = api.map(path => ({ source: path, destination: ORIGIN + path.slice(4) }));
   expected.push(
     { source: '/api/health', destination: `${ORIGIN}/health` },
     { source: '/api/saved-trips/:id([0-9a-f]{32})', destination: `${ORIGIN}/saved-trips/:id` },
-    { source: '/_AMapService/v3/config/district', destination: `${ORIGIN}/_AMapService/v3/config/district` },
   );
+  if (chat) for (const suffix of ['', '/turns', '/cancel', '/confirm', '/delete']) expected.push({
+    source: `/api/chat/conversations/:id([0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12})${suffix}`,
+    destination: `${ORIGIN}/chat/conversations/:id${suffix}`,
+  });
+  expected.push({ source: '/_AMapService/v3/config/district', destination: `${ORIGIN}/_AMapService/v3/config/district` });
   const rules = manifest?.rewrites;
   if (!rules || !Array.isArray(rules.beforeFiles) || rules.beforeFiles.length !== expected.length ||
       !Array.isArray(rules.afterFiles) || rules.afterFiles.length ||

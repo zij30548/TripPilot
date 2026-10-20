@@ -7,6 +7,7 @@ describe("fixed same-origin browser endpoints", () => {
   it("covers every business client, including demo and disabled knowledge answers", () => {
     expect(API_ENDPOINTS).toEqual({
       authSession: "/api/auth/session", authLogin: "/api/auth/login", authRegister: "/api/auth/register", authLogout: "/api/auth/logout",
+      chatConversations: "/api/chat/conversations",
       usage: "/api/usage",
       places: "/api/places/search", candidates: "/api/places/candidates", schedule: "/api/trips/schedule-preview",
       weather: "/api/weather/forecast", explanation: "/api/trips/schedule-explanation",

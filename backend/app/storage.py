@@ -110,9 +110,13 @@ def engine_for(path: str) -> Engine:
                 if "saved_trips" not in tables:
                     raise StorageError("invalid_storage_schema")
                 _validate_archive_schema(connection)
+                from app.chat_storage import validate_chat_extension
+                validate_chat_extension(connection, required=False)
             # Invitation redemption is MySQL-only. Do not silently expand the
             # historical identity-v1 SQLite schema as a side effect of imports.
-            tables_to_create = [table for name, table in SQLModel.metadata.tables.items() if name != "invitations"]
+            from app.chat_models import CHAT_TABLES
+            tables_to_create = [table for name, table in SQLModel.metadata.tables.items()
+                                if name != "invitations" and name not in CHAT_TABLES]
             SQLModel.metadata.create_all(connection, tables=tables_to_create)
             if not tables:
                 connection.execute(text("INSERT INTO storage_metadata (key, value) VALUES ('version', :version)"), {"version": STORAGE_VERSION})

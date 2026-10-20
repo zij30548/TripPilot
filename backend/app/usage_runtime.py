@@ -124,7 +124,9 @@ def _service(request: httpx.Request) -> Service:
     if request.method == "POST" and beijing and url.path == "/compatible-mode/v1/chat/completions" and not url.query:
         if context.request_path == "/media/landmark":
             return "qwen_vision"
-        if context.request_path in _TEXT_PATHS:
+        if context.request_path in _TEXT_PATHS or re.fullmatch(
+                r"/chat/conversations/[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}/turns",
+                context.request_path):
             return "qwen_text"
     raise UsageError()
 

@@ -33,7 +33,7 @@ export function AuthenticationBoundary({ children }: { children: ReactNode }) {
         auth.phase === "error" || !auth.session ? <button type="button" className="mt-6 rounded-xl bg-slate-900 px-4 py-3 text-white" onClick={() => void checkSession()}>重新检查登录状态</button> : (
           <InvitationAccessForm key={auth.epoch} epoch={auth.epoch} />
         )}
-      <p className="mt-6 text-xs text-slate-500">退出、切换账号或登录过期会清除本页未保存的工作；没有自动保存。</p>
+      <p className="mt-6 text-xs text-slate-500">退出、切换账号或登录过期会清除本页临时状态和未发送内容；已持久保存的对话及行程仍归原账号。旧工作台没有自动保存。</p>
     </main>
   );
 }

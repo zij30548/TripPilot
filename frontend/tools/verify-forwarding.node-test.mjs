@@ -11,8 +11,9 @@ test("all current resources include identity and usage; authentication transport
     ["GET", "/auth/session"], ["POST", "/auth/login"], ["POST", "/auth/register"],
     ["POST", "/auth/logout"], ["GET", "/usage"],
   ];
-  assert.equal(CONTROLLED_ENDPOINTS.length, 20);
-  assert.equal(new Set(CONTROLLED_ENDPOINTS.map(([method, path]) => `${method} ${path}`)).size, 20);
+  assert.equal(CONTROLLED_ENDPOINTS.length, 27);
+  assert.equal(new Set(CONTROLLED_ENDPOINTS.map(([method, path]) => `${method} ${path}`)).size, 27);
+  assert.ok(CONTROLLED_ENDPOINTS.some(([method, path]) => method === "POST" && path.endsWith("/turns")));
   for (const endpoint of identityAndUsage) assert.ok(CONTROLLED_ENDPOINTS.some(([method, path]) => method === endpoint[0] && path === endpoint[1]));
   const backend = await startControlledBackend({ port: 0 });
   try {

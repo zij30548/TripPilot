@@ -15,8 +15,12 @@ async function fixture(run) {
     const endpoints = [...source.matchAll(/:\s*"(\/api\/[a-z/-]+)"/g)].map(m => m[1]);
     const rules = endpoints.map(path => ({ source: path, destination: ORIGIN + path.slice(4) }));
     rules.push({ source: '/api/health', destination: ORIGIN + '/health' },
-      { source: '/api/saved-trips/:id([0-9a-f]{32})', destination: ORIGIN + '/saved-trips/:id' },
-      { source: '/_AMapService/v3/config/district', destination: ORIGIN + '/_AMapService/v3/config/district' });
+      { source: '/api/saved-trips/:id([0-9a-f]{32})', destination: ORIGIN + '/saved-trips/:id' });
+    for (const suffix of ['', '/turns', '/cancel', '/confirm', '/delete']) rules.push({
+      source: `/api/chat/conversations/:id([0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12})${suffix}`,
+      destination: `${ORIGIN}/chat/conversations/:id${suffix}`,
+    });
+    rules.push({ source: '/_AMapService/v3/config/district', destination: ORIGIN + '/_AMapService/v3/config/district' });
     const manifest = { rewrites: { beforeFiles: rules, afterFiles: [], fallback: [] } };
     for (const path of ['src/lib', 'public', 'node_modules/next', '.next/static/chunks', '.next/cache']) await mkdir(join(root, path), { recursive: true });
     const files = {
@@ -75,9 +79,14 @@ test('registration is an explicit additive resource; old allowlist remains verif
     const file = join(root, 'src/lib/api-endpoints.ts');
     const current = await readFile(file, 'utf8');
     assert.ok(current.includes('"/api/auth/register"'));
-    const legacy = current.replace(/^.*authRegister:.*\n/m, '');
+    const registrationOnly = current.replace(/^.*chatConversations:.*\n/m, '');
+    await writeFile(file, registrationOnly);
+    const registrationManifest = structuredClone(manifest);
+    registrationManifest.rewrites.beforeFiles = registrationManifest.rewrites.beforeFiles.filter(rule => !rule.source.startsWith('/api/chat/'));
+    await checkRewrites(root, registrationManifest);
+    const legacy = registrationOnly.replace(/^.*authRegister:.*\n/m, '');
     await writeFile(file, legacy);
-    const oldManifest = structuredClone(manifest);
+    const oldManifest = structuredClone(registrationManifest);
     oldManifest.rewrites.beforeFiles = oldManifest.rewrites.beforeFiles.filter(rule => rule.source !== '/api/auth/register');
     await checkRewrites(root, oldManifest);
     for (const invalid of [current.replace('/api/auth/register', '/api/auth/unreviewed'),
@@ -86,6 +95,21 @@ test('registration is an explicit additive resource; old allowlist remains verif
       await writeFile(file, invalid);
       await assert.rejects(checkRewrites(root, manifest), /endpoint_allowlist_changed/);
     }
+  });
+});
+
+test('chat resources use the exact UUID paths and approved operations, not an arbitrary dynamic proxy', async () => {
+  await fixture(async (root, manifest) => {
+    await checkRewrites(root, manifest);
+    for (const field of ['source', 'destination']) {
+      const changed = structuredClone(manifest);
+      const rule = changed.rewrites.beforeFiles.find(item => item.source.endsWith('/turns'));
+      rule[field] = rule[field].replace('/turns', '/unreviewed');
+      await assert.rejects(checkRewrites(root, changed), /backend_rewrites_mismatch/);
+    }
+    const missing = structuredClone(manifest);
+    missing.rewrites.beforeFiles = missing.rewrites.beforeFiles.filter(rule => !rule.source.endsWith('/cancel'));
+    await assert.rejects(checkRewrites(root, missing), /backend_rewrites_mismatch/);
   });
 });
 

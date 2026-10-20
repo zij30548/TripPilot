@@ -63,9 +63,13 @@ class DependencyPermissions(unittest.TestCase):
         source = (DEPLOY.parent / "frontend/src/lib/api-endpoints.ts").read_text()
         endpoints = re.findall(r':\s*"(/api/[a-z/-]+)"', source)
         rules = [{"source": path, "destination": "http://127.0.0.1:8000" + path[4:]} for path in endpoints]
+        uuid_pattern = "[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}"
         rules.extend([
             {"source": "/api/health", "destination": "http://127.0.0.1:8000/health"},
             {"source": "/api/saved-trips/:id([0-9a-f]{32})", "destination": "http://127.0.0.1:8000/saved-trips/:id"},
+            *[{"source": "/api/chat/conversations/:id(" + uuid_pattern + ")" + suffix,
+               "destination": "http://127.0.0.1:8000/chat/conversations/:id" + suffix}
+              for suffix in ("", "/turns", "/cancel", "/confirm", "/delete")],
             {"source": "/_AMapService/v3/config/district", "destination": "http://127.0.0.1:8000/_AMapService/v3/config/district"},
         ])
         for path, value in {

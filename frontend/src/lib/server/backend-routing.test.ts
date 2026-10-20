@@ -24,13 +24,19 @@ describe("trusted server-only same-origin forwarding", () => {
   it("has an explicit resource allowlist, never a user-supplied URL or catch-all", () => {
     const target = "http://127.0.0.1:18081";
     const rules = backendRewrites(target);
-    expect(Object.keys(API_ENDPOINTS)).toHaveLength(20);
+    expect(Object.keys(API_ENDPOINTS)).toHaveLength(21);
     expect(new Set(rules.map(r => r.source)).size).toBe(rules.length);
     for (const source of Object.values(API_ENDPOINTS)) {
       expect(source.startsWith("/api/")).toBe(true);
       expect(rules).toContainEqual({ source, destination: `${target}${source.slice(4)}` });
     }
     expect(rules).toContainEqual({ source: "/_AMapService/v3/config/district", destination: `${target}/_AMapService/v3/config/district` });
+    for (const suffix of ["", "/turns", "/cancel", "/confirm", "/delete"]) {
+      expect(rules).toContainEqual({
+        source: `/api/chat/conversations/:id([0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12})${suffix}`,
+        destination: `${target}/chat/conversations/:id${suffix}`,
+      });
+    }
     expect(rules.some(r => r.source.includes(":path") || r.source.includes(":url"))).toBe(false);
     expect(FORWARDING_BODY_BYTES).toBeGreaterThan(20 * 1024 * 1024);
     expect(FORWARDING_TIMEOUT_MS).toBeGreaterThan(60_000);

@@ -18,6 +18,7 @@ export const MIB = 1024 * 1024;
 export const BACKEND_PORT = 18081;
 export const FRONTEND_ORIGIN = "http://127.0.0.1:3101";
 const marker = "release-1c-controlled-only";
+const CHAT_ID = "12345678-1234-4234-8234-123456789abc";
 const hash = (value) => createHash("sha256").update(value).digest("hex");
 const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 // Synthetic transport fixtures only. The server records equality booleans,
@@ -37,6 +38,9 @@ export const CONTROLLED_ENDPOINTS = [
   ["POST", "/media/video-frames"], ["POST", "/saved-trips"],
   ["POST", "/knowledge/search"], ["POST", "/knowledge/answer"],
   ["POST", "/routes/walking"], ["POST", "/routes/transit"], ["POST", "/trips/plan"],
+  ["GET", "/chat/conversations"], ["POST", "/chat/conversations"],
+  ["GET", `/chat/conversations/${CHAT_ID}`],
+  ...["turns", "cancel", "confirm", "delete"].map(action => ["POST", `/chat/conversations/${CHAT_ID}/${action}`]),
 ];
 
 /** Bounded metadata only: no request/response bodies or credentials are retained. */

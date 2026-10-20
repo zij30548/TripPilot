@@ -101,6 +101,12 @@ def _file_hash(path: Path) -> str:
 
 def backup(engine: Engine, anchor_path: Path, output_path: Path) -> dict[str, object]:
     validate_private_schema(engine)
+    # This legacy backup format has an exact eight-table manifest. Never emit a
+    # seemingly complete backup which silently omits a newer chat extension.
+    from app.chat_models import CHAT_TABLES
+    with engine.connect() as connection:
+        if CHAT_TABLES & set(inspect(connection).get_table_names()):
+            raise Refused("backup_chat_extension_requires_chat_copy_tool")
     identity = _anchor(anchor_path)
     counts = {name: 0 for name in TABLES}
     digest, size = hashlib.sha256(), 0
