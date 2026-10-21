@@ -1,5 +1,22 @@
 # TripPilot Progress
 
+## 最新摘要（2026-10-21，chat-1／chat-2有限真实验收暂停）
+
+- **授权／基线**：实际`main / 6458d2e52810e3503a789cd18c0e827c933f9afd`。用户授权本轮最多12次千问及计划内有界高德；发送前固定8API＋4Chrome题目／预期、完整payload、412项文件和16份旧台账哈希。旧额度不重置，原协议／题目／提示／Schema不改，不进入chat-3。
+- **实际结果**：千问 **1/12**，高德 **0逻辑／0物理**。api01 HTTP200、结构合法，但住宿“住”、必去“拙／苏”和碎片偏好语义错误；引用虽含完整名称，也不能证明字段正确。上游请求／返回模型标签为既有Flash快照，5402ms，5692输入＋432输出＝6124 Token。**语义／业务0通过／1失败；其余11项未执行，四个Chrome、400px、真实tool_calls与POI链均未验。** 不用历史结果补成绩，台账传输success原样保留并与语义评分分开。
+- **暂停与离线补修**：api02读取登录身份时，验收工具误查`state`，实际契约为`authenticated`；尚未发送第二次模型即停。原`test_session_expired_or_changed`收据保留，但不能据此推断真实会话过期。仅修工具并以真实ASGI身份／CSRF＋临时持久库＋受控模型回归：连续两操作仅登录一次，撤销后模型前停止，不自动重登。
+- **诊断边界**：单字已存在于模型原生JSON及应用读回，非页面截断；stop／432Token也不是直接截断证据。三类带裸`pattern: "\\S"`的ShortText与现象相关，provider整串匹配是优先排查假设，**未证实内部根因、未改正式Schema或修补输出**。仅建议下一轮离线评审模型Schema投影，再明确冻结续验，不能宣布质量改善。
+- **文件／数据边界**：新增`backend/evaluations/chat12-acceptance-v1.json`、`tools/chat_acceptance{,_environment,_runtime}.py`及对应3份测试；新增[CHAT_ACCEPTANCE](CHAT_ACCEPTANCE.md)，同步当前导航。独立本机随机MySQL／DML测试身份及双层持久计数，原用户库未切换；只改验收工具，无业务／前端／配置／迁移修改。专用8803／3106已关闭，原服务保留。
+- **证据与不足**：`/Users/zijing/projects/trippilot-evidence/chat-acceptance/batch-20261021-v1/`含原冻结、请求、台账、合法原始结构投影、应用读回和另存暂停评审。旧runtime字节副本匹配冻结hash；旧runtime测试源码未在编辑前另存、只有hash，不能完整恢复首发测试源码，此缺口保留不补造。修工具后旧verify正确拒绝`frozen_file_changed`；没有改旧hash、删stop或自动续跑。
+- **实际检查**：`cd backend && .venv/bin/python -B -m unittest tests.test_chat_acceptance tests.test_chat_acceptance_environment tests.test_chat_acceptance_runtime tests.test_chat_logic tests.test_chat_api tests.test_chat_places_tools tests.test_chat_places_api -q`：**73项通过**；其中3份新工具测试单独39项通过，重复不相加。既有Starlette/httpx弃用提示保留。旧台账16份、五缓存／两SQLite／身份锚8文件哈希未变；链接／敏感信息与`git diff --check`核对。没有前端或业务代码改动，不机械重跑完整构建／浏览器，不伪造截图。
+- **停止点**：**验收未通过，停在失败／暂停报告；不进入chat-3，不继续模型／高德。** 原12次中最多11次尚未用，但不是重发api01或变更payload的自动许可；后续须先明确修复及关联原协议／台账的续验方式，不能换批次获得新12次。线上／原手工试用环境未更新，真实地点及新聊天生产备份／恢复仍待办。
+
+### 当前导航与下一步边界
+
+操作计划、逐题未执行项、诊断与面试说明见[CHAT_ACCEPTANCE](CHAT_ACCEPTANCE.md)；已实现流程见[CHAT_1](CHAT_1.md)、[CHAT_2](CHAT_2.md)。当前建议只先离线验证单字问题假设，再明确后续修复／续验；不新增模型、不进入下一阶段、不部署。下方0调用、chat-2离线停止点均为各自历史轮次。
+
+---
+
 ## 最新摘要（2026-10-21，chat-2离线实现与通俗文档）
 
 - **授权／基线**：实际`main / c9d7a02365bdd162b5038940640a363858352cfa`。用户明确答复“编写文档并开始离线开发，不调用真实模型”。本轮真实模型及高德业务调用均 **0**；只读核对官方静态城市表，不是业务上游验收。未操作云服务器或切换当前用户库。
