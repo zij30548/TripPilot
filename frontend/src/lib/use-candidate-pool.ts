@@ -143,5 +143,11 @@ export function useCandidatePool(request: TripRequest, onInputsChange?: (snapsho
   };
   const getActivePlaces = () => activePlaces;
   const readSnapshot = () => structuredClone({ ...snapshot.current, loading: false });
-  return { state, candidates, excludedIds, activePlaces, getActivePlaces, query, invalidate, exclude, restore, canQuery, prepareExclusion, readSnapshot };
+  const cancelQuery = () => {
+    if (!pending.current) return;
+    cancelPending();
+    publish({loading:false});
+    setState(previous => ({...previous,status:lastValid.current?.status ?? "idle", message:"已取消获取；原候选与排除选择保留。"}));
+  };
+  return { state, candidates, excludedIds, activePlaces, getActivePlaces, query, invalidate, exclude, restore, canQuery, prepareExclusion, readSnapshot, cancelQuery };
 }

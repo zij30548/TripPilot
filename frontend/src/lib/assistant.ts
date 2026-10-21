@@ -51,7 +51,10 @@ function assistantError(code: string | null): string {
   return chatErrorMessage(code?.startsWith("assistant_") ? code.slice(10) : code);
 }
 
-async function request(path: string, signal: AbortSignal, body?: ChatTurnRequest, dialogue = false): Promise<unknown> {
+export type DialogueSelectionContext = { workspace_version: string; display: "none" | "candidates" | "schedule" | "preview" | "budget" | "history" | "places";
+  items: { ordinal: number; id: string; name: string; type: "place" | "saved" | "date" }[] };
+export type DialogueTurnRequest = ChatTurnRequest & { dialogue_context?: DialogueSelectionContext };
+async function request(path: string, signal: AbortSignal, body?: DialogueTurnRequest, surface?: "dialogue-v1" | "dialogue-v2"): Promise<unknown> {
   if (signal.aborted) throw new DOMException("已取消", "AbortError");
   const controller = new AbortController();
   const abort = () => controller.abort();
@@ -61,7 +64,7 @@ async function request(path: string, signal: AbortSignal, body?: ChatTurnRequest
   try {
     const response = await apiFetch(`${API_ENDPOINTS.chatConversations}${path}`, {
       method: body ? "POST" : "GET", signal: controller.signal,
-      ...(body ? { headers: { "Content-Type": "application/json", ...(dialogue ? { "X-TripPilot-Surface": "dialogue-v1" } : {}) }, body: JSON.stringify(body) } : {}),
+      ...(body ? { headers: { "Content-Type": "application/json", ...(surface ? { "X-TripPilot-Surface": surface } : {}) }, body: JSON.stringify(body) } : {}),
     });
     const limit = body ? 384 * 1024 : 64 * 1024;
     const declared = response.headers.get("content-length");
@@ -100,17 +103,26 @@ async function request(path: string, signal: AbortSignal, body?: ChatTurnRequest
 }
 
 export async function sendAssistantTurn(id: string, body: ChatTurnRequest, signal: AbortSignal): Promise<ChatConversation> {
-  return sendBoundTurn(id, body, signal, false);
+  return sendBoundTurn(id, body, signal);
 }
 
 /** The minimal dialogue only offers tools with a usable text-only outcome. */
 export async function sendDialogueTurn(id: string, body: ChatTurnRequest, signal: AbortSignal): Promise<ChatConversation> {
-  return sendBoundTurn(id, body, signal, true);
+  return sendBoundTurn(id, body, signal, "dialogue-v1");
 }
 
-async function sendBoundTurn(id: string, body: ChatTurnRequest, signal: AbortSignal, dialogue: boolean): Promise<ChatConversation> {
+export async function sendToolDialogueTurn(id: string, body: DialogueTurnRequest, signal: AbortSignal): Promise<ChatConversation> {
+  return sendBoundTurn(id, body, signal, "dialogue-v2");
+}
+
+export async function readDialogueActionReceipt(id: string, signal: AbortSignal): Promise<unknown> {
   if (!UUID.test(id)) throw new Error("会话标识无效。");
-  const value = await request(`/${id}/assistant-turns`, signal, body, dialogue);
+  return request(`/${id}/dialogue-action`, signal);
+}
+
+async function sendBoundTurn(id: string, body: DialogueTurnRequest, signal: AbortSignal, surface?: "dialogue-v1" | "dialogue-v2"): Promise<ChatConversation> {
+  if (!UUID.test(id)) throw new Error("会话标识无效。");
+  const value = await request(`/${id}/assistant-turns`, signal, body, surface);
   if (!isChatConversation(value) || value.id !== id || value.last_turn?.operation_id !== body.operation_id || value.revision <= body.expected_revision) {
     throw new Error("助手回复不属于本次会话请求，未应用。");
   }

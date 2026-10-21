@@ -67,5 +67,9 @@ export function useWeatherScheduleCheck({ schedule, weather, candidates }: Conte
   };
   const clear = () => { invalidate(); annotationsRef.current = new Map(); setAnnotations(new Map()); reportRef.current = null; setReport(null); };
   useEffect(() => () => { reportRef.current = null; }, []);
-  return { annotations, visits, report: report?.data ?? null, valid, canCheck, check, annotate, canAdjustNow, clear };
+  const readReport = () => {
+    const current = reportRef.current;
+    return current && current.version === read() && canCheck && weather.state.response && current.data.timeKey === weatherCheckTimeKey(weather.state.response, Date.now()) ? current.data : null;
+  };
+  return { annotations, visits, report: report?.data ?? null, readReport, valid, canCheck, check, annotate, canAdjustNow, clear };
 }

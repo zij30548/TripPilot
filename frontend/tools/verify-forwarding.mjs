@@ -43,6 +43,10 @@ export const CONTROLLED_ENDPOINTS = [
   ["GET", `/chat/conversations/${CHAT_ID}`],
   ...["turns", "cancel", "confirm", "delete"].map(action => ["POST", `/chat/conversations/${CHAT_ID}/${action}`]),
   ["GET", `/chat/conversations/${CHAT_ID}/places`], ["POST", `/chat/conversations/${CHAT_ID}/places`],
+  ["POST", `/chat/conversations/${CHAT_ID}/assistant-turns`],
+  ["GET", `/chat/conversations/${CHAT_ID}/assistant-state`],
+  ["GET", `/chat/conversations/${CHAT_ID}/assistant-preferences`], ["POST", `/chat/conversations/${CHAT_ID}/assistant-preferences`],
+  ["GET", `/chat/conversations/${CHAT_ID}/dialogue-action`],
 ];
 
 /** Bounded metadata only: no request/response bodies or credentials are retained. */
@@ -56,6 +60,8 @@ export async function startControlledBackend({ port = BACKEND_PORT } = {}) {
       path: url.pathname, method: req.method, query: [...url.searchParams],
       bytes: 0, sha256: null, completed_upload: false, response_finished: false,
       response_close_count: 0, upload_aborted: false,
+      dialogue_surface: req.headers["x-trippilot-surface"] === undefined ? "absent"
+        : ["dialogue-v1", "dialogue-v2"].includes(req.headers["x-trippilot-surface"]) ? req.headers["x-trippilot-surface"] : "invalid",
       authentication_headers: {
         cookie_matches: req.headers.cookie === SYNTHETIC_AUTH_HEADERS.cookie,
         origin_matches: req.headers.origin === SYNTHETIC_AUTH_HEADERS.origin,
@@ -181,11 +187,11 @@ export async function verifyForwarding(backend, origin = FRONTEND_ORIGIN) {
   assert.equal(origin, FRONTEND_ORIGIN);
   assert.equal(backend.port, BACKEND_PORT);
   const checks = [];
-  const probe = async (id, path, { method = "GET", body, status = 200 } = {}) => {
+  const probe = async (id, path, { method = "GET", body, status = 200, headers = {} } = {}) => {
     const separator = path.includes("?") ? "&" : "?";
     const res = await fetch(`${origin}${path}${separator}probe_id=${id}`, {
       method, body, redirect: "manual", cache: "no-store",
-      headers: { ...SYNTHETIC_AUTH_HEADERS, "content-type": body instanceof Uint8Array ? "application/octet-stream" : "application/json", "x-forwarding-probe": id },
+      headers: { ...SYNTHETIC_AUTH_HEADERS, "content-type": body instanceof Uint8Array ? "application/octet-stream" : "application/json", "x-forwarding-probe": id, ...headers },
     });
     assert.equal(res.status, status, id);
     assert.equal(res.headers.get("x-controlled-forwarding"), marker, `${id}: wrong/uncontrolled backend`);
@@ -199,6 +205,7 @@ export async function verifyForwarding(backend, origin = FRONTEND_ORIGIN) {
     const response = await probe(id, `/api${path}${path === "/knowledge/search" ? "?probe_echo=1" : ""}`, {
       method, body: method === "POST" ? JSON.stringify({ controlled: true }) : undefined,
       status: path === "/knowledge/answer" ? 503 : 200,
+      headers: path.endsWith("/assistant-turns") ? { "x-trippilot-surface": "dialogue-v2" } : {},
     });
     const result = await response.json();
     const record = backend.records.find((x) => x.id === id);
@@ -206,6 +213,7 @@ export async function verifyForwarding(backend, origin = FRONTEND_ORIGIN) {
     assert.equal(record.method, method);
     if (method === "POST") assert.equal(record.sha256, hash(JSON.stringify({ controlled: true })));
     if (path === "/knowledge/answer") assert.equal(result.detail.code, "knowledge_answer_disabled");
+    if (path.endsWith("/assistant-turns")) assert.equal(record.dialogue_surface, "dialogue-v2");
     checks.push({ id, method, path, status: response.status, authentication_headers_verified: true });
   }
   for (const [id, path] of [
@@ -240,7 +248,9 @@ export async function verifyForwarding(backend, origin = FRONTEND_ORIGIN) {
   checks.push({ id: "redirect", status: 302, server_followed: false });
   const before = backend.records.length;
   const rejectedPaths = ["/api/not-allowed", "/_AMapService/v3/place/text", `/api/saved-trips/${"g".repeat(32)}`,
-    "/api/chat/conversations/not-a-uuid/places", `/api/chat/conversations/${CHAT_ID}/places/unapproved`, "/api/chat/cities/unapproved"];
+    "/api/chat/conversations/not-a-uuid/places", `/api/chat/conversations/${CHAT_ID}/places/unapproved`, "/api/chat/cities/unapproved",
+    "/api/chat/conversations/not-a-uuid/dialogue-action", `/api/chat/conversations/${CHAT_ID}/dialogue-action/execute`,
+    `/api/chat/conversations/${CHAT_ID}/dialogue-actions`];
   for (const path of rejectedPaths) {
     const res = await fetch(`${origin}${path}`, { redirect: "manual" });
     assert.equal(res.status, 404, `unlisted path ${path}`);

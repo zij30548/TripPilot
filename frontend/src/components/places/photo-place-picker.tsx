@@ -9,10 +9,13 @@ import RequirementPlacePicker from "./requirement-place-picker";
 
 const button = "min-h-11 rounded-lg border px-4 py-2 text-sm disabled:opacity-50";
 export type PreparedFrame = { file: File; index: number; targetSeconds: number };
-export default function PhotoPlacePicker({ destinationId, sessionSignal, excludedIds, onConfirm, onCancel, preparedFrame, capacityAvailable = true }: {
+export type PhotoClueSearch = { keyword: string; destinationId: DestinationId; signal: AbortSignal; isCurrent: () => boolean };
+export default function PhotoPlacePicker({ destinationId, sessionSignal, excludedIds, onConfirm, onCancel, preparedFrame, capacityAvailable = true, onSearchClue }: {
   destinationId: DestinationId; sessionSignal: AbortSignal; excludedIds: string[];
   onConfirm: (place: Place) => void; onCancel: () => void;
   preparedFrame?: PreparedFrame; capacityAvailable?: boolean;
+  /** Chat uses its server-owned candidate batch; legacy callers retain their picker. */
+  onSearchClue?: (source: PhotoClueSearch) => void;
 }) {
   const [photo, setPhoto] = useState<{ file: File; url: string } | null>(null);
   const current = useRef<typeof photo>(null);
@@ -86,10 +89,12 @@ export default function PhotoPlacePicker({ destinationId, sessionSignal, exclude
             searchRef.current?.controller.abort();
             const next = { keyword: clue.name, controller: new AbortController(), version: ++version.current };
             searchRef.current = next; setSearch(next);
-          }}>用此线索准备搜索</button>
+            onSearchClue?.({ keyword: clue.name, destinationId, signal: next.controller.signal,
+              isCurrent: () => alive.current && !sessionSignal.aborted && searchRef.current === next && !next.controller.signal.aborted });
+          }}>{onSearchClue ? "用此线索搜索高德" : "用此线索准备搜索"}</button>
         </div>;
       })}</div>}
-    {search && <RequirementPlacePicker key={search.version} destinationId={destinationId} title="必去地点" initialKeyword={search.keyword}
+    {search && !onSearchClue && <RequirementPlacePicker key={search.version} destinationId={destinationId} title="必去地点" initialKeyword={search.keyword}
       excludedIds={excludedIds} sessionSignal={search.controller.signal} onCancel={() => {
         if (!alive.current || sessionSignal.aborted || searchRef.current !== search || search.controller.signal.aborted) return;
         searchRef.current?.controller.abort(); searchRef.current = null; setSearch(null);

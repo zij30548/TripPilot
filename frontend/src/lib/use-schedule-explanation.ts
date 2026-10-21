@@ -39,5 +39,5 @@ export function useScheduleExplanation(schedule: Schedule) {
     if (current.current !== state || state.status !== "loading") return;
     stop(); publish({ id: version.current, status: "idle", response: null, message: "已取消等待；上游是否停止处理或计费无法保证。" });
   };
-  return { state, explain, cancel, available: schedule.state.status === "success", loading: state.status === "loading" };
+  return { state, readState: () => current.current, explain, cancel, cancelPending: invalidate, available: schedule.state.status === "success", loading: state.status === "loading" };
 }

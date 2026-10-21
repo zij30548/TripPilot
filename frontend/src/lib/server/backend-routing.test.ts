@@ -32,7 +32,7 @@ describe("trusted server-only same-origin forwarding", () => {
     }
     expect(rules).toContainEqual({ source: "/_AMapService/v3/config/district", destination: `${target}/_AMapService/v3/config/district` });
     expect(rules).toContainEqual({ source: "/api/chat/cities", destination: `${target}/chat/cities` });
-    for (const suffix of ["", "/turns", "/cancel", "/confirm", "/delete", "/places"]) {
+    for (const suffix of ["", "/turns", "/cancel", "/confirm", "/delete", "/places", "/assistant-turns", "/assistant-state", "/assistant-preferences", "/dialogue-action"]) {
       expect(rules).toContainEqual({
         source: `/api/chat/conversations/:id([0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12})${suffix}`,
         destination: `${target}/chat/conversations/:id${suffix}`,
@@ -42,6 +42,23 @@ describe("trusted server-only same-origin forwarding", () => {
     expect(rules.some(r => r.source === "/api/chat/conversations/:id/places" || r.source.includes("/places/:"))).toBe(false);
     expect(FORWARDING_BODY_BYTES).toBeGreaterThan(20 * 1024 * 1024);
     expect(FORWARDING_TIMEOUT_MS).toBeGreaterThan(60_000);
+  });
+  it("adds only a UUID-scoped dialogue receipt path and leaves identity, CSRF and legacy endpoints on the same trusted origin", () => {
+    const target = "http://127.0.0.1:18081", rules = backendRewrites(target);
+    const dialogue = rules.filter(rule => rule.source.includes("dialogue"));
+    expect(dialogue).toEqual([{
+      source: "/api/chat/conversations/:id([0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12})/dialogue-action",
+      destination: `${target}/chat/conversations/:id/dialogue-action`,
+    }]);
+    for (const path of ["/auth/session", "/auth/login", "/auth/register", "/auth/logout", "/knowledge/answer", "/media/landmark", "/media/video-frames", "/trips/schedule-preview"]) {
+      expect(rules).toContainEqual({ source: `/api${path}`, destination: `${target}${path}` });
+    }
+    const missing = { rewrites: { beforeFiles: rules.filter(rule => !rule.source.endsWith("/dialogue-action")) } };
+    expect(() => assertBuiltBackend(missing, rules)).toThrow("重新构建");
+    for (const source of ["/api/chat/conversations/:id/dialogue-action", "/api/chat/conversations/:path*", "/api/dialogue-action"]) {
+      const altered = rules.map(rule => rule.source.endsWith("/dialogue-action") ? { ...rule, source } : rule);
+      expect(() => assertBuiltBackend({ rewrites: { beforeFiles: altered } }, rules)).toThrow();
+    }
   });
   it("rejects stale/missing build routing rather than silently using the old backend", () => {
     const rules = backendRewrites("http://127.0.0.1:18081");

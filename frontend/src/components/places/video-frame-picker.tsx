@@ -4,14 +4,14 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { extractVideo, VIDEO_BYTES, type VideoResult, type VideoFrame } from "@/lib/video-api";
 import type { DestinationId } from "@/lib/destinations";
 import type { Place } from "@/types/place";
-import PhotoPlacePicker, { type PreparedFrame } from "./photo-place-picker";
+import PhotoPlacePicker, { type PreparedFrame, type PhotoClueSearch } from "./photo-place-picker";
 
 const button="min-h-11 rounded-lg border px-4 py-2 text-sm disabled:opacity-50 focus-visible:outline-2 focus-visible:outline-offset-2";
 type Frame = VideoFrame & { url: string };
 type Frames = { data: VideoResult; images: Frame[] };
 type Recognition = { source: PreparedFrame; controller: AbortController; version: number; city: DestinationId };
-export default function VideoFramePicker({sessionSignal,onClose,destinationId,excludedIds=[],onConfirm}: {sessionSignal:AbortSignal; onClose:()=>void;
-  destinationId?:DestinationId; excludedIds?:string[]; onConfirm?:(place:Place)=>void}) {
+export default function VideoFramePicker({sessionSignal,onClose,destinationId,excludedIds=[],onConfirm,onSearchClue}: {sessionSignal:AbortSignal; onClose:()=>void;
+  destinationId?:DestinationId; excludedIds?:string[]; onConfirm?:(place:Place)=>void; onSearchClue?:(source:PhotoClueSearch)=>void}) {
   const [file,setFile]=useState<{file:File;url:string}|null>(null);
   const [frames,setFrames]=useState<Frames|null>(null);
   const [selected,setSelected]=useState<number|null>(null);
@@ -61,7 +61,7 @@ export default function VideoFramePicker({sessionSignal,onClose,destinationId,ex
   function selectFrame(frame:Frame){
     if(!validRender()||published.current!==frames)return;
     stopRecognition();setRecognition(null);setSelected(frame.index);
-    if(destinationId&&onConfirm&&excludedIds.length<6){
+    if(destinationId&&(onConfirm||onSearchClue)&&excludedIds.length<6){
       // Own immutable bytes, not a URL whose lifetime belongs to the video preview.
       const bytes=Uint8Array.from(atob(frame.jpeg_base64),c=>c.charCodeAt(0));
       const next:Recognition={source:{file:new File([bytes],"frame.jpg",{type:"image/jpeg"}),index:frame.index,targetSeconds:frame.target_seconds},
@@ -96,6 +96,7 @@ export default function VideoFramePicker({sessionSignal,onClose,destinationId,ex
     {chosen&&excludedIds.length>=6&&<p className="text-sm">必去地点已达六个，请先移除一个；当前未发起识别。</p>}
     {recognition&&destinationId===recognition.city&&<PhotoPlacePicker key={recognition.version} destinationId={recognition.city}
       sessionSignal={recognition.controller.signal} preparedFrame={recognition.source} excludedIds={excludedIds} capacityAvailable={excludedIds.length<6}
+      onSearchClue={onSearchClue}
       onCancel={()=>{if(recognitionRef.current!==recognition||recognition.controller.signal.aborted)return;stopRecognition();setRecognition(null);}}
       onConfirm={place=>{if(!validRender()||recognitionRef.current!==recognition||recognition.controller.signal.aborted||destinationId!==recognition.city||excludedIds.length>=6||excludedIds.includes(place.id))return;onConfirm?.(place);}}/>}
   </section>;

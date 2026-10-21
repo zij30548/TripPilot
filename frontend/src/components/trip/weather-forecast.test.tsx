@@ -13,7 +13,8 @@ function response(overrides: Partial<WeatherForecastResponse> = {}): WeatherFore
   return { request, source: "amap", city: "上海市", adcode: "310000", timezone: "Asia/Shanghai", queried_at: "2026-10-10T01:00:00Z", reported_at: "2026-10-10T08:00:00+08:00", report_time_status: "valid", freshness_at_query: "fresh", coverage: "complete", guidance_rule: "amap_text_precipitation_v1", days: getWeatherDates(request).map((date) => ({ date, status: "available", day: rain, night: snow })), ...overrides };
 }
 function controller(value: WeatherForecastResponse | null = null, overrides: Partial<ReturnType<typeof useWeatherForecast>["state"]> = {}): ReturnType<typeof useWeatherForecast> {
-  return { canQuery: true, query: vi.fn().mockResolvedValue(true), invalidate: vi.fn(), state: { status: value ? "success" : "idle", response: value, message: null, showingPrevious: false, ...overrides } };
+  const state: ReturnType<typeof useWeatherForecast>["state"] = { status: value ? "success" : "idle", response: value, message: null, showingPrevious: false, ...overrides };
+  return { canQuery: true, query: vi.fn().mockResolvedValue(true), invalidate: vi.fn(), state, readState: () => state };
 }
 const dayCard = (date = "2026-10-10") => within(screen.getByRole("article", { name: `${date} 天气预报` }));
 

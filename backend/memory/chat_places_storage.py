@@ -6,6 +6,7 @@ Running/uncertain receipts are never permission to resend an external request.
 from __future__ import annotations
 
 from contextlib import contextmanager
+from dataclasses import asdict, dataclass
 import hashlib
 import re
 import time
@@ -28,6 +29,35 @@ _ERROR_CODE = re.compile(r"[a-z][a-z0-9_]{0,79}")
 
 class ChatPlacesError(ChatError):
     pass
+
+
+@dataclass(frozen=True)
+class SearchBatchCarry:
+    """Internal continuity proof for one unchanged v2 conversation turn.
+
+    This is not a request field. It captures the currently visible batch before
+    a turn starts; sync still checks the actual persisted row and normal CAS.
+    It cannot recover a batch hidden by an earlier requirements/city change.
+    """
+    conversation_id: str
+    intent_revision: int
+    workspace_revision: int
+    city_id: str
+    batch_id: str
+    batch_hash: str
+    requirements_hash: str
+
+    @classmethod
+    def capture(cls, conversation: dict, workspace: dict) -> "SearchBatchCarry | None":
+        if (workspace["stale"] or workspace["batch"] is None
+                or workspace["intent_revision"] != conversation["revision"]
+                or workspace["conversation_id"] != conversation["id"]
+                or workspace["last_operation"] is None
+                or workspace["last_operation"]["state"] != "succeeded"):
+            return None
+        return cls(conversation["id"], conversation["revision"], workspace["revision"], workspace["city_id"],
+                   workspace["batch"]["id"], hashlib.sha256(_encoded(workspace["batch"]).encode()).hexdigest(),
+                   hashlib.sha256(_encoded(conversation["requirements"]).encode()).hexdigest())
 
 
 def chat_places_tables() -> list:
@@ -222,12 +252,14 @@ class ChatPlacesStore:
         db.execute(update(Operation).where(Operation.id == row["_operation_id"]).values(result_json=_encoded(result)))
         return result
 
-    def sync(self, owner: str, conversation_id: str, operation_id: str, intent_revision: int, expected_revision: int) -> dict:
+    def sync(self, owner: str, conversation_id: str, operation_id: str, intent_revision: int, expected_revision: int,
+             *, carry_batch: SearchBatchCarry | None = None) -> dict:
         from core.chat_cities import city_for, legacy_city_id
         with self._transaction(owner, write=True) as db:
             conversation = self._conversation(db, owner, conversation_id, write=True)
             row = self._ensure(db, owner, conversation)
-            row, replay = self._reserve(db, owner, conversation, row, operation_id, intent_revision, expected_revision, "sync", {}, stale_allowed=True)
+            payload = {} if carry_batch is None else {"carry_batch": asdict(carry_batch)}
+            row, replay = self._reserve(db, owner, conversation, row, operation_id, intent_revision, expected_revision, "sync", payload, stale_allowed=True)
             if replay is not None:
                 return replay
             raw_city = _decoded(conversation["requirements_json"])["destination_id"]
@@ -238,11 +270,28 @@ class ChatPlacesStore:
                 except ValueError:
                     city_id = None
             compatible = city_id is not None and city_id == row["city_id"]
+            carried_batch = "null"
+            if carry_batch is not None:
+                stored_batch = _decoded(row["batch_json"])
+                # No equality-only ABA restoration, no receipt from another
+                # workspace, no concurrent search takeover, no caller-supplied
+                # replacement candidate data. Keep the exact persisted JSON.
+                if (not compatible or carry_batch.conversation_id != conversation_id
+                        or carry_batch.city_id != city_id or row["active_operation_id"] is not None
+                        or carry_batch.workspace_revision != row["revision"]
+                        or carry_batch.intent_revision != row["intent_revision"]
+                        # begin_turn and finish_turn each advance exactly once.
+                        or carry_batch.intent_revision + 2 != intent_revision
+                        or hashlib.sha256(conversation["requirements_json"].encode()).hexdigest() != carry_batch.requirements_hash
+                        or not isinstance(stored_batch, dict) or stored_batch.get("id") != carry_batch.batch_id
+                        or hashlib.sha256(_encoded(stored_batch).encode()).hexdigest() != carry_batch.batch_hash):
+                    raise ChatPlacesError("chat_places_continuity_conflict", 409)
+                carried_batch = row["batch_json"]
             if row["active_operation_id"]:
                 db.execute(update(Operation).where(Operation.id == row["active_operation_id"]).values(state="cancelled", error_code="context_changed", updated_at=int(self.clock())))
             return self._complete(db, owner, conversation, row, {"intent_revision": intent_revision, "city_id": city_id,
                 "accommodation_json": row["accommodation_json"] if compatible else "null",
-                "required_places_json": row["required_places_json"] if compatible else "[]", "batch_json": "null",
+                "required_places_json": row["required_places_json"] if compatible else "[]", "batch_json": carried_batch,
                 "clarification": None, "proposed_city_id": None, "request_text": None})
 
     def set_city(self, owner: str, conversation_id: str, operation_id: str, intent_revision: int,

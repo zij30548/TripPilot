@@ -118,7 +118,7 @@ export function useSchedulePreview(request: TripRequest, onInvalidate?: () => vo
   const validationMessage = validateScheduleInput(request, settings, optionalPlaces, candidateInput.loading);
   const readInputs = (): ScheduleInitialization => structuredClone({ settings: settingsRef.current, candidates: candidateRef.current });
   return { transportMode: settings.transportMode, setTransportMode, stays: settings.stays, lunch: settings.lunch, setStayMinutes, setLunchEnabled, setLunchStart, setLunchEnd,
-    capture, readInputs, readVersion, subscribeInvalidation, adoptAdjustment, state, canQuery: validationMessage === null, validationMessage, query, invalidate, updateCandidates,
+    capture, readState: () => stateRef.current, readInputs, readVersion, subscribeInvalidation, adoptAdjustment, state, canQuery: validationMessage === null, validationMessage, query, invalidate, updateCandidates,
     optionalPlaces, eligibleCount: eligible.length, notSelectedCount: Math.max(eligible.length - 3, 0),
     candidateLoading: candidateInput.loading, candidateQueriedAt: candidateInput.response?.queried_at ?? null,
     candidateStatus: candidateInput.response?.status ?? null, showingPreviousCandidates: candidateInput.showingPrevious,

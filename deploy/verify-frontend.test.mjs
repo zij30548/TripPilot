@@ -83,6 +83,45 @@ test('complete artifact is bound to source, lock, static and build; mutable cach
   });
 });
 
+test('dialogue action is additive and must match the exact source, UUID path and existing assistant increment', async () => {
+  await fixture(async (root, manifest) => {
+    await mkdir(join(root, 'src/lib/server'), { recursive: true });
+    const file = join(root, 'src/lib/server/backend-routing.ts');
+    const assistantSource = '["/assistant-turns", "/assistant-state", "/assistant-preferences"]';
+    await writeFile(file, assistantSource);
+    const assistant = structuredClone(manifest);
+    const at = assistant.rewrites.beforeFiles.length - 1;
+    const rule = suffix => ({
+      source: `/api/chat/conversations/:id([0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12})${suffix}`,
+      destination: `${ORIGIN}/chat/conversations/:id${suffix}`,
+    });
+    assistant.rewrites.beforeFiles.splice(at, 0, ...['/assistant-turns', '/assistant-state', '/assistant-preferences'].map(rule));
+    await checkRewrites(root, assistant);
+    await writeFile(file, `${assistantSource}\n["/dialogue-action"]`);
+    await assert.rejects(checkRewrites(root, assistant), /backend_rewrites_mismatch/);
+    const dialogue = structuredClone(assistant);
+    dialogue.rewrites.beforeFiles.splice(dialogue.rewrites.beforeFiles.length - 1, 0, rule('/dialogue-action'));
+    await checkRewrites(root, dialogue);
+    for (const change of [
+      { source: '/api/chat/conversations/:id/dialogue-action' },
+      { source: '/api/chat/conversations/:path*' },
+      { source: rule('/dialogue-action').source + '/execute' },
+      { destination: ORIGIN + '/chat/conversations/:id/assistant-turns' },
+      { destination: 'http://untrusted.invalid/dialogue-action' },
+    ]) {
+      const invalid = structuredClone(dialogue);
+      Object.assign(invalid.rewrites.beforeFiles.find(item => item.source.endsWith('/dialogue-action')), change);
+      await assert.rejects(checkRewrites(root, invalid), /backend_rewrites_mismatch/);
+    }
+    await writeFile(file, '["/dialogue-action"]');
+    await assert.rejects(checkRewrites(root, dialogue), /dialogue_allowlist_incomplete/);
+    // Preserve historical assistant builds exactly; no silent missing-path acceptance.
+    await writeFile(file, assistantSource);
+    await assert.rejects(checkRewrites(root, dialogue), /backend_rewrites_mismatch/);
+    await checkRewrites(root, assistant);
+  });
+});
+
 test('changed origin, extra forwarding path and malformed build ID stop reuse', async () => {
   await fixture(async (root, manifest) => {
     manifest.rewrites.beforeFiles[0].destination = 'http://127.0.0.1:9999/auth/session';

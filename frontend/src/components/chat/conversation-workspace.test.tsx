@@ -1,4 +1,4 @@
-import { act, fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { act, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import ConversationWorkspace from "./conversation-workspace";
 import { CHAT_ID, conversationFixture, deferred, emptyConversation } from "@/lib/chat-test-fixtures";
@@ -35,7 +35,7 @@ describe("plain conversational workspace", () => {
     expect(fetcher).toHaveBeenCalledTimes(1);
     expect(fetcher.mock.calls[0][0]).toBe("/api/chat/conversations?limit=20&offset=0");
     for (const name of [/需求卡/, /地点/, /行程工具/, /执行记录/, /偏好/, /生成行程/, /查询天气/]) expect(screen.queryByRole("button", { name })).toBeNull();
-    expect(screen.getByText("AI内容请核实 · 当前对话不会自动生成或修改行程")).toBeTruthy();
+    expect(screen.getByText("操作先确认 · 地点与实时信息请核实 · 未保存规划刷新后丢失")).toBeTruthy();
   });
 
   it("suggestions only fill the composer; one explicit submit uses the dialogue header once", async () => {
@@ -49,7 +49,7 @@ describe("plain conversational workspace", () => {
     await screen.findByRole("list", { name: "对话消息" });
     const sent = fetcher.mock.calls.filter(([url]) => String(url).endsWith("/assistant-turns"));
     expect(sent).toHaveLength(1);
-    expect(new Headers(sent[0][1].headers).get("X-TripPilot-Surface")).toBe("dialogue-v1");
+    expect(new Headers(sent[0][1].headers).get("X-TripPilot-Surface")).toBe("dialogue-v2");
     expect(JSON.parse(sent[0][1].body).text).toBe("想去杭州，带父母轻松玩几天");
     expect(fetcher.mock.calls.every(([url]) => String(url).startsWith("/api/chat/conversations"))).toBe(true);
     expect(fetcher.mock.calls.some(([url]) => /places|preferences|assistant-state|schedule|saved-trips/.test(String(url)))).toBe(false);
@@ -68,6 +68,51 @@ describe("plain conversational workspace", () => {
     const sent = fetcher.mock.calls.filter(([url]) => String(url).endsWith("/assistant-turns"));
     expect(sent).toHaveLength(1);
     expect(JSON.parse(sent[0][1].body).text).toBe("北京周末怎么逛");
+  });
+
+  it("anchors a newly read action proposal after its committed user question and server reply", async () => {
+    const initial = conversationFixture();
+    const question = "我希望接下来改成公交地铁出行";
+    const answer = "可以，请先确认这次交通方式修改。";
+    let operation: string | null = null;
+    fetcher.mockImplementation(async (url: string, init: RequestInit = {}) => {
+      if (url.includes("?limit=")) return reply(list());
+      if (url.endsWith("/assistant-turns")) {
+        const body = JSON.parse(init.body as string);
+        operation = body.operation_id;
+        return reply(conversationFixture({
+          revision: 4,
+          messages: [...initial.messages,
+            { id: "10000000-0000-4000-8000-000000000006", role: "user", text: body.text, created_at: "2026-10-20T12:01:00Z" },
+            { id: "10000000-0000-4000-8000-000000000007", role: "assistant", text: answer, created_at: "2026-10-20T12:01:01Z" },
+          ],
+          last_turn: { operation_id: body.operation_id, state: "succeeded", error_code: null },
+        }));
+      }
+      if (url.endsWith("/dialogue-action")) return reply({
+        schema_version: "dialogue-action-v1", conversation_id: CHAT_ID, revision: 4,
+        operation_id: operation, action: { name: "set_transport", arguments: { mode: "transit" } },
+      });
+      if (url === `/api/chat/conversations/${CHAT_ID}`) return reply(initial);
+      throw new Error(`Unexpected controlled request: ${url}`);
+    });
+    render(<ConversationWorkspace />);
+    fireEvent.click(await screen.findByRole("button", { name: "杭州旅行" }));
+    await screen.findByRole("list", { name: "对话消息" });
+    fireEvent.change(screen.getByRole("textbox", { name: "告诉我你的旅行想法" }), { target: { value: question } });
+    fireEvent.submit(screen.getByRole("form", { name: "发送旅行需求" }));
+    await screen.findByText(/修改交通方式[\s\S]*未确认前不执行/);
+    const messages = within(screen.getByRole("list", { name: "对话消息" })).getAllByRole("listitem").map(item => item.textContent);
+    expect(messages).toHaveLength(5);
+    expect(messages[0]).toContain(initial.messages[0].text);
+    expect(messages[1]).toContain(initial.messages[1].text);
+    expect(messages[2]).toContain(question);
+    expect(messages[3]).toContain(answer);
+    expect(messages[4]).toContain("修改交通方式");
+    expect(messages[4]).toContain("未确认前不执行");
+    expect(fetcher.mock.calls.filter(([url]) => String(url).endsWith("/assistant-turns"))).toHaveLength(1);
+    expect(fetcher.mock.calls.filter(([url]) => String(url).endsWith("/dialogue-action"))).toHaveLength(1);
+    expect(fetcher.mock.calls.some(([url]) => /places|schedule|weather|saved-trips/.test(String(url)))).toBe(false);
   });
 
   it("shows model HTML as ordinary text with no executable images, links or cards", async () => {

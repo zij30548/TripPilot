@@ -73,6 +73,17 @@ export function useScheduleAdjustment({ schedule, candidates, weather, check }: 
     const base = schedule.capture();
     return base ? generate(base, targetId, check.canAdjustNow, "weather", null) : false;
   };
+  // A chat tool has already selected one current optional POI. Reuse the same
+  // isolated preparation/commit path without a second intent-model request.
+  // This is an explicit user adjustment, so it has no weather prerequisite.
+  const startExplicit = async (targetId: string): Promise<boolean> => {
+    if (canOperate?.() === false || pending.current) return false;
+    const base = schedule.capture();
+    if (!base || !base.original.days.some(day => day.items.some(item => item.kind === "visit" && item.place_id === targetId)) ||
+        !base.original.request.optional_places?.some(place => place.id === targetId)) return false;
+    const authorize = (id: string) => id === targetId && schedule.readVersion() === base.version && schedule.capture() !== null;
+    return generate(base, targetId, authorize, "natural", null);
+  };
   const setInstruction = (text: string) => {
     instructionRef.current = text; setInstructionState(text);
     if (stateRef.current.source === "natural") { stop(); publish(idle(version.current, "调整要求已修改，请主动生成新预览。")); }
@@ -106,6 +117,10 @@ export function useScheduleAdjustment({ schedule, candidates, weather, check }: 
     if (stateRef.current !== state) return false; // An old cancel must not erase a newer preview.
     stop(); publish(idle(version.current, "已取消行程调整，原方案保持不变。你主动填写的费用估算仍在本次结果中保留。")); return true;
   };
+  const cancelPending = () => {
+    if (!pending.current) return;
+    stop(); publish(idle(version.current, "已取消行程调整，原方案保持不变。"));
+  };
   const issue = state.input && state.response ? adoptionIssue(state.input.base, state.input.targetId, state.input.proposed.request, state.response) : null;
   // Event-time guard for preview-only UI edits. Reuse session authorization;
   // cost edits have no revision and do not change adoption eligibility.
@@ -127,5 +142,5 @@ export function useScheduleAdjustment({ schedule, candidates, weather, check }: 
     publish(idle(version.current, `已采用调整方案，并在全行程候选中排除“${session.input.targetName}”。请重新检查天气；可在候选区恢复该地点。`));
     return true;
   };
-  return { state, start, startNatural, instruction, setInstruction, cancel, adopt, canUsePreview, adoptionIssue: issue, canAdopt: state.status === "ready" && !issue, loading: state.status === "loading" || state.status === "parsing" };
+  return { state, readState: () => stateRef.current, start, startExplicit, startNatural, instruction, setInstruction, cancel, cancelPending, adopt, canUsePreview, adoptionIssue: issue, canAdopt: state.status === "ready" && !issue, loading: state.status === "loading" || state.status === "parsing" };
 }

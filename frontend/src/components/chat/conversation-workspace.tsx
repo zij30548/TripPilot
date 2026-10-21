@@ -1,8 +1,10 @@
 "use client";
 
-import { useEffect, useRef, useState, type KeyboardEvent } from "react";
-import { sendDialogueTurn } from "@/lib/assistant";
+import { useCallback, useEffect, useLayoutEffect, useRef, useState, type KeyboardEvent } from "react";
+import { sendToolDialogueTurn, type DialogueSelectionContext } from "@/lib/assistant";
+import { readDialogueAction } from "@/lib/dialogue-action";
 import { useChatWorkspace } from "@/lib/chat-controller";
+import DialogueTools, { type DialogueProposal, type DialogueToolsHandle } from "./dialogue-tools";
 
 const focus = "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#294e43]/40 focus-visible:ring-offset-2";
 const suggestions = ["想去杭州，带父母轻松玩几天", "帮我想想北京周末可以怎么逛"];
@@ -12,24 +14,63 @@ function Plus() {
 }
 
 export default function ConversationWorkspace() {
-  const chat = useChatWorkspace(sendDialogueTurn), { state } = chat;
+  const [proposal, setProposal] = useState<DialogueProposal | null>(null);
+  const tools = useRef<DialogueToolsHandle | null>(null), input = useRef("");
+  const selection = useRef<DialogueSelectionContext | undefined>(undefined);
+  const send = useCallback<typeof sendToolDialogueTurn>(async (id, body, signal) => {
+    const context = selection.current;
+    const result = await sendToolDialogueTurn(id, { ...body, ...(context ? { dialogue_context: context } : {}) }, signal);
+    if (signal.aborted) return result;
+    try {
+      const action = await readDialogueAction(id, result.revision, body.operation_id, signal);
+      if (!signal.aborted) setProposal({ conversation: id, revision: result.revision, operation: body.operation_id, action, context });
+    } catch (error) {
+      // A lost readback cannot undo a committed conversation or invent an action.
+      if (!signal.aborted) setProposal({ conversation: id, revision: result.revision, operation: body.operation_id, action: null,
+        error: error instanceof Error ? error.message : "无法核对操作提议，未执行工具。" });
+    }
+    return result;
+  }, []);
+  const chat = useChatWorkspace(send), { state } = chat;
+  const [toolBusy, setToolBusy] = useState(false);
+  const [localMessages, setLocalMessages] = useState<{ id: string; conversation: string; after: string | null; role: "user" | "assistant"; text: string }[]>([]);
+  const currentConversation = useRef(state.conversation);
+  // Child receipt effects must anchor after the newly committed assistant message.
+  useLayoutEffect(() => { currentConversation.current = state.conversation; }, [state.conversation]);
+  const emit = useCallback((role: "user" | "assistant", text: string) => {
+    const c = currentConversation.current;
+    if (c) setLocalMessages(rows => [...rows, { id: crypto.randomUUID(), conversation: c.id, after: c.messages.at(-1)?.id ?? null, role, text }]);
+  }, []);
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [deletePrompt, setDeletePrompt] = useState<string | null>(null);
   const [menuOpen, setMenuOpen] = useState(false);
   const composer = useRef<HTMLTextAreaElement>(null), end = useRef<HTMLDivElement>(null);
   const sidebar = useRef<HTMLElement>(null), sidebarToggle = useRef<HTMLButtonElement>(null), sidebarClose = useRef<HTMLButtonElement>(null);
   const current = state.conversation;
-  const busy = state.pending !== null;
+  const busy = state.pending !== null || toolBusy;
   const running = current?.last_turn?.state === "running";
   const textLength = Array.from(state.draft).length;
   const sendBlocked = busy || running || state.needsRefresh || !state.draft.trim() || textLength > 2000;
 
-  useEffect(() => { end.current?.scrollIntoView({ block: "end", behavior: "smooth" }); }, [current?.id, current?.messages.length, state.pendingText]);
+  useEffect(() => { end.current?.scrollIntoView({ block: "end", behavior: "smooth" }); }, [current?.id, current?.messages.length, state.pendingText, localMessages]);
   useEffect(() => { if (sidebarOpen) sidebarClose.current?.focus(); }, [sidebarOpen]);
 
   function closeSidebar() { setSidebarOpen(false); sidebarToggle.current?.focus(); }
-  function choose(id: string) { setSidebarOpen(false); setDeletePrompt(null); setMenuOpen(false); void chat.selectConversation(id); }
-  function start() { setSidebarOpen(false); setDeletePrompt(null); setMenuOpen(false); chat.newConversation(); composer.current?.focus(); }
+  function clearLocal() { tools.current?.beforeModel(); setProposal(null); setToolBusy(false); setLocalMessages([]); }
+  function choose(id: string) { clearLocal(); setSidebarOpen(false); setDeletePrompt(null); setMenuOpen(false); void chat.selectConversation(id); }
+  function start() { clearLocal(); setSidebarOpen(false); setDeletePrompt(null); setMenuOpen(false); chat.newConversation(); input.current = ""; composer.current?.focus(); }
+  function submit() {
+    if (busy || running || state.needsRefresh) return;
+    const text = input.current.trim();
+    if (!text || Array.from(text).length > 2000) return;
+    if (tools.current?.submit(text)) { input.current = ""; chat.editDraft(""); return; }
+    selection.current = tools.current?.selectionContext();
+    tools.current?.beforeModel(); setProposal(null); void chat.send(); input.current = "";
+  }
+  const visibleMessages = current ? [
+    ...localMessages.filter(row => row.conversation === current.id && row.after === null),
+    ...current.messages.flatMap(message => [message, ...localMessages.filter(row => row.conversation === current.id && row.after === message.id)]),
+  ] : [];
   function keyboard(event: KeyboardEvent<HTMLTextAreaElement>) {
     if (event.key === "Enter" && !event.shiftKey && !event.nativeEvent.isComposing && event.keyCode !== 229) {
       event.preventDefault();
@@ -78,19 +119,19 @@ export default function ConversationWorkspace() {
       </header>
       <div className="min-h-0 flex-1 overflow-y-auto">
         <div className="mx-auto w-full max-w-[800px] px-5 pb-8 pt-7 sm:px-10 sm:pt-10">
-          {!current?.messages.length && !state.pendingText && state.pending !== "reading" && <section aria-label="开始旅行对话" className="mx-auto max-w-xl py-12 text-center sm:py-20">
+          {!visibleMessages.length && !state.pendingText && state.pending !== "reading" && <section aria-label="开始旅行对话" className="mx-auto max-w-xl py-12 text-center sm:py-20">
             <div aria-hidden="true" className="mx-auto mb-7 flex size-11 items-center justify-center rounded-2xl bg-[#edf2ee] text-[#587565]"><svg width="23" height="23" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.35"><path d="m12 3 2.1 6.9L21 12l-6.9 2.1L12 21l-2.1-6.9L3 12l6.9-2.1L12 3Z" strokeLinejoin="round" /></svg></div>
             <h1 className="text-[28px] leading-snug font-medium tracking-tight sm:text-4xl">下一站，想去哪里？</h1>
             <p className="mt-4 text-sm leading-7 text-[#8a968f]">从一个想法开始，慢慢把旅行聊清楚。</p>
-            <div className="mt-8 flex flex-col items-stretch justify-center gap-2 sm:flex-row sm:flex-wrap">{suggestions.map(example => <button type="button" key={example} disabled={busy} onClick={() => { chat.editDraft(example); composer.current?.focus(); }} className={`min-h-11 rounded-xl border border-[#e6ebe7] px-4 py-2.5 text-left text-xs leading-5 text-[#74817c] transition hover:border-[#b8c9bd] hover:text-[#294e43] disabled:opacity-40 ${focus}`}>{example}<span aria-hidden="true" className="ml-3 text-[#a1afa5]">↗</span></button>)}</div>
+            <div className="mt-8 flex flex-col items-stretch justify-center gap-2 sm:flex-row sm:flex-wrap">{suggestions.map(example => <button type="button" key={example} disabled={busy} onClick={() => { input.current = example; chat.editDraft(example); composer.current?.focus(); }} className={`min-h-11 rounded-xl border border-[#e6ebe7] px-4 py-2.5 text-left text-xs leading-5 text-[#74817c] transition hover:border-[#b8c9bd] hover:text-[#294e43] disabled:opacity-40 ${focus}`}>{example}<span aria-hidden="true" className="ml-3 text-[#a1afa5]">↗</span></button>)}</div>
           </section>}
           {state.pending === "reading" && <p role="status" className="py-10 text-center text-xs text-[#8b9690]">正在读取对话…</p>}
-          {!!current?.messages.length && <ol aria-label="对话消息" className="space-y-8">{current.messages.map(message => <li key={message.id} className={message.role === "user" ? "ml-auto max-w-[90%] sm:max-w-[85%]" : "max-w-full"}>
+          {!!visibleMessages.length && <ol aria-label="对话消息" className="space-y-8">{visibleMessages.map(message => <li key={message.id} className={message.role === "user" ? "ml-auto max-w-[90%] sm:max-w-[85%]" : "max-w-full"}>
             <p className={`mb-2 text-[10px] ${message.role === "user" ? "text-right text-[#9aa59e]" : "font-medium tracking-wide text-[#587565]"}`}>{message.role === "user" ? "你" : "TripPilot"}</p>
             <p className={`whitespace-pre-wrap break-words text-sm leading-7 ${message.role === "user" ? "rounded-2xl rounded-br-md bg-[#f1f4f1] px-4 py-3 text-[#38493f]" : "text-[#38493f]"}`}>{message.text}</p>
           </li>)}</ol>}
           {state.pendingText && <div className="ml-auto mt-8 max-w-[90%] sm:max-w-[85%]"><p className="mb-2 text-right text-[10px] text-[#9aa59e]">{state.pending === "sending" ? "正在发送" : "发送结果待核对"}</p><p className="rounded-2xl rounded-br-md bg-[#f1f4f1] px-4 py-3 text-sm leading-7 whitespace-pre-wrap break-words text-[#38493f]">{state.pendingText}</p></div>}
-          {state.pending === "sending" && <p role="status" className="mt-7 flex items-center gap-2 text-xs text-[#83968a]"><span aria-hidden="true" className="size-1.5 animate-pulse rounded-full bg-[#78947e]" />正在回复…</p>}
+          {(state.pending === "sending" || toolBusy) && <p role="status" className="mt-7 flex items-center gap-2 text-xs text-[#83968a]"><span aria-hidden="true" className="size-1.5 animate-pulse rounded-full bg-[#78947e]" />{toolBusy ? "正在执行已确认操作…" : "正在回复…"}</p>}
           {state.error && <div role="alert" className="mt-7 border-l-2 border-[#c3b399] pl-4 text-xs leading-6 break-words text-[#8b795b]">{state.error}{!current && <button type="button" disabled={busy} onClick={() => void (state.needsRefresh ? chat.recoverCreation() : chat.reloadList())} className={`mt-2 block min-h-9 rounded-md underline underline-offset-4 disabled:opacity-40 ${focus}`}>{state.needsRefresh ? "核对本次会话创建结果" : "重新读取会话列表"}</button>}</div>}
           {state.notice && <p role="status" className="mt-5 text-xs leading-6 text-[#839087]">{state.notice}</p>}
           {current && !busy && (state.needsRefresh || running) && <p className="mt-5 text-xs leading-6 text-[#8b795b]">{running ? "上次请求仍在处理，请取消或重新读取；不会自动重发。" : "上次请求结果待核对，请重新读取会话；不会自动重发。"}</p>}
@@ -99,15 +140,17 @@ export default function ConversationWorkspace() {
         </div>
       </div>
       <div className="mx-auto w-full max-w-[800px] shrink-0 bg-white px-5 pb-4 pt-3 sm:px-10 sm:pb-5">
-        <form aria-label="发送旅行需求" onSubmit={event => { event.preventDefault(); void chat.send(); }} className="rounded-2xl border border-[#dfe6e0] bg-white p-3 shadow-[0_4px_20px_-12px_#294e4326] focus-within:border-[#9fb6a5]">
+        <form aria-label="发送旅行需求" onSubmit={event => { event.preventDefault(); submit(); }} className="rounded-2xl border border-[#dfe6e0] bg-white p-3 shadow-[0_4px_20px_-12px_#294e4326] focus-within:border-[#9fb6a5]">
           <label htmlFor="conversation-message" className="sr-only">告诉我你的旅行想法</label>
-          <textarea id="conversation-message" ref={composer} rows={2} maxLength={4000} value={state.draft} onChange={event => chat.editDraft(event.target.value)} onKeyDown={keyboard} placeholder="聊聊你的旅行想法…" className="block max-h-44 min-h-14 w-full resize-y bg-transparent px-1 py-1 text-sm leading-6 text-[#38493f] outline-none placeholder:text-[#a0aca3]" />
+          <textarea id="conversation-message" ref={composer} rows={2} maxLength={4000} value={state.draft} onChange={event => { input.current = event.target.value; chat.editDraft(event.target.value); }} onKeyDown={keyboard} placeholder="聊聊你的旅行想法…" className="block max-h-44 min-h-14 w-full resize-y bg-transparent px-1 py-1 text-sm leading-6 text-[#38493f] outline-none placeholder:text-[#a0aca3]" />
           <div className="flex items-end justify-between gap-3 pl-1"><p className={`text-[10px] leading-5 ${textLength > 2000 ? "text-[#a35f4b]" : "text-[#a0aca3]"}`}>Enter发送 · Shift+Enter换行<span className="ml-2">{textLength}/2000</span></p>
-            {state.pending === "sending" || running ? <button type="button" aria-label="停止本次旅行请求" onClick={() => void chat.cancel()} className={`grid size-10 shrink-0 place-items-center rounded-xl border border-[#c5d4c9] bg-[#edf2ee] text-[#587565] ${focus}`}><span aria-hidden="true" className="size-3 rounded-sm bg-current" /></button> : <button type="submit" aria-label="发送旅行需求" disabled={!!sendBlocked} className={`grid size-10 shrink-0 place-items-center rounded-xl bg-[#294e43] text-white transition hover:bg-[#203f36] disabled:cursor-not-allowed disabled:bg-[#e0e7e1] ${focus}`}><svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" aria-hidden="true"><path d="M12 19V5m-6 6 6-6 6 6" strokeLinecap="round" strokeLinejoin="round" /></svg></button>}
+            {state.pending === "sending" || running || toolBusy ? <button type="button" aria-label="停止本次旅行请求" onClick={() => { if (toolBusy) tools.current?.cancel(); else void chat.cancel(); }} className={`grid size-10 shrink-0 place-items-center rounded-xl border border-[#c5d4c9] bg-[#edf2ee] text-[#587565] ${focus}`}><span aria-hidden="true" className="size-3 rounded-sm bg-current" /></button> : <button type="submit" aria-label="发送旅行需求" disabled={!!sendBlocked} className={`grid size-10 shrink-0 place-items-center rounded-xl bg-[#294e43] text-white transition hover:bg-[#203f36] disabled:cursor-not-allowed disabled:bg-[#e0e7e1] ${focus}`}><svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" aria-hidden="true"><path d="M12 19V5m-6 6 6-6 6 6" strokeLinecap="round" strokeLinejoin="round" /></svg></button>}
           </div>
         </form>
-        <p className="mt-2.5 text-center text-[10px] leading-5 text-[#9aa59e]">AI内容请核实 · 当前对话不会自动生成或修改行程</p>
+        <p className="mt-2.5 text-center text-[10px] leading-5 text-[#9aa59e]">操作先确认 · 地点与实时信息请核实 · 未保存规划刷新后丢失</p>
       </div>
     </section>
+    {current && <DialogueTools key={current.id} conversation={current} blocked={state.pending !== null || state.needsRefresh}
+      proposal={proposal} handle={tools} onMessage={emit} onBusy={setToolBusy} onConfirmRequirements={chat.confirm} />}
   </main>;
 }

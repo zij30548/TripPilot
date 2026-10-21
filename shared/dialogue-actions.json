@@ -1,0 +1,764 @@
+{
+  "schema_version": "dialogue-action-v1",
+  "tool_version": "travel-dialogue-v2",
+  "actions": [
+    {
+      "name": "search_places",
+      "arguments": {
+        "type": "object",
+        "properties": {
+          "keyword": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 80,
+            "pattern": "^[^\\x00-\\x08\\x0b\\x0c\\x0e-\\x1f\\x7f]*$"
+          },
+          "role": {
+            "type": "string",
+            "enum": [
+              "accommodation",
+              "required"
+            ]
+          }
+        },
+        "required": [
+          "keyword",
+          "role"
+        ],
+        "additionalProperties": false
+      }
+    },
+    {
+      "name": "confirm_place",
+      "arguments": {
+        "type": "object",
+        "properties": {
+          "number": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 20
+          }
+        },
+        "required": [
+          "number"
+        ],
+        "additionalProperties": false
+      }
+    },
+    {
+      "name": "preview_place",
+      "arguments": {
+        "type": "object",
+        "properties": {
+          "number": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 20
+          }
+        },
+        "required": [
+          "number"
+        ],
+        "additionalProperties": false
+      }
+    },
+    {
+      "name": "remove_place",
+      "arguments": {
+        "type": "object",
+        "properties": {
+          "selector": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 120,
+            "pattern": "^[^\\x00-\\x08\\x0b\\x0c\\x0e-\\x1f\\x7f]*$"
+          }
+        },
+        "required": [
+          "selector"
+        ],
+        "additionalProperties": false
+      }
+    },
+    {
+      "name": "prepare_candidates",
+      "arguments": {
+        "type": "object",
+        "properties": {},
+        "required": [],
+        "additionalProperties": false
+      }
+    },
+    {
+      "name": "exclude_candidate",
+      "arguments": {
+        "type": "object",
+        "properties": {
+          "selector": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 120,
+            "pattern": "^[^\\x00-\\x08\\x0b\\x0c\\x0e-\\x1f\\x7f]*$"
+          }
+        },
+        "required": [
+          "selector"
+        ],
+        "additionalProperties": false
+      }
+    },
+    {
+      "name": "restore_candidate",
+      "arguments": {
+        "type": "object",
+        "properties": {
+          "selector": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 120,
+            "pattern": "^[^\\x00-\\x08\\x0b\\x0c\\x0e-\\x1f\\x7f]*$"
+          }
+        },
+        "required": [
+          "selector"
+        ],
+        "additionalProperties": false
+      }
+    },
+    {
+      "name": "generate_schedule",
+      "arguments": {
+        "type": "object",
+        "properties": {},
+        "required": [],
+        "additionalProperties": false
+      }
+    },
+    {
+      "name": "confirm_requirements",
+      "arguments": {
+        "type": "object",
+        "properties": {},
+        "required": [],
+        "additionalProperties": false
+      }
+    },
+    {
+      "name": "prepare_planning",
+      "arguments": {
+        "type": "object",
+        "properties": {},
+        "required": [],
+        "additionalProperties": false
+      }
+    },
+    {
+      "name": "cancel_operation",
+      "arguments": {
+        "type": "object",
+        "properties": {},
+        "required": [],
+        "additionalProperties": false
+      }
+    },
+    {
+      "name": "read_schedule",
+      "arguments": {
+        "type": "object",
+        "properties": {
+          "date": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date",
+                "minLength": 10,
+                "maxLength": 10
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "day": {
+            "anyOf": [
+              {
+                "type": "integer",
+                "minimum": 1,
+                "maximum": 7
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "required": [
+          "date",
+          "day"
+        ],
+        "additionalProperties": false
+      }
+    },
+    {
+      "name": "set_stay",
+      "arguments": {
+        "type": "object",
+        "properties": {
+          "selector": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 120,
+            "pattern": "^[^\\x00-\\x08\\x0b\\x0c\\x0e-\\x1f\\x7f]*$"
+          },
+          "minutes": {
+            "type": "integer",
+            "minimum": 15,
+            "maximum": 480
+          }
+        },
+        "required": [
+          "selector",
+          "minutes"
+        ],
+        "additionalProperties": false
+      }
+    },
+    {
+      "name": "set_lunch",
+      "arguments": {
+        "type": "object",
+        "properties": {
+          "enabled": {
+            "type": "boolean"
+          },
+          "start": {
+            "type": "string",
+            "pattern": "^(?:[01]\\d|2[0-3]):[0-5]\\d$",
+            "minLength": 5,
+            "maxLength": 5
+          },
+          "end": {
+            "type": "string",
+            "pattern": "^(?:[01]\\d|2[0-3]):[0-5]\\d$",
+            "minLength": 5,
+            "maxLength": 5
+          }
+        },
+        "required": [
+          "enabled",
+          "start",
+          "end"
+        ],
+        "additionalProperties": false
+      }
+    },
+    {
+      "name": "set_transport",
+      "arguments": {
+        "type": "object",
+        "properties": {
+          "mode": {
+            "type": "string",
+            "enum": [
+              "walking",
+              "transit"
+            ]
+          }
+        },
+        "required": [
+          "mode"
+        ],
+        "additionalProperties": false
+      }
+    },
+    {
+      "name": "set_daily_window",
+      "arguments": {
+        "type": "object",
+        "properties": {
+          "start": {
+            "type": "string",
+            "pattern": "^(?:[01]\\d|2[0-3]):[0-5]\\d$",
+            "minLength": 5,
+            "maxLength": 5
+          },
+          "end": {
+            "type": "string",
+            "pattern": "^(?:[01]\\d|2[0-3]):[0-5]\\d$",
+            "minLength": 5,
+            "maxLength": 5
+          }
+        },
+        "required": [
+          "start",
+          "end"
+        ],
+        "additionalProperties": false
+      }
+    },
+    {
+      "name": "read_budget",
+      "arguments": {
+        "type": "object",
+        "properties": {},
+        "required": [],
+        "additionalProperties": false
+      }
+    },
+    {
+      "name": "set_cost",
+      "arguments": {
+        "type": "object",
+        "properties": {
+          "kind": {
+            "type": "string",
+            "enum": [
+              "ticket",
+              "meal",
+              "accommodation",
+              "other"
+            ]
+          },
+          "selector": {
+            "anyOf": [
+              {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 120,
+                "pattern": "^[^\\x00-\\x08\\x0b\\x0c\\x0e-\\x1f\\x7f]*$"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "value": {
+            "type": "string",
+            "minLength": 0,
+            "maxLength": 80,
+            "pattern": "^[^\\x00-\\x08\\x0b\\x0c\\x0e-\\x1f\\x7f]*$"
+          }
+        },
+        "required": [
+          "kind",
+          "selector",
+          "value"
+        ],
+        "additionalProperties": false
+      }
+    },
+    {
+      "name": "query_weather",
+      "arguments": {
+        "type": "object",
+        "properties": {},
+        "required": [],
+        "additionalProperties": false
+      }
+    },
+    {
+      "name": "check_weather",
+      "arguments": {
+        "type": "object",
+        "properties": {},
+        "required": [],
+        "additionalProperties": false
+      }
+    },
+    {
+      "name": "read_weather",
+      "arguments": {
+        "type": "object",
+        "properties": {},
+        "required": [],
+        "additionalProperties": false
+      }
+    },
+    {
+      "name": "set_visit_mode",
+      "arguments": {
+        "type": "object",
+        "properties": {
+          "selector": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 120,
+            "pattern": "^[^\\x00-\\x08\\x0b\\x0c\\x0e-\\x1f\\x7f]*$"
+          },
+          "mode": {
+            "type": "string",
+            "enum": [
+              "indoor",
+              "outdoor",
+              "unknown"
+            ]
+          }
+        },
+        "required": [
+          "selector",
+          "mode"
+        ],
+        "additionalProperties": false
+      }
+    },
+    {
+      "name": "preview_exclusion",
+      "arguments": {
+        "type": "object",
+        "properties": {
+          "selector": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 120,
+            "pattern": "^[^\\x00-\\x08\\x0b\\x0c\\x0e-\\x1f\\x7f]*$"
+          }
+        },
+        "required": [
+          "selector"
+        ],
+        "additionalProperties": false
+      }
+    },
+    {
+      "name": "adopt_preview",
+      "arguments": {
+        "type": "object",
+        "properties": {},
+        "required": [],
+        "additionalProperties": false
+      }
+    },
+    {
+      "name": "cancel_preview",
+      "arguments": {
+        "type": "object",
+        "properties": {},
+        "required": [],
+        "additionalProperties": false
+      }
+    },
+    {
+      "name": "read_preview",
+      "arguments": {
+        "type": "object",
+        "properties": {},
+        "required": [],
+        "additionalProperties": false
+      }
+    },
+    {
+      "name": "save_trip",
+      "arguments": {
+        "type": "object",
+        "properties": {
+          "name": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 80,
+            "pattern": "^[^\\x00-\\x08\\x0b\\x0c\\x0e-\\x1f\\x7f]*$"
+          }
+        },
+        "required": [
+          "name"
+        ],
+        "additionalProperties": false
+      }
+    },
+    {
+      "name": "list_saved",
+      "arguments": {
+        "type": "object",
+        "properties": {
+          "offset": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 10000
+          }
+        },
+        "required": ["offset"],
+        "additionalProperties": false
+      }
+    },
+    {
+      "name": "read_saved",
+      "arguments": {
+        "type": "object",
+        "properties": {
+          "selector": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 120,
+            "pattern": "^[^\\x00-\\x08\\x0b\\x0c\\x0e-\\x1f\\x7f]*$"
+          }
+        },
+        "required": [
+          "selector"
+        ],
+        "additionalProperties": false
+      }
+    },
+    {
+      "name": "restore_saved",
+      "arguments": {
+        "type": "object",
+        "properties": {
+          "selector": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 120,
+            "pattern": "^[^\\x00-\\x08\\x0b\\x0c\\x0e-\\x1f\\x7f]*$"
+          }
+        },
+        "required": [
+          "selector"
+        ],
+        "additionalProperties": false
+      }
+    },
+    {
+      "name": "explain_schedule",
+      "arguments": {
+        "type": "object",
+        "properties": {},
+        "required": [],
+        "additionalProperties": false
+      }
+    },
+    {
+      "name": "show_map",
+      "arguments": {
+        "type": "object",
+        "properties": {
+          "date": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date",
+                "minLength": 10,
+                "maxLength": 10
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "edge_id": {
+            "anyOf": [
+              {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 100,
+                "pattern": "^[^\\x00-\\x08\\x0b\\x0c\\x0e-\\x1f\\x7f]*$"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "required": [
+          "date",
+          "edge_id"
+        ],
+        "additionalProperties": false
+      }
+    },
+    {
+      "name": "open_photo",
+      "arguments": {
+        "type": "object",
+        "properties": {},
+        "required": [],
+        "additionalProperties": false
+      }
+    },
+    {
+      "name": "open_video",
+      "arguments": {
+        "type": "object",
+        "properties": {},
+        "required": [],
+        "additionalProperties": false
+      }
+    },
+    {
+      "name": "read_preferences",
+      "arguments": {
+        "type": "object",
+        "properties": {},
+        "required": [],
+        "additionalProperties": false
+      }
+    },
+    {
+      "name": "save_preference",
+      "arguments": {
+        "type": "object",
+        "properties": {
+          "key": {
+            "type": "string",
+            "pattern": "^[a-z][a-z0-9_]{0,39}$",
+            "minLength": 1,
+            "maxLength": 40
+          },
+          "value": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 500,
+            "pattern": "^[^\\x00-\\x08\\x0b\\x0c\\x0e-\\x1f\\x7f]*$"
+          }
+        },
+        "required": [
+          "key",
+          "value"
+        ],
+        "additionalProperties": false
+      }
+    },
+    {
+      "name": "delete_preference",
+      "arguments": {
+        "type": "object",
+        "properties": {
+          "key": {
+            "type": "string",
+            "pattern": "^[a-z][a-z0-9_]{0,39}$",
+            "minLength": 1,
+            "maxLength": 40
+          }
+        },
+        "required": [
+          "key"
+        ],
+        "additionalProperties": false
+      }
+    },
+    {
+      "name": "search_materials",
+      "arguments": {
+        "type": "object",
+        "properties": {
+          "venue_id": {
+            "type": "string",
+            "enum": [
+              "museum_people",
+              "museum_east",
+              "natural"
+            ]
+          },
+          "question": {
+            "type": "string",
+            "minLength": 2,
+            "maxLength": 160,
+            "pattern": "^[^\\x00-\\x08\\x0b\\x0c\\x0e-\\x1f\\x7f]*$"
+          }
+        },
+        "required": [
+          "venue_id",
+          "question"
+        ],
+        "additionalProperties": false
+      }
+    }
+  ],
+  "groups": [
+    {
+      "name": "travel_places",
+      "description": "真实地点准备。搜索只返回候选；先preview_place展示地址，confirm_place仅在用户已看过候选并明确确认编号时提议。地点名或编号由程序唯一解析，不猜POI。",
+      "actions": [
+        "search_places",
+        "preview_place",
+        "confirm_place",
+        "remove_place",
+        "prepare_candidates",
+        "exclude_candidate",
+        "restore_candidate"
+      ]
+    },
+    {
+      "name": "travel_workspace",
+      "description": "确认需求、准备规划或取消当前任务。准备不是生成；已有输入被替换前仍由程序确认。不把任务回执当作已恢复正式草案。",
+      "actions": [
+        "confirm_requirements",
+        "prepare_planning",
+        "cancel_operation"
+      ]
+    },
+    {
+      "name": "travel_schedule",
+      "description": "使用当前真实已确认地点和原排程规则。生成需用户主动要求；读日期可用date或day，两者不可同时填写，都null读取全程。停留和午餐不自动生成。",
+      "actions": [
+        "generate_schedule",
+        "read_schedule",
+        "set_stay",
+        "set_lunch",
+        "set_transport",
+        "set_daily_window"
+      ]
+    },
+    {
+      "name": "travel_budget",
+      "description": "读取程序费用或原样保存用户费用文本；未知和非法不变成零。不能回答模型猜测价格，selector为地点/日期，仅全程住宿和其他为null。",
+      "actions": [
+        "read_budget",
+        "set_cost"
+      ]
+    },
+    {
+      "name": "travel_weather",
+      "description": "主动查询当前目的地天气、读取已有结果或核对当前正式草案；查询与检查不同。游览方式只按用户明确标注，不按名称推断。",
+      "actions": [
+        "query_weather",
+        "check_weather",
+        "read_weather",
+        "set_visit_mode"
+      ]
+    },
+    {
+      "name": "travel_adjustment",
+      "description": "只预览排除当前已安排的一个可选地点。采用必须用户看过当前预览后明确要求；取消不改变原方案。必去不能排除。",
+      "actions": [
+        "preview_exclusion",
+        "adopt_preview",
+        "cancel_preview",
+        "read_preview"
+      ]
+    },
+    {
+      "name": "travel_archives",
+      "description": "主动保存当前正式方案或只读历史，恢复须创建副本再生成；不能覆盖旧记录。selector只能来自展示记录。",
+      "actions": [
+        "save_trip",
+        "list_saved",
+        "read_saved",
+        "restore_saved"
+      ]
+    },
+    {
+      "name": "travel_views",
+      "description": "显示当前真实草案地图/实际单段路线或主动请求程序事实解读；没有草案先准备。照片/视频仅打开用户文件选择，不自动识别。",
+      "actions": [
+        "explain_schedule",
+        "show_map",
+        "open_photo",
+        "open_video"
+      ]
+    },
+    {
+      "name": "travel_preferences",
+      "description": "读取、明确同意后保存/撤回长期偏好；本次要求优先，不能把偏好称为已执行的排程硬约束。",
+      "actions": [
+        "read_preferences",
+        "save_preference",
+        "delete_preference"
+      ]
+    },
+    {
+      "name": "travel_materials",
+      "description": "仅检索已收录上海三个馆区的资料，不生成知识库答案。馆区不明确先澄清。资料不保证当前适用。",
+      "actions": [
+        "search_materials"
+      ]
+    }
+  ]
+}

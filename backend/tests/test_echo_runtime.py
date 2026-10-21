@@ -44,6 +44,56 @@ SCHEMA = {"type": "object", "properties": {"keyword": {"type": "string", "minLen
 
 
 class RuntimeTests(unittest.IsolatedAsyncioTestCase):
+    async def test_program_only_builds_current_capabilities_without_legacy_skill_execution_advice(self):
+        from unittest.mock import Mock
+        manager = Mock(spec=SkillManager)
+        manager.prompt_for.return_value = "LEGACY: 先调用 get_budget_summary 再读取工具结果继续。"
+        selected = []
+        async def propose(args):
+            selected.append(args)
+            return {"message": "请确认本次核对费用。", "dialogue_action": {"name": "read_budget", "arguments": {}}}
+        async def hidden(_):
+            self.fail("wrong role cannot execute hidden capability")
+        schema = {"type": "object", "properties": {"action": {"type": "string", "enum": ["read_budget"]}},
+                  "required": ["action"], "additionalProperties": False}
+        provider = FakeProvider([native("travel_budget", {"action": "read_budget"})])
+        result = await AgentOrchestrator(provider, [
+            ToolSpec("travel_budget", "提议核对本地费用", schema, propose, terminal=True, allowed_roles=("budget",)),
+            ToolSpec("hidden_place_tool", "其他角色工具", SCHEMA, hidden, allowed_roles=("places",)),
+        ], skill_manager=manager, program_only=True).run(request("当前预算是多少"))
+        # Actual request construction + handler execution, not an assertion
+        # that adding words to a prompt makes model semantics correct.
+        sent = provider.calls[0]
+        self.assertEqual([tool["function"]["name"] for tool in sent["tools"]], ["travel_budget"])
+        self.assertEqual(selected, [{"action": "read_budget"}])
+        self.assertEqual(result.tool_results[0]["name"], "travel_budget")
+        self.assertEqual(len(provider.calls), 1)
+        self.assertEqual(result.reply, "请确认本次核对费用。")
+        manager.prompt_for.assert_not_called()
+        self.assertNotIn("get_budget_summary", sent["messages"][0]["content"])
+        self.assertNotIn("hidden_place_tool", sent["messages"][0]["content"])
+        self.assertIn("本次实际可调用函数：travel_budget", sent["messages"][0]["content"])
+
+    async def test_legacy_skill_and_feedback_request_remain_unchanged(self):
+        from unittest.mock import Mock
+        from agents.agent_orchestrator import SYSTEM
+        manager = Mock(spec=SkillManager)
+        manager.prompt_for.return_value = "旧界面可信规则：调用 search_places 后核对工具结果。"
+        executed = []
+        async def search(arguments):
+            executed.append(arguments)
+            return {"candidate_count": 1, "confirmation_required": True}
+        provider = FakeProvider([native(), ProviderResponse(content="请核对候选。", output_tokens=8)])
+        result = await AgentOrchestrator(provider, [ToolSpec("search_places", "搜索", SCHEMA, search)],
+                                        skill_manager=manager).run(request())
+        manager.prompt_for.assert_called_once_with("搜索一个地点", "places")
+        self.assertEqual(provider.calls[0]["messages"][0]["content"],
+                         f"{SYSTEM}\n当前角色：places\n{manager.prompt_for.return_value}")
+        self.assertEqual(len(provider.calls), 2)
+        self.assertEqual(executed, [{"keyword": "博物馆"}])
+        self.assertEqual(provider.calls[1]["messages"][-1]["role"], "tool")
+        self.assertEqual(result.reply, "请核对候选。")
+
     async def test_native_tool_result_is_returned_to_model_and_displayed_separately(self):
         calls = []
         async def search(args):

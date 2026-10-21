@@ -28,7 +28,7 @@ export function backendRewrites(origin: string): BackendRewrite[] {
     ...Object.values(API_ENDPOINTS).map(source => ({ source, destination: `${target}${source.slice("/api".length)}` })),
     { source: "/api/health", destination: `${target}/health` },
     { source: "/api/saved-trips/:id([0-9a-f]{32})", destination: `${target}/saved-trips/:id` },
-    ...["", "/turns", "/cancel", "/confirm", "/delete", "/places", "/assistant-turns", "/assistant-state", "/assistant-preferences"].map(suffix => ({
+    ...["", "/turns", "/cancel", "/confirm", "/delete", "/places", "/assistant-turns", "/assistant-state", "/assistant-preferences", "/dialogue-action"].map(suffix => ({
       source: `/api/chat/conversations/:id([0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12})${suffix}`,
       destination: `${target}/chat/conversations/:id${suffix}`,
     })),

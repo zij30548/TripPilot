@@ -11,8 +11,8 @@ test("all current resources include identity and usage; authentication transport
     ["GET", "/auth/session"], ["POST", "/auth/login"], ["POST", "/auth/register"],
     ["POST", "/auth/logout"], ["GET", "/usage"],
   ];
-  assert.equal(CONTROLLED_ENDPOINTS.length, 30);
-  assert.equal(new Set(CONTROLLED_ENDPOINTS.map(([method, path]) => `${method} ${path}`)).size, 30);
+  assert.equal(CONTROLLED_ENDPOINTS.length, 35);
+  assert.equal(new Set(CONTROLLED_ENDPOINTS.map(([method, path]) => `${method} ${path}`)).size, 35);
   assert.ok(CONTROLLED_ENDPOINTS.some(([method, path]) => method === "POST" && path.endsWith("/turns")));
   assert.ok(CONTROLLED_ENDPOINTS.some(([method, path]) => method === "GET" && path === "/chat/cities"));
   for (const method of ["GET", "POST"]) assert.ok(CONTROLLED_ENDPOINTS.some(([verb, path]) => verb === method && path.endsWith("/places")));
@@ -39,6 +39,53 @@ test("all current resources include identity and usage; authentication transport
       assert.ok(Object.values(record.authentication_headers).every(value => typeof value === "boolean"));
       assert.equal(Object.hasOwn(record, "headers"), false);
     }
+  } finally { await backend.close(); }
+});
+
+test("assistant and dialogue readback transport retains version header and auth without recording arbitrary header values", async () => {
+  const backend = await startControlledBackend({ port: 0 });
+  const origin = `http://127.0.0.1:${backend.port}`;
+  try {
+    const endpoints = CONTROLLED_ENDPOINTS.filter(([, path]) => /\/(assistant-turns|assistant-state|assistant-preferences|dialogue-action)$/.test(path));
+    assert.equal(endpoints.length, 5);
+    for (const [method, path] of endpoints) {
+      const body = method === "POST" ? JSON.stringify({ operation_id: "controlled", expected_revision: 2, text: "核对当前行程" }) : undefined;
+      const response = await fetch(`${origin}${path}`, {
+        method, body, headers: { ...SYNTHETIC_AUTH_HEADERS, "content-type": "application/json", "x-trippilot-surface": "dialogue-v2" },
+      });
+      assert.equal(response.status, 200);
+      const result = await response.json();
+      assert.equal(result.path, path);
+      assert.equal(result.method, method);
+      assert.equal(result.sha256, digest(body ?? ""));
+      assert.equal(result.dialogue_surface, "dialogue-v2");
+      assert.deepEqual(result.authentication_headers, { cookie_matches: true, origin_matches: true, csrf_matches: true });
+    }
+    const postPath = endpoints.find(([method, path]) => method === "POST" && path.endsWith("/assistant-turns"))[1];
+    for (const [value, expected] of [["dialogue-v1", "dialogue-v1"], ["private-unrecognized-surface", "invalid"], ["dialogue-v2,dialogue-v2", "invalid"]]) {
+      const response = await fetch(`${origin}${postPath}`, { method: "POST", headers: { ...SYNTHETIC_AUTH_HEADERS, "x-trippilot-surface": value }, body: "{}" });
+      assert.equal((await response.json()).dialogue_surface, expected);
+    }
+    const serialized = JSON.stringify(backend.records);
+    assert.equal(serialized.includes("private-unrecognized-surface"), false);
+    assert.equal(serialized.includes("核对当前行程"), false);
+    for (const secret of Object.values(SYNTHETIC_AUTH_HEADERS)) assert.equal(serialized.includes(secret), false);
+  } finally { await backend.close(); }
+});
+
+test("cancelled dialogue receipt read observes backend close once and does not send an execution request", async () => {
+  const backend = await startControlledBackend({ port: 0 });
+  try {
+    const path = CONTROLLED_ENDPOINTS.find(([method, path]) => method === "GET" && path.endsWith("/dialogue-action"))[1];
+    const req = request(`http://127.0.0.1:${backend.port}${path}?probe_wait_ms=40000`, { method: "GET", headers: SYNTHETIC_AUTH_HEADERS });
+    req.on("error", () => {});
+    req.end();
+    const record = await until(() => backend.records.find(row => row.completed_upload), "read did not reach controlled backend");
+    req.destroy();
+    await until(() => record.response_close_count === 1, "backend did not observe read cancellation");
+    assert.equal(record.response_finished, false);
+    assert.deepEqual(record.authentication_headers, { cookie_matches: true, origin_matches: true, csrf_matches: true });
+    assert.deepEqual(backend.records.map(row => [row.method, row.path]), [["GET", path]]);
   } finally { await backend.close(); }
 });
 

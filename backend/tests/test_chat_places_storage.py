@@ -10,7 +10,7 @@ from sqlalchemy import inspect, text
 from sqlalchemy.engine import Connection
 from sqlalchemy.exc import OperationalError
 
-from memory.chat_places_storage import ChatPlacesError, ChatPlacesStore, validate_chat_places_extension
+from memory.chat_places_storage import ChatPlacesError, ChatPlacesStore, SearchBatchCarry, validate_chat_places_extension
 from memory.chat_storage import ChatError, ChatStore
 from memory.storage import engine_for
 from tests.archive_owner import OWNER, seed_owner
@@ -161,6 +161,80 @@ class PlacesDiskStorage(unittest.TestCase):
         synced = self.store.sync(OWNER, changed["id"], op(), changed["revision"], 0)
         self.assertEqual(synced["city_id"], "320100")
         self.assertEqual(self.chat.get(OWNER, changed["id"])["requirements"]["destination_id"], "320100")
+
+    def continuity_fixture(self):
+        conversation = self.update_intent()
+        workspace = self.store.sync(OWNER, conversation["id"], op(), conversation["revision"], 0)
+        workspace = self.search(workspace)
+        proof = SearchBatchCarry.capture(conversation, workspace)
+        self.assertIsNotNone(proof)
+        return conversation, workspace, proof
+
+    def finish_same_requirements_turn(self):
+        current = self.chat.get(OWNER, self.conversation["id"])
+        operation = op()
+        pending = self.chat.begin_turn(OWNER, current["id"], operation, current["revision"], "看看第一个")
+        return self.chat.finish_turn(OWNER, current["id"], operation, pending["revision"], current["requirements"], "等待程序核验。", [])
+
+    def test_dialogue_internal_batch_carry_uses_new_cas_and_exact_original_query(self):
+        _, before, proof = self.continuity_fixture()
+        current = self.finish_same_requirements_turn()
+        operation = op()
+        result = self.store.sync(OWNER, current["id"], operation, current["revision"], before["revision"], carry_batch=proof)
+        self.assertEqual(result["batch"], before["batch"])
+        self.assertEqual(result["intent_revision"], current["revision"])
+        self.assertEqual(result["revision"], before["revision"] + 1)
+        self.assertEqual(self.store.sync(OWNER, current["id"], operation, current["revision"], before["revision"], carry_batch=proof), result)
+        with self.assertRaisesRegex(ChatPlacesError, "chat_places_operation_conflict"):
+            self.store.sync(OWNER, current["id"], operation, current["revision"], before["revision"])
+        with self.assertRaises(ChatPlacesError):
+            self.confirm(before, "poi-one")
+        self.assertEqual(self.confirm(result, "poi-one")["required_places"][0]["id"], "poi-one")
+
+    def test_dialogue_carry_never_restores_after_requirements_aba_or_city_aba(self):
+        _, before, proof = self.continuity_fixture()
+        self.update_intent("beijing")
+        current = self.update_intent("hangzhou")
+        with self.assertRaisesRegex(ChatPlacesError, "chat_places_continuity_conflict"):
+            self.store.sync(OWNER, current["id"], op(), current["revision"], before["revision"], carry_batch=proof)
+        stale = self.store.get(OWNER, current["id"])
+        self.assertIsNone(SearchBatchCarry.capture(current, stale))
+        synced = self.store.sync(OWNER, current["id"], op(), current["revision"], before["revision"])
+        self.assertIsNone(synced["batch"])
+        # Even same final city string cannot resurrect earlier candidates.
+        fresh = self.search(synced)
+        new_proof = SearchBatchCarry.capture(current, fresh)
+        other = self.store.set_city(OWNER, current["id"], op(), current["revision"], fresh["revision"], "310000")
+        back = self.store.set_city(OWNER, current["id"], op(), current["revision"], other["revision"], "330100")
+        current = self.finish_same_requirements_turn()
+        with self.assertRaisesRegex(ChatPlacesError, "chat_places_continuity_conflict"):
+            self.store.sync(OWNER, current["id"], op(), current["revision"], back["revision"], carry_batch=new_proof)
+        self.assertIsNone(self.store.get(OWNER, current["id"])["batch"])
+
+    def test_dialogue_carry_cannot_overwrite_newer_search_or_change_of_requirements(self):
+        _, before, proof = self.continuity_fixture()
+        newer = self.search(before)
+        current = self.finish_same_requirements_turn()
+        with self.assertRaisesRegex(ChatPlacesError, "chat_places_revision_conflict"):
+            self.store.sync(OWNER, current["id"], op(), current["revision"], before["revision"], carry_batch=proof)
+        with self.assertRaisesRegex(ChatPlacesError, "chat_places_continuity_conflict"):
+            self.store.sync(OWNER, current["id"], op(), current["revision"], newer["revision"], carry_batch=proof)
+        self.assertNotEqual(newer["batch"]["id"], before["batch"]["id"])
+        # A changed actual requirement clears the batch via ordinary sync.
+        synced = self.store.sync(OWNER, current["id"], op(), current["revision"], newer["revision"])
+        self.assertIsNone(synced["batch"])
+
+    def test_dialogue_carry_refuses_even_same_city_changed_noncity_requirements(self):
+        _, before, proof = self.continuity_fixture()
+        current = self.chat.get(OWNER, before["conversation_id"])
+        operation = op()
+        pending = self.chat.begin_turn(OWNER, current["id"], operation, current["revision"], "改成三人")
+        changed = self.chat.finish_turn(OWNER, current["id"], operation, pending["revision"],
+            current["requirements"] | {"travelers": 3}, "请核对。", [])
+        with self.assertRaisesRegex(ChatPlacesError, "chat_places_continuity_conflict"):
+            self.store.sync(OWNER, current["id"], op(), changed["revision"], before["revision"], carry_batch=proof)
+        result = self.store.sync(OWNER, current["id"], op(), changed["revision"], before["revision"])
+        self.assertIsNone(result["batch"])
 
     def test_cancel_reopen_and_late_success_error_old_cancel_do_not_restore(self):
         view, operation = self.city(), op()
