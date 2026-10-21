@@ -66,7 +66,7 @@ class ChatLogicTests(unittest.TestCase):
         self.assertEqual(data["supported_destinations"], [{"id": key, "name": city.name} for key, city in CITIES.items()])
         self.assertFalse(payload["stream"])
         self.assertFalse(payload["enable_thinking"])
-        self.assertEqual(payload["max_tokens"], 1024)
+        self.assertEqual(payload["max_tokens"], 2048)
         self.assertNotIn("expected", data)
         with self.assertRaises(ChatContextLimit):
             model_payload({**conversation, "messages": [{"role": "user", "text": "a" * 50000}]}, user,

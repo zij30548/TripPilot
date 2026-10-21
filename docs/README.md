@@ -18,7 +18,7 @@
 | [CHAT_REBUILD_PLAN](CHAT_REBUILD_PLAN.md) | 唯一chat-1～chat-9阶段细则：范围、依赖、验收、教学与停止点 |
 | [CHAT_1](CHAT_1.md) | 当前实现、存储与版本、受控证据、真实语义待验，以及本机普通账号自动登录 |
 | [CHAT_2](CHAT_2.md)／[城市目录](CHAT_CITY_CATALOG.md) | 通俗地点流程、有限工具／Skill、服务端确认、独立迁移与离线检查；真实语义／上游待验 |
-| [CHAT_ACCEPTANCE](CHAT_ACCEPTANCE.md) | 原版1次失败与修复版8次续验分开；累计9/12、1次高德，4项截断，Chrome后三项未执行，仍暂停 |
+| [CHAT_ACCEPTANCE](CHAT_ACCEPTANCE.md) | 原版1次与修复版8次分别保留，累计9/12仍暂停；第11节为新有界输出补修候选的离线结果，真实改善未验 |
 | [HARNESS_ENGINEERING](HARNESS_ENGINEERING.md) | H01～H12原则、当前缺口和交付卡；Agent／架构／评测工作必查 |
 | [AGENT_EVOLUTION](AGENT_EVOLUTION.md) | 任务分流、权威状态、恢复、工具／Skill及专业协作的架构决策 |
 

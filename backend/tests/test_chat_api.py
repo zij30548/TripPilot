@@ -200,7 +200,7 @@ class ChatAPIBoundaryTests(unittest.TestCase):
         self.assertNotIn("tools", self.calls[-1])
         self.assertFalse(self.calls[-1]["stream"])
         self.assertFalse(self.calls[-1]["enable_thinking"])
-        self.assertEqual(self.calls[-1]["max_tokens"], 1024)
+        self.assertEqual(self.calls[-1]["max_tokens"], 2048)
         self.assertEqual(self.calls[-1]["response_format"]["json_schema"]["name"], "travel_intent")
 
         confirm_operation = operation()
@@ -244,7 +244,7 @@ class ChatAPIBoundaryTests(unittest.TestCase):
         self.assertEqual(self.usage_rows(), [])
         self.assertEqual(self.store.get(self.first_id, view["id"])["revision"], 0)
 
-    def test_full_place_names_roundtrip_with_whole_text_provider_schema(self) -> None:
+    def test_full_place_names_roundtrip_with_bounded_provider_schema(self) -> None:
         """Real app/auth/storage, controlled output; not model quality proof."""
         headers = self.login(self.a)
         view = self.create(headers)
@@ -268,9 +268,68 @@ class ChatAPIBoundaryTests(unittest.TestCase):
         properties = sent["$defs"]["Intent"]["properties"]
         for node in (properties["accommodation_hint"]["anyOf"][0],
                      properties["required_place_hints"]["items"], properties["preferences"]["items"]):
-            self.assertEqual(node["pattern"], r"^[\s\S]*\S[\s\S]*$")
+            self.assertNotIn("pattern", node)
             self.assertEqual(node["maxLength"], 120)
         self.assertEqual(self.usage_rows(), [(self.first_id, "qwen_text", "received")])
+
+    def test_chat_specific_capacity_accepts_complete_large_selection_once_without_changing_old_parser(self) -> None:
+        from app.integrations.qwen import QwenError, parse_content
+        headers = self.login(self.a)
+        view = self.create(headers)
+        user = "受控长引用" * 60
+        changed = dict(destination_id="320500", start_date="2026-11-01", end_date="2026-11-03",
+            travelers=2, budget_cny="3000", accommodation_hint="住" * 120,
+            required_place_hints=["园" * 119 + str(i) for i in range(6)],
+            preferences=["慢" * 119 + str(i) for i in range(8)], transport_mode="walking")
+        selection = self.selection(view["requirements"], user[:300], **changed)
+        raw = envelope(selection)
+        raw["usage"]["completion_tokens"] = 1900  # controlled metadata, not a tokenizer estimate
+        content_size = len(raw["choices"][0]["message"]["content"].encode())
+        self.assertGreater(content_size, 8192)
+        self.assertLessEqual(content_size, 16384)
+        with self.assertRaises(QwenError):
+            parse_content(raw)
+        self.results.append(httpx.Response(200, json=raw))
+        with self.assertLogs("trippilot.chat", "INFO") as captured:
+            response = self.turn(view, user, headers)
+        self.assertEqual(response.status_code, 200, response.text)
+        self.assertEqual(response.json()["requirements"], changed)
+        self.assertEqual(len(self.calls), 1)
+        self.assertIn('"outcome":"selection_validated"', " ".join(captured.output))
+        self.assertNotIn(user, " ".join(captured.output))
+        self.assertEqual(self.usage_rows(), [(self.first_id, "qwen_text", "received")])
+
+    def test_truncation_and_invalid_selection_keep_previous_intent_and_safe_diagnostics(self) -> None:
+        headers = self.login(self.a)
+        view = self.create(headers)
+        self.results.append(self.selection(view["requirements"], "杭州", destination_id="hangzhou"))
+        view = self.turn(view, "杭州", headers).json()
+        raw = envelope(self.selection(view["requirements"], "改北京", destination_id="beijing"))
+        raw["choices"][0]["finish_reason"] = "length"
+        raw["usage"]["completion_tokens"] = 2048
+        self.results.append(httpx.Response(200, json=raw))
+        with self.assertLogs("trippilot.chat", "INFO") as captured:
+            failed = self.turn(view, "改北京", headers)
+        self.assertEqual(failed.status_code, 502)
+        self.assertEqual(failed.json()["detail"]["code"], "chat_truncated")
+        self.assertIn('"finish_reason":"length"', " ".join(captured.output))
+        latest = self.store.get(self.first_id, view["id"])
+        self.assertEqual(latest["requirements"], view["requirements"])
+        self.assertEqual(latest["last_turn"]["state"], "failed")
+        bad = self.selection(latest["requirements"], "不可信正文", accommodation_hint=" ")
+        bad["PRIVATE_FIELD_NAME"] = "PRIVATE_MODEL_BODY"
+        self.results.append(bad)
+        with self.assertLogs("trippilot.chat", "INFO") as captured:
+            invalid = self.turn(latest, "不可信正文", headers)
+        self.assertEqual(invalid.status_code, 502)
+        safe = " ".join(captured.output)
+        self.assertIn('"outcome":"selection_rejected"', safe)
+        for secret in ("PRIVATE_FIELD_NAME", "PRIVATE_MODEL_BODY", "不可信正文"):
+            self.assertNotIn(secret, safe)
+            self.assertNotIn(secret, invalid.text)
+        self.assertEqual(self.store.get(self.first_id, view["id"])["requirements"], view["requirements"])
+        self.assertEqual(len(self.calls), 3)
+        self.assertEqual(len(self.usage_rows()), 3)
 
     def test_bad_model_structure_cannot_be_repaired_or_rendered_as_prose(self) -> None:
         headers = self.login(self.a)

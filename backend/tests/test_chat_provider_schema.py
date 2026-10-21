@@ -1,8 +1,8 @@
 """Offline provider-schema compatibility checks, not real-model quality scores.
 
-The historical failure remains a semantic failure. These tests reproduce a
-search/full-match ambiguity and protect the narrow outbound-schema correction;
-they neither call a supplier nor infer how its constrained decoder is built.
+Historical failures remain unchanged. Preserve the original search/full-match
+regressions and independently verify the current bounded provider projection;
+these tests never infer how a supplier's constrained decoder is built.
 """
 import copy
 from datetime import datetime, timezone
@@ -47,19 +47,15 @@ def at_path(value: dict, path: tuple) -> object:
     return value
 
 
-def different_paths(before: object, after: object, path: tuple = ()) -> set[tuple]:
-    if type(before) is not type(after):
-        return {path}
-    if isinstance(before, dict):
-        if before.keys() != after.keys():
-            return {path}
-        return set().union(*(different_paths(before[key], after[key], path + (key,)) for key in before))
-    if isinstance(before, list):
-        if len(before) != len(after):
-            return {path}
-        return set().union(*(different_paths(left, right, path + (index,))
-                             for index, (left, right) in enumerate(zip(before, after))))
-    return set() if before == after else {path}
+def historical_v2_schema() -> dict:
+    """Retain the former regex regression independently of the new projection."""
+    schema = legacy_provider_schema()
+    for path in PATTERN_PATHS:
+        node = schema
+        for key in path[:-1]:
+            node = node[key]
+        node[path[-1]] = r"^[\s\S]*\S[\s\S]*$"
+    return schema
 
 
 class ChatProviderSchemaTests(unittest.TestCase):
@@ -70,20 +66,30 @@ class ChatProviderSchemaTests(unittest.TestCase):
         self.send_guard.start()
         self.addCleanup(self.send_guard.stop)
 
-    def test_only_three_outbound_patterns_change_and_strict_contract_is_preserved(self) -> None:
+    def test_v3_projection_has_only_declared_string_changes_and_remains_strict(self) -> None:
         before, after = legacy_provider_schema(), provider_schema()
-        self.assertEqual(different_paths(before, after), set(PATTERN_PATHS))
+        expected = copy.deepcopy(before)
         for path in PATTERN_PATHS:
             self.assertEqual(at_path(before, path), r"\S")
-            self.assertEqual(at_path(after, path), r"^[\s\S]*\S[\s\S]*$")
+            node = expected
+            for key in path[:-1]:
+                node = node[key]
+            node.pop("pattern")
+        props = expected["$defs"]["Intent"]["properties"]
+        for field in ("start_date", "end_date"):
+            props[field]["anyOf"][0].update(minLength=10, maxLength=10,
+                pattern=r"^(?:20[0-9]{2}|2100)-(?:0[1-9]|1[0-2])-(?:0[1-9]|[12][0-9]|3[01])$")
+        props["budget_cny"]["anyOf"][0].update(minLength=1, maxLength=16,
+            pattern=r"^(?:0|[1-9][0-9]{0,12})(?:\.[0-9]{1,2})?$")
+        self.assertEqual(after, expected)
         for name, definition in after["$defs"].items():
             if definition.get("type") == "object":
                 with self.subTest(definition=name):
                     self.assertFalse(definition["additionalProperties"])
                     self.assertEqual(definition["required"], list(definition["properties"]))
         self.assertFalse(after["additionalProperties"])
-        self.assertEqual(PROVIDER_SCHEMA_VERSION, "chat-intent-schema-v2-whole-text")
-        self.assertEqual(PROMPT_VERSION, "chat-intent-v2-city-directory")
+        self.assertEqual(PROVIDER_SCHEMA_VERSION, "chat-intent-schema-v3-bounded-strings")
+        self.assertEqual(PROMPT_VERSION, "chat-intent-v3-bounded-output")
 
     def test_old_pattern_reproduces_search_versus_full_match_disagreement(self) -> None:
         for value in ("苏州站附近", "拙政园", "Suzhou Museum", "A B"):
@@ -93,8 +99,8 @@ class ChatProviderSchemaTests(unittest.TestCase):
                 self.assertIsNone(re.fullmatch(r"\S", value))
         self.assertIsNotNone(re.fullmatch(r"\S", "住"))
 
-    def test_new_pattern_agrees_for_search_and_full_match_without_name_truncation(self) -> None:
-        patterns = [at_path(provider_schema(), path) for path in PATTERN_PATHS]
+    def test_historical_v2_pattern_agrees_for_search_and_full_match_without_name_truncation(self) -> None:
+        patterns = [at_path(historical_v2_schema(), path) for path in PATTERN_PATHS]
         rust_adapters = {pattern: TypeAdapter(Annotated[str, StringConstraints(pattern=pattern)])
                          for pattern in patterns}
         for value in ("苏州站附近", "拙政园", "Suzhou Museum", "A B", "名称\n补充", "住", "州" * 120):
@@ -117,7 +123,7 @@ class ChatProviderSchemaTests(unittest.TestCase):
     def test_short_controlled_alphabet_preserves_contains_nonblank_semantics(self) -> None:
         # Newline support matters: a plain dot-star replacement would silently
         # narrow existing legal multiline text. This is regex, not LLM testing.
-        pattern = at_path(provider_schema(), PATTERN_PATHS[0])
+        pattern = at_path(historical_v2_schema(), PATTERN_PATHS[0])
         for length in range(4):
             for letters in itertools.product(("A", "中", " ", "\n", "\t", "\u3000"), repeat=length):
                 value = "".join(letters)
@@ -149,7 +155,7 @@ class ChatProviderSchemaTests(unittest.TestCase):
         for path in PATTERN_PATHS:
             self.assertEqual(at_path(local_before, path), r"\S")
 
-    def test_payload_changes_only_schema_not_prompt_context_parameters_or_tools(self) -> None:
+    def test_payload_only_changes_declared_schema_budget_and_compact_instructions(self) -> None:
         conversation = {"requirements": Intent().model_dump(),
                         "messages": [{"role": "user", "text": "想在苏州玩三天。"}]}
         original = copy.deepcopy(conversation)
@@ -160,12 +166,17 @@ class ChatProviderSchemaTests(unittest.TestCase):
         self.assertEqual(payload["response_format"]["json_schema"]["schema"], provider_schema())
         rest = copy.deepcopy(payload)
         rest["response_format"]["json_schema"].pop("schema")
+        # Restore exactly the declared v3 changes; the remaining payload must
+        # match the pre-fix hash, including all city/history/model parameters.
+        system = rest["messages"][0]["content"]
+        rest["messages"][0]["content"] = system[:system.index("仅输出紧凑JSON")]
+        rest["max_tokens"] = 1024
         canonical = json.dumps(rest, ensure_ascii=False, sort_keys=True, separators=(",", ":")).encode()
         self.assertEqual(sha256(canonical).hexdigest(), PRE_FIX_PAYLOAD_WITHOUT_SCHEMA_SHA256)
         self.assertNotIn("tools", payload)
         self.assertFalse(payload["stream"])
         self.assertFalse(payload["enable_thinking"])
-        self.assertEqual(payload["max_tokens"], 1024)
+        self.assertEqual(payload["max_tokens"], 2048)
 
     def test_old_failure_values_remain_structure_legal_but_do_not_answer_the_request(self) -> None:
         # Sanitised inline replay of the known bad field values, not a new model
@@ -185,7 +196,33 @@ class ChatProviderSchemaTests(unittest.TestCase):
         self.assertNotEqual(result.required_place_hints, ["拙政园", "苏州博物馆"])
         self.assertNotEqual(result.preferences, [])
         for path in PATTERN_PATHS:
-            self.assertIsNotNone(re.fullmatch(at_path(provider_schema(), path), "住"))
+            self.assertIsNotNone(re.fullmatch(at_path(historical_v2_schema(), path), "住"))
+
+    def test_bounded_provider_fields_and_local_calendar_money_validation(self) -> None:
+        props = provider_schema()["$defs"]["Intent"]["properties"]
+        for field in ("start_date", "end_date", "budget_cny"):
+            spec = props[field]["anyOf"][0]
+            adapter = TypeAdapter(Annotated[str, StringConstraints(
+                min_length=spec["minLength"], max_length=spec["maxLength"], pattern=spec["pattern"])])
+            valid = ["2000-02-29", "2100-12-31"] if field != "budget_cny" else ["0.01", "9999999999999.99"]
+            invalid = ["x" * 12000, "解释", "2026-1-1"] if field != "budget_cny" else ["1e3", "-1", "1.234", "1" * 17]
+            for value in valid:
+                self.assertEqual(adapter.validate_python(value), value)
+                self.assertEqual(getattr(Intent.model_validate({field: value}), field), value)
+            for value in invalid:
+                with self.subTest(field=field, value=value[:30]), self.assertRaises(ValidationError):
+                    adapter.validate_python(value)
+        # A provider lexical constraint still cannot prove a calendar date or
+        # a positive money amount; unchanged local validators are mandatory.
+        for field, value in (("start_date", "2026-02-30"), ("budget_cny", "0")):
+            with self.assertRaises(ValidationError):
+                Intent.model_validate({field: value})
+        for path in PATTERN_PATHS:
+            node = provider_schema()
+            for key in path[:-1]:
+                node = node[key]
+            self.assertNotIn("pattern", node)
+            self.assertEqual((node["minLength"], node["maxLength"]), (1, 120))
 
 
 if __name__ == "__main__":

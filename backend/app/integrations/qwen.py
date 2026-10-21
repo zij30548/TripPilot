@@ -113,7 +113,10 @@ def model_payload(facts: list[Fact], model: str = MODEL) -> dict[str, object]:
     }
 
 
-def parse_content(data: object) -> tuple[object, ExplanationUsage]:
+def parse_content(data: object, *, max_output_tokens: int = MAX_OUTPUT_TOKENS,
+                  max_content_bytes: int = 8192) -> tuple[object, ExplanationUsage]:
+    # Trusted server callers may supply a separately bounded response profile.
+    # Existing itinerary/photo/knowledge callers retain the original defaults.
     if not isinstance(data, dict):
         raise QwenError("structure")
     error = data.get("error")
@@ -138,7 +141,7 @@ def parse_content(data: object) -> tuple[object, ExplanationUsage]:
     content = message.get("content")
     if content is None or content == "" or (isinstance(content, str) and not content.strip()):
         raise QwenError("empty")
-    if not isinstance(content, str) or len(content.encode()) > 8192:
+    if not isinstance(content, str) or len(content.encode()) > max_content_bytes:
         raise QwenError("structure")
     try:
         selection = strict_json(content)
@@ -149,7 +152,7 @@ def parse_content(data: object) -> tuple[object, ExplanationUsage]:
         value = usage.get(key) if isinstance(usage, dict) else None
         return value if type(value) is int and 0 <= value <= 1_000_000 else None
     output = tokens("completion_tokens")
-    if output is not None and output > MAX_OUTPUT_TOKENS:
+    if output is not None and output > max_output_tokens:
         raise QwenError("truncated")
     return selection, ExplanationUsage(input_tokens=tokens("prompt_tokens"), output_tokens=output)
 

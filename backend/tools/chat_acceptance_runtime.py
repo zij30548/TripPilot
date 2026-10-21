@@ -171,6 +171,8 @@ def prepare_freeze(directory: Path, private_directory: Path) -> None:
 def prepare_continuation(directory: Path) -> None:
     """Freeze only the eleven unsent operations; retain the original budget."""
     from app.services.chat import PROVIDER_SCHEMA_VERSION
+    if PROVIDER_SCHEMA_VERSION != "chat-intent-schema-v2-whole-text":
+        raise AcceptanceStopped("historical_continuation_version_mismatch")
     protocol = _read_json(directory / "protocol.json")
     original = _read_json(directory / "requests.json")
     evaluation = _read_json(directory / "rubric.json")

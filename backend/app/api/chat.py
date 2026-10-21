@@ -1,5 +1,6 @@
 """One bounded model selection per explicit turn; no travel tools or loop."""
 import asyncio
+import json
 import logging
 import time
 from collections.abc import Callable, Coroutine
@@ -17,11 +18,13 @@ from app.chat_storage import ChatError, ChatStore
 from app.config import Settings, get_settings
 from app.business_usage import UsageError
 from app.identity_models import AccountRow
-from app.integrations.qwen import QwenClient, QwenError, strict_json
+from app.integrations.qwen import QwenError, strict_json
+from app.integrations.qwen_chat import QwenIntentClient, validation_diagnostic
 from app.schemas.chat import (ConfirmConversation, Conversation, ConversationList,
                               CreateConversation, DeleteConversation, Identifier,
                               Intent, Selection, SubmitTurn)
-from app.services.chat import ChatContextLimit, apply_selection, model_payload, render_reply
+from app.services.chat import (PROMPT_VERSION, PROVIDER_SCHEMA_VERSION, ChatContextLimit,
+                               apply_selection, model_payload, render_reply)
 
 
 class ChatRoute(APIRoute):
@@ -167,12 +170,25 @@ async def submit(conversation_id: Identifier, raw: Request, store: Store, user: 
                     or current["last_turn"]["state"] != "running"):
                 raise ChatError("chat_turn_obsolete", 409)
             payload = model_payload(frozen, request.text, model=settings.qwen_model, now=datetime.now(timezone.utc))
-            selection, usage = await QwenClient(settings, client).generate(payload)
+            provider = QwenIntentClient(settings, client)
             try:
-                selected = Selection.model_validate(selection)
-                intent, sources = apply_selection(Intent.model_validate(frozen["requirements"]), selected, request.text)
-            except (ValidationError, ValueError):
-                raise QwenError("references") from None
+                selection, usage = await provider.generate(payload)
+                try:
+                    selected = Selection.model_validate(selection)
+                except ValidationError as error:
+                    provider.diagnostic["outcome"] = "selection_rejected"
+                    provider.diagnostic["validation"] = validation_diagnostic(error)
+                    raise QwenError("references") from None
+                try:
+                    intent, sources = apply_selection(Intent.model_validate(frozen["requirements"]), selected, request.text)
+                except ValueError:
+                    provider.diagnostic["outcome"] = "provenance_rejected"
+                    raise QwenError("references") from None
+                provider.diagnostic["outcome"] = "selection_validated"
+            finally:
+                provider.diagnostic.update(prompt_version=PROMPT_VERSION, schema_version=PROVIDER_SCHEMA_VERSION)
+                _LOG.info("chat_response_diagnostic operation=%s version=%s metadata=%s",
+                          request.operation_id, version, json.dumps(provider.diagnostic, separators=(",", ":")))
             result = await db_call(store.finish_turn, user.id, conversation_id, request.operation_id,
                                  version, intent.model_dump(), render_reply(intent, selected.issues),
                                  [source.model_dump() for source in sources], selected.issues)

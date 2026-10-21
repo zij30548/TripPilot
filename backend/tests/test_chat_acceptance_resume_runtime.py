@@ -14,6 +14,8 @@ from uuid import uuid4
 import httpx
 
 from app.schemas.chat import Intent
+from app.services import chat as chat_service
+from tests.test_chat_provider_schema import historical_v2_schema
 from tools import chat_acceptance_runtime as runtime
 from tools.chat_acceptance import (AcceptanceStopped, BATCH, IDS, MODEL,
     ChatAcceptanceLedger, _new, canonical, create_continuation, digest, freeze)
@@ -57,6 +59,19 @@ def controlled_bindings(evaluation: dict) -> dict:
 
 class ResumePreparationTests(unittest.TestCase):
     def setUp(self):
+        # This suite protects the already-executed v2-only continuation. Keep
+        # its original input profile instead of reinterpreting it as v3 or
+        # weakening the original three-pattern-only verification.
+        self.current_payload = chat_service.model_payload
+        def historical_payload(*args, **kwargs):
+            result = self.current_payload(*args, **kwargs)
+            result["max_tokens"] = 1024
+            system = result["messages"][0]["content"]
+            result["messages"][0]["content"] = system[:system.index("仅输出紧凑JSON")]
+            result["response_format"]["json_schema"]["schema"] = historical_v2_schema()
+            return result
+        self.enterContext(patch.object(chat_service, "model_payload", historical_payload))
+        self.enterContext(patch.object(chat_service, "PROVIDER_SCHEMA_VERSION", "chat-intent-schema-v2-whole-text"))
         self.parent = Path(self.enterContext(TemporaryDirectory()))
         self.repo = self.parent / "repo"
         self.repo.mkdir()
@@ -139,6 +154,14 @@ class ResumePreparationTests(unittest.TestCase):
                 change_patterns(restored, r"\S")
                 self.assertNotEqual(current["payload"], original["payload"])
             self.assertEqual(restored, original["payload"])
+        self.assertEqual((self.directory / "calls.jsonl").read_bytes(), self.prefix)
+        self.assertEqual(self.stop.read_bytes(), self.stop_raw)
+
+    def test_new_candidate_cannot_reuse_the_historical_continuation(self):
+        with patch.object(chat_service, "PROVIDER_SCHEMA_VERSION", "chat-intent-schema-v3-bounded-strings"):
+            with self.assertRaisesRegex(AcceptanceStopped, "historical_continuation_version_mismatch"):
+                self.prepare()
+        self.assertFalse((self.directory / "continuation-v1").exists())
         self.assertEqual((self.directory / "calls.jsonl").read_bytes(), self.prefix)
         self.assertEqual(self.stop.read_bytes(), self.stop_raw)
 
