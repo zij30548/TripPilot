@@ -23,6 +23,7 @@ from app.api.auth import router as auth_router
 from app.auth import AuthenticationMiddleware
 from app.api.usage import router as usage_router
 from app.api.chat import router as chat_router
+from app.api.chat_places import router as chat_places_router
 from app.business_usage import SERVICES, UsageError
 
 app = FastAPI(
@@ -57,6 +58,7 @@ app.include_router(photo_router)
 app.include_router(video_router)
 app.include_router(usage_router)
 app.include_router(chat_router)
+app.include_router(chat_places_router)
 
 
 @app.exception_handler(UsageError)

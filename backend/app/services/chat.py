@@ -3,11 +3,11 @@ import json
 from datetime import datetime
 from zoneinfo import ZoneInfo
 
-from app.destinations import DESTINATIONS
+from app.chat_cities import CITIES
 from app.integrations.qwen import MAX_OUTPUT_TOKENS, MAX_PROMPT_BYTES
 from app.schemas.chat import Intent, Selection, Source
 
-PROMPT_VERSION = "chat-intent-v1"
+PROMPT_VERSION = "chat-intent-v2-city-directory"
 FIELD_LABELS = {
     "destination_id": "目的地城市", "start_date": "开始日期", "end_date": "结束日期",
     "travelers": "总人数", "budget_cny": "全程全部旅客总预算（人民币）",
@@ -54,7 +54,7 @@ def apply_selection(previous: Intent, selection: Selection, user_text: str) -> t
 def render_reply(intent: Intent, issues: list[str]) -> str:
     parts = []
     if "unsupported_scope" in issues:
-        parts.append("当前执行范围是六城单选、1～7天和一个住宿参考点；超出范围的要求尚不能处理，请调整需求。")
+        parts.append("已保留这次超出范围的原话；当前只准备单城、1～7天和一个住宿参考点，尚不能执行跨城或多住宿。请继续说明各城市日期，或确认本次先准备哪一城，不会偷偷只取一城当作完成。")
     if "unsupported_action" in issues:
         parts.append("当前聊天阶段只整理需求，不搜索地点、不生成路线，也不执行预订、支付、保存或修改正式行程。")
     if "ambiguous" in issues:
@@ -80,7 +80,7 @@ def model_payload(conversation: dict, user_text: str, *, model: str, now: dateti
         "conversation": [{"role": message["role"], "text": message["text"]}
                          for message in conversation["messages"]],
         "latest_user_text": user_text,
-        "supported_destinations": [{"id": key, "name": value.name} for key, value in DESTINATIONS.items()],
+        "supported_destinations": [{"id": key, "name": value.name} for key, value in CITIES.items()],
     }
     schema = Selection.model_json_schema()
     # Provider strict mode requires every property to be explicit, including
@@ -99,8 +99,10 @@ def model_payload(conversation: dict, user_text: str, *, model: str, now: dateti
                 "保留相关旧字段并标ambiguous；只有一个日期不擅自补结束日期。可依据today解析明确相对日历日期，"
                 "但不能猜旅行天数。预算是人民币全程所有旅客总额，budget_cny用普通数字字符串，最多2位小数。"
                 "地点只记未核实的文字线索，不输出ID、坐标、网址、时间表或价格事实。"
-                "只支持所列六城单选、1到7天、单住宿、最多6个想去地点；不支持的目的地、跨城或超范围"
-                "标unsupported_scope，不偷偷换成支持的城市、不只执行多项要求中一部分并称完成。"
+                "城市可从所列大陆城市目录选一个，新增城市使用目录中的6位id；既有六城旧slug可原样保留。"
+                "该目录只表示需求与地点准备，不表示全国行程/天气/存档都可执行。1到7天、单住宿、最多6个想去地点；"
+                "多城、多住宿或超范围标unsupported_scope，保留原话，不偷偷换城市或只执行其中一城称完成；"
+                "多城无法选唯一城市时保留原destination_id并标ambiguous，继续询问各城市和日期。"
                 "要求路线生成、查询天气/费用/资料、预订支付或其他执行时标unsupported_action，本阶段不执行。"
                 "preferences可记录用户明确提出的节奏/兴趣等原意，并标unimplemented_preference，不能保证满足。"
                 "用户可能纠正/否定旧信息，应依语义更新，不因关键词出现就覆盖；想删除地点应准确保留剩余顺序。"

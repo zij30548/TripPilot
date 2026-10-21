@@ -1,11 +1,11 @@
 import { API_ENDPOINTS } from "./api-endpoints";
 import { apiFetch } from "./auth-session";
-import { isDestinationId, type DestinationId } from "./destinations";
+import { isChatCityId, type ChatCityId } from "./chat-cities";
 
 export const CHAT_VERSION = "chat-session-v1" as const;
 export const CHAT_LIST_VERSION = "chat-list-v1" as const;
 export type ChatRequirements = {
-  destination_id: DestinationId | null;
+  destination_id: ChatCityId | null;
   start_date: string | null;
   end_date: string | null;
   travelers: number | null;
@@ -55,7 +55,7 @@ function budget(value: unknown): boolean {
 }
 export function isChatRequirements(value: unknown): value is ChatRequirements {
   if (!record(value) || !exact(value, REQUIREMENT_KEYS) ||
-      !(value.destination_id === null || isDestinationId(value.destination_id)) ||
+      !(value.destination_id === null || isChatCityId(value.destination_id)) ||
       !(value.start_date === null || date(value.start_date)) || !(value.end_date === null || date(value.end_date)) ||
       !(value.travelers === null || integer(value.travelers, 100) && value.travelers >= 1) || !budget(value.budget_cny) ||
       !(value.accommodation_hint === null || text(value.accommodation_hint, 120) && value.accommodation_hint.trim().length > 0) ||

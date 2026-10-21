@@ -2,7 +2,8 @@
 
 import { useEffect, useRef, useState, type KeyboardEvent, type ReactNode } from "react";
 import Link from "next/link";
-import { destination } from "@/lib/destinations";
+import { chatCity } from "@/lib/chat-cities";
+import ChatPlaces from "./chat-places";
 import { canConfirmRequirements, missingRequirements, useChatWorkspace } from "@/lib/chat-controller";
 import type { ChatConversation, ChatIssue } from "@/lib/chat";
 
@@ -18,7 +19,7 @@ function Spark() {
 const focus = "focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-[#376d5b]";
 const ISSUE_LABELS: Record<ChatIssue, string> = {
   ambiguous: "仍有含糊或相互矛盾的内容，请补充说明。",
-  unsupported_scope: "当前只支持开放六城中的一城、1～7天和一个住宿参考点，请调整范围。",
+  unsupported_scope: "已保留你的需求。地点准备一次确认一城；跨城、更多住宿或超范围天数还需要澄清，不能当成已执行，也不会偷偷只处理其中一城。",
   unsupported_action: "本阶段只整理需求，不执行生成、预订、支付或其他操作。",
   unimplemented_preference: "偏好仅作为你本次表达的意向记录，尚未用于排程，也不是长期记忆。",
 };
@@ -40,7 +41,7 @@ export function RequirementCard({ conversation, pending, needsRefresh, onConfirm
       <span className="rounded-full border border-[#cddbcf] px-2.5 py-1 text-xs text-[#46604f]">{confirmed ? "已由你确认" : "待你核对"} · v{conversation.revision}</span>
     </div>
     <dl className="mt-5 grid gap-x-6 gap-y-4 text-sm sm:grid-cols-2">
-      <div><dt className="mb-1 text-xs text-[#727d71]">目的地</dt><dd><Value>{r.destination_id && destination(r.destination_id).name}</Value></dd></div>
+      <div><dt className="mb-1 text-xs text-[#727d71]">目的地</dt><dd><Value>{chatCity(r.destination_id)?.name}</Value></dd></div>
       <div><dt className="mb-1 text-xs text-[#727d71]">日期 · 含首尾</dt><dd><Value>{r.start_date || r.end_date ? `${r.start_date ?? "待补充"} → ${r.end_date ?? "待补充"}` : null}</Value></dd></div>
       <div><dt className="mb-1 text-xs text-[#727d71]">同行人数</dt><dd><Value>{r.travelers !== null && `${r.travelers}人`}</Value></dd></div>
       <div><dt className="mb-1 text-xs text-[#727d71]">全程总预算 · 全部旅客</dt><dd><Value>{r.budget_cny !== null && `人民币 ¥${r.budget_cny}`}</Value></dd></div>
@@ -70,6 +71,7 @@ export default function ChatWorkspace() {
   const chat = useChatWorkspace(), { state } = chat;
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [deletePrompt, setDeletePrompt] = useState<string | null>(null);
+  const [placesOpen, setPlacesOpen] = useState(false);
   const composer = useRef<HTMLTextAreaElement>(null), end = useRef<HTMLDivElement>(null);
   const current = state.conversation;
   const busy = !!state.pending;
@@ -77,8 +79,8 @@ export default function ChatWorkspace() {
   const sendBlocked = busy || running || state.needsRefresh || !state.draft.trim();
   const textLength = Array.from(state.draft).length;
   useEffect(() => { end.current?.scrollIntoView({ block: "end", behavior: "smooth" }); }, [current?.id, current?.messages.length, state.pendingText]);
-  function choose(id: string) { setSidebarOpen(false); setDeletePrompt(null); void chat.selectConversation(id); }
-  function start() { setSidebarOpen(false); setDeletePrompt(null); chat.newConversation(); composer.current?.focus(); }
+  function choose(id: string) { setSidebarOpen(false); setDeletePrompt(null); setPlacesOpen(false); void chat.selectConversation(id); }
+  function start() { setSidebarOpen(false); setDeletePrompt(null); setPlacesOpen(false); chat.newConversation(); composer.current?.focus(); }
   function keyboard(event: KeyboardEvent<HTMLTextAreaElement>) {
     if (event.key === "Enter" && !event.shiftKey && !event.nativeEvent.isComposing && event.keyCode !== 229) {
       event.preventDefault();
@@ -119,7 +121,7 @@ export default function ChatWorkspace() {
               <h1 className="text-[2rem] leading-[1.3] font-medium tracking-[-0.045em] sm:text-[2.65rem]">想去哪里，<br /><span className="text-[#718b5e]">我们慢慢聊。</span></h1>
               <p className="mt-5 max-w-lg text-sm leading-7 text-[#7c8872]">不必一次想好所有细节。告诉我目的地、日期，或者一个旅行念头，我们一起把需求理清楚。</p>
               <div className="mt-8 flex flex-wrap gap-2.5">{["想去杭州，带父母轻松玩几天", "帮我整理一趟北京旅行的需求"].map(example => <button type="button" key={example} disabled={busy} onClick={() => { chat.editDraft(example); composer.current?.focus(); }} className={`min-h-11 rounded-xl border border-[#e0e6d9] bg-[#fffefa] px-3.5 py-2.5 text-left text-xs leading-5 text-[#718064] hover:border-[#b8c9a8] disabled:opacity-40 ${focus}`}>{example}<span className="ml-3 inline-block text-[#9aab87]" aria-hidden="true">↗</span></button>)}</div>
-              <p className="mt-7 text-xs leading-6 text-[#929a89]">当前只整理六城单城、1～7天的需求。还不会在聊天中搜索地点或生成行程；不替你预订，也不会自动执行。</p>
+              <p className="mt-7 text-xs leading-6 text-[#929a89]">可以先整理1～7天的需求，也可以主动准备真实地点。全国城市目录用于地点准备，不等于全国交通已开放；跨城要求会保留待澄清，不替你预订或自动规划。</p>
             </section>}
             {state.pending === "reading" && <p role="status" className="py-12 text-center text-sm text-[#7d8a72]">正在读取这份旅行对话…</p>}
             {!!current?.messages.length && <ol aria-label="对话消息" className="space-y-7">{current.messages.map(message => <li key={message.id} className={message.role === "user" ? "ml-auto max-w-[90%] sm:max-w-[82%]" : "max-w-[95%]"}>
@@ -129,6 +131,12 @@ export default function ChatWorkspace() {
             {state.pendingText && <div className="ml-auto mt-7 max-w-[90%] sm:max-w-[82%]"><p className="mb-2 text-right text-[11px] text-[#8d977f]">你 · {state.pending === "sending" ? "正在发送" : "待核对发送结果"}</p><p className="rounded-[20px] rounded-br-md bg-[#e8eee0] px-5 py-3.5 text-sm leading-7 whitespace-pre-wrap break-words text-[#40533a]">{state.pendingText}</p></div>}
             {state.pending === "sending" && <p role="status" className="mt-6 flex items-center gap-2 text-sm text-[#81936e]"><span className="inline-block size-2 animate-pulse rounded-full bg-[#94ab7d]" />正在整理这一次的表达…</p>}
             {current && current.messages.length > 0 && <RequirementCard conversation={current} pending={busy} needsRefresh={state.needsRefresh} onConfirm={() => void chat.confirm()} />}
+            <button type="button" disabled={busy || !!running || state.needsRefresh} aria-expanded={placesOpen}
+              className={`mt-5 min-h-11 rounded-xl border border-[#cbd6c6] px-4 py-2 text-sm text-[#46604f] disabled:opacity-40 ${focus}`}
+              onClick={() => { if (placesOpen) setPlacesOpen(false); else void chat.preparePlaces().then(ready => { if (ready) setPlacesOpen(true); }); }}>
+              {placesOpen ? "收起地点准备" : "准备真实地点"}
+            </button>
+            {current && <ChatPlaces key={current.id} conversation={current} open={placesOpen} blocked={busy || !!running || state.needsRefresh} />}
             {state.error && <div role="alert" className="mt-6 rounded-2xl border border-[#ead9bc] bg-[#fff8eb] px-4 py-3 text-sm leading-6 break-words text-[#8b713e]">{state.error}{!current && <button type="button" disabled={busy} className={`mt-2 block min-h-9 text-left underline ${focus}`} onClick={() => void (state.needsRefresh ? chat.recoverCreation() : chat.reloadList())}>{state.needsRefresh ? "核对本次会话创建结果" : "重新读取会话列表"}</button>}</div>}
             {state.notice && <p role="status" className="mt-5 text-xs leading-6 text-[#76886a]">{state.notice}</p>}
             {current && ["running", "uncertain"].includes(current.last_turn?.state ?? "") && !busy && <p className="mt-5 text-xs leading-6 text-[#907d53]">{running ? "服务端仍在处理上次请求。请取消或重新读取，不会自动重发。" : "上次请求结果不确定。本会话不自动继续发送，可先重新读取核对。"}</p>}

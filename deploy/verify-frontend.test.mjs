@@ -16,7 +16,7 @@ async function fixture(run) {
     const rules = endpoints.map(path => ({ source: path, destination: ORIGIN + path.slice(4) }));
     rules.push({ source: '/api/health', destination: ORIGIN + '/health' },
       { source: '/api/saved-trips/:id([0-9a-f]{32})', destination: ORIGIN + '/saved-trips/:id' });
-    for (const suffix of ['', '/turns', '/cancel', '/confirm', '/delete']) rules.push({
+    for (const suffix of ['', '/turns', '/cancel', '/confirm', '/delete', '/places']) rules.push({
       source: `/api/chat/conversations/:id([0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12})${suffix}`,
       destination: `${ORIGIN}/chat/conversations/:id${suffix}`,
     });
@@ -79,7 +79,12 @@ test('registration is an explicit additive resource; old allowlist remains verif
     const file = join(root, 'src/lib/api-endpoints.ts');
     const current = await readFile(file, 'utf8');
     assert.ok(current.includes('"/api/auth/register"'));
-    const registrationOnly = current.replace(/^.*chatConversations:.*\n/m, '');
+    const chat1Only = current.replace(/^.*chatCities:.*\n/m, '');
+    await writeFile(file, chat1Only);
+    const chat1Manifest = structuredClone(manifest);
+    chat1Manifest.rewrites.beforeFiles = chat1Manifest.rewrites.beforeFiles.filter(rule => !rule.source.endsWith('/places') && rule.source !== '/api/chat/cities');
+    await checkRewrites(root, chat1Manifest);
+    const registrationOnly = chat1Only.replace(/^.*chatConversations:.*\n/m, '');
     await writeFile(file, registrationOnly);
     const registrationManifest = structuredClone(manifest);
     registrationManifest.rewrites.beforeFiles = registrationManifest.rewrites.beforeFiles.filter(rule => !rule.source.startsWith('/api/chat/'));
@@ -91,7 +96,10 @@ test('registration is an explicit additive resource; old allowlist remains verif
     await checkRewrites(root, oldManifest);
     for (const invalid of [current.replace('/api/auth/register', '/api/auth/unreviewed'),
       current.replace('/api/auth/login', '/api/auth/register'),
-      current.replace('/api/trips/plan', '/api/trips/unknown')]) {
+      current.replace('/api/trips/plan', '/api/trips/unknown'),
+      current.replace('/api/chat/cities', '/api/chat/unreviewed'),
+      current.replace(/^.*chatConversations:.*\n/m, ''),
+      current.replace(/^.*authRegister:.*\n/m, '')]) {
       await writeFile(file, invalid);
       await assert.rejects(checkRewrites(root, manifest), /endpoint_allowlist_changed/);
     }
@@ -110,6 +118,15 @@ test('chat resources use the exact UUID paths and approved operations, not an ar
     const missing = structuredClone(manifest);
     missing.rewrites.beforeFiles = missing.rewrites.beforeFiles.filter(rule => !rule.source.endsWith('/cancel'));
     await assert.rejects(checkRewrites(root, missing), /backend_rewrites_mismatch/);
+    for (const bad of ['/api/chat/conversations/:id/places', '/api/chat/conversations/:path*', '/api/chat/cities/:path*']) {
+      const changed = structuredClone(manifest);
+      const rule = changed.rewrites.beforeFiles.find(item => item.source.endsWith('/places'));
+      rule.source = bad;
+      await assert.rejects(checkRewrites(root, changed), /backend_rewrites_mismatch/);
+    }
+    const missingPlaces = structuredClone(manifest);
+    missingPlaces.rewrites.beforeFiles = missingPlaces.rewrites.beforeFiles.filter(rule => !rule.source.endsWith('/places'));
+    await assert.rejects(checkRewrites(root, missingPlaces), /backend_rewrites_mismatch/);
   });
 });
 

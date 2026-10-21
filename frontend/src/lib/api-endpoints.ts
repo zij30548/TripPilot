@@ -6,6 +6,7 @@ export const API_ENDPOINTS = Object.freeze({
   authRegister: "/api/auth/register",
   authLogout: "/api/auth/logout",
   chatConversations: "/api/chat/conversations",
+  chatCities: "/api/chat/cities",
   usage: "/api/usage",
   places: "/api/places/search",
   candidates: "/api/places/candidates",

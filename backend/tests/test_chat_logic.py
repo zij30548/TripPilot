@@ -62,7 +62,8 @@ class ChatLogicTests(unittest.TestCase):
         data = json.loads(payload["messages"][1]["content"])
         self.assertEqual(data["latest_user_text"], user)
         self.assertEqual(data["today"], "2026-10-20")
-        self.assertEqual(len(data["supported_destinations"]), 6)
+        from app.chat_cities import CITIES
+        self.assertEqual(data["supported_destinations"], [{"id": key, "name": city.name} for key, city in CITIES.items()])
         self.assertFalse(payload["stream"])
         self.assertFalse(payload["enable_thinking"])
         self.assertEqual(payload["max_tokens"], 1024)

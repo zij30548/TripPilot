@@ -106,7 +106,8 @@ def validate_private_schema(engine: Engine) -> None:
             schema = inspect(connection)
             tables = set(schema.get_table_names())
             from app.chat_models import CHAT_TABLES
-            if not PRIVATE_TABLES <= tables or tables - PRIVATE_TABLES - USAGE_TABLES - CHAT_TABLES:
+            from app.chat_places_models import CHAT_PLACES_TABLES
+            if not PRIVATE_TABLES <= tables or tables - PRIVATE_TABLES - USAGE_TABLES - CHAT_TABLES - CHAT_PLACES_TABLES:
                 raise StorageError("invalid_mysql_schema")
             if connection.execute(text("SELECT value FROM storage_metadata WHERE `key`='version'")).scalar() != MYSQL_STORAGE_VERSION:
                 raise StorageError("unsupported_mysql_storage_version")

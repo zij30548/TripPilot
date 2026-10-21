@@ -51,13 +51,16 @@ def validate_chat_extension(connection: Connection, *, required: bool = True) ->
     present = CHAT_TABLES & set(schema.get_table_names())
     marker = connection.execute(text("SELECT value FROM storage_metadata WHERE `key`='chat_version'")).scalar()
     if not present and marker is None:
+        from app.chat_places_storage import validate_chat_places_extension
+        validate_chat_places_extension(connection, required=False)
         if required:
             raise ChatError("chat_migration_required")
         return False
     if present != CHAT_TABLES or marker != CHAT_VERSION:
         raise ChatError("invalid_chat_schema")
+    from app.chat_places_models import CHAT_PLACES_TABLES
     if connection.dialect.name == "sqlite" and set(schema.get_table_names()) - {
-            "storage_metadata", "accounts", "auth_sessions", "login_buckets", "saved_trips", "sqlite_sequence"} - CHAT_TABLES:
+            "storage_metadata", "accounts", "auth_sessions", "login_buckets", "saved_trips", "sqlite_sequence"} - CHAT_TABLES - CHAT_PLACES_TABLES:
         raise ChatError("invalid_chat_schema")
     for table in chat_tables():
         columns = {item["name"]: item for item in schema.get_columns(table.name)}
@@ -90,6 +93,8 @@ def validate_chat_extension(connection: Connection, *, required: bool = True) ->
             options = schema.get_table_options(table.name)
             if options.get("mysql_engine") != "InnoDB" or options.get("mysql_collate") != "utf8mb4_bin":
                 raise ChatError("invalid_chat_schema")
+    from app.chat_places_storage import validate_chat_places_extension
+    validate_chat_places_extension(connection, required=False)
     return True
 
 
@@ -128,6 +133,11 @@ class ChatStore:
             raise ChatError("authentication_required", 401)
         try:
             with self.engine.connect() as connection:
+                if write and connection.dialect.name == "mysql":
+                    # Do not inherit a test/operator pool's REPEATABLE READ
+                    # snapshot from schema reads before the owner lock. Each
+                    # post-lock SELECT must observe the preceding committer.
+                    connection = connection.execution_options(isolation_level="READ COMMITTED")
                 if write and connection.dialect.name == "sqlite":
                     connection.exec_driver_sql("BEGIN IMMEDIATE")
                 else:
@@ -344,6 +354,8 @@ class ChatStore:
             # delete/recreate must not turn an uncertain prior send into a new
             # dispatch permission. There is no transcript in the turn receipts.
             now = int(self.clock())
+            from app.chat_places_storage import erase_conversation_places
+            erase_conversation_places(db, owner, conversation_id, now)
             db.execute(update(ConversationRow).where(ConversationRow.id == conversation_id, ConversationRow.owner_id == owner).values(
                 title="已删除的会话", requirements_json=_encoded(Intent().model_dump(mode="json")), sources_json="[]",
                 issues_json="[]", messages_json="[]", confirmed_revision=None, confirm_operation_id=None,

@@ -259,7 +259,7 @@ class PublicationPermissions(unittest.TestCase):
             {"source": "/api/saved-trips/:id([0-9a-f]{32})", "destination": "http://127.0.0.1:8000/saved-trips/:id"},
             *[{"source": "/api/chat/conversations/:id(" + uuid_pattern + ")" + suffix,
                "destination": "http://127.0.0.1:8000/chat/conversations/:id" + suffix}
-              for suffix in ("", "/turns", "/cancel", "/confirm", "/delete")],
+              for suffix in ("", "/turns", "/cancel", "/confirm", "/delete", "/places")],
             {"source": "/_AMapService/v3/config/district", "destination": "http://127.0.0.1:8000/_AMapService/v3/config/district"},
         ]
         for path, value in {

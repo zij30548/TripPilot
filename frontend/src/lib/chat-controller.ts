@@ -139,6 +139,23 @@ export function useChatWorkspace() {
     } catch (error) { if (valid(request)) update({ error: error instanceof Error ? error.message : "会话创建结果仍未确认。", needsRefresh: true }); }
     finally { finish(request); }
   }
+  async function preparePlaces(): Promise<boolean> {
+    if (current.current !== state || active.current || state.needsRefresh || epoch.current !== authSnapshot().epoch) return false;
+    if (state.conversation) return true;
+    creation.current ??= crypto.randomUUID();
+    const request = begin("reading");
+    update({ pending: "reading", error: null, notice: null });
+    try {
+      const response = await createChatConversation(creation.current, request.controller.signal);
+      if (!valid(request)) return false;
+      creation.current = null;
+      update({ conversation: response, items: upsert(response), needsRefresh: false, notice: "已创建你的空白会话，尚未调用模型。可以主动准备真实地点。" });
+      return true;
+    } catch (error) {
+      if (valid(request)) update({ error: error instanceof Error ? error.message : "创建结果尚未确认。", needsRefresh: true });
+      return false;
+    } finally { finish(request); }
+  }
   function editDraft(value: string) {
     if (!alive.current || epoch.current !== authSnapshot().epoch) return;
     update({ draft: value });
@@ -214,7 +231,7 @@ export function useChatWorkspace() {
     } catch (error) { if (valid(request)) update({ error: error instanceof Error ? error.message : "删除未完成，请重新读取确认。", needsRefresh: true }); }
     finally { finish(request); }
   }
-  return { state, editDraft, send, cancel, confirm, remove, newConversation, selectConversation, refreshConversation, recoverCreation, loadMore: () => state.nextOffset !== null && loadList(state.nextOffset), reloadList: () => loadList() };
+  return { state, editDraft, send, cancel, confirm, remove, newConversation, selectConversation, refreshConversation, recoverCreation, preparePlaces, loadMore: () => state.nextOffset !== null && loadList(state.nextOffset), reloadList: () => loadList() };
 }
 
 export function missingRequirements(conversation: ChatConversation): string[] {

@@ -115,8 +115,9 @@ def engine_for(path: str) -> Engine:
             # Invitation redemption is MySQL-only. Do not silently expand the
             # historical identity-v1 SQLite schema as a side effect of imports.
             from app.chat_models import CHAT_TABLES
+            from app.chat_places_models import CHAT_PLACES_TABLES
             tables_to_create = [table for name, table in SQLModel.metadata.tables.items()
-                                if name != "invitations" and name not in CHAT_TABLES]
+                                if name != "invitations" and name not in CHAT_TABLES and name not in CHAT_PLACES_TABLES]
             SQLModel.metadata.create_all(connection, tables=tables_to_create)
             if not tables:
                 connection.execute(text("INSERT INTO storage_metadata (key, value) VALUES ('version', :version)"), {"version": STORAGE_VERSION})

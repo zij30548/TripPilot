@@ -39,8 +39,10 @@ export const CONTROLLED_ENDPOINTS = [
   ["POST", "/knowledge/search"], ["POST", "/knowledge/answer"],
   ["POST", "/routes/walking"], ["POST", "/routes/transit"], ["POST", "/trips/plan"],
   ["GET", "/chat/conversations"], ["POST", "/chat/conversations"],
+  ["GET", "/chat/cities"],
   ["GET", `/chat/conversations/${CHAT_ID}`],
   ...["turns", "cancel", "confirm", "delete"].map(action => ["POST", `/chat/conversations/${CHAT_ID}/${action}`]),
+  ["GET", `/chat/conversations/${CHAT_ID}/places`], ["POST", `/chat/conversations/${CHAT_ID}/places`],
 ];
 
 /** Bounded metadata only: no request/response bodies or credentials are retained. */
@@ -237,13 +239,15 @@ export async function verifyForwarding(backend, origin = FRONTEND_ORIGIN) {
   assert.equal(backend.records.some((x) => x.path === "/controlled-redirect-target"), false);
   checks.push({ id: "redirect", status: 302, server_followed: false });
   const before = backend.records.length;
-  for (const path of ["/api/not-allowed", "/_AMapService/v3/place/text", `/api/saved-trips/${"g".repeat(32)}`]) {
+  const rejectedPaths = ["/api/not-allowed", "/_AMapService/v3/place/text", `/api/saved-trips/${"g".repeat(32)}`,
+    "/api/chat/conversations/not-a-uuid/places", `/api/chat/conversations/${CHAT_ID}/places/unapproved`, "/api/chat/cities/unapproved"];
+  for (const path of rejectedPaths) {
     const res = await fetch(`${origin}${path}`, { redirect: "manual" });
     assert.equal(res.status, 404, `unlisted path ${path}`);
     await res.arrayBuffer();
   }
   assert.equal(backend.records.length, before, "unlisted routes reached backend");
-  checks.push({ id: "allowlist", rejected_paths: 3 });
+  checks.push({ id: "allowlist", rejected_paths: rejectedPaths.length });
   for (const [id, path, size] of [
     ["photo-limit", "/api/media/landmark", 5 * MIB],
     ["video-limit", "/api/media/video-frames", 20 * MIB],

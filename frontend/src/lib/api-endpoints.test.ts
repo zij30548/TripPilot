@@ -8,6 +8,7 @@ describe("fixed same-origin browser endpoints", () => {
     expect(API_ENDPOINTS).toEqual({
       authSession: "/api/auth/session", authLogin: "/api/auth/login", authRegister: "/api/auth/register", authLogout: "/api/auth/logout",
       chatConversations: "/api/chat/conversations",
+      chatCities: "/api/chat/cities",
       usage: "/api/usage",
       places: "/api/places/search", candidates: "/api/places/candidates", schedule: "/api/trips/schedule-preview",
       weather: "/api/weather/forecast", explanation: "/api/trips/schedule-explanation",

@@ -125,7 +125,7 @@ def _service(request: httpx.Request) -> Service:
         if context.request_path == "/media/landmark":
             return "qwen_vision"
         if context.request_path in _TEXT_PATHS or re.fullmatch(
-                r"/chat/conversations/[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}/turns",
+                r"/chat/conversations/[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}/(?:turns|places)",
                 context.request_path):
             return "qwen_text"
     raise UsageError()

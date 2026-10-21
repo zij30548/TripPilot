@@ -11,9 +11,11 @@ test("all current resources include identity and usage; authentication transport
     ["GET", "/auth/session"], ["POST", "/auth/login"], ["POST", "/auth/register"],
     ["POST", "/auth/logout"], ["GET", "/usage"],
   ];
-  assert.equal(CONTROLLED_ENDPOINTS.length, 27);
-  assert.equal(new Set(CONTROLLED_ENDPOINTS.map(([method, path]) => `${method} ${path}`)).size, 27);
+  assert.equal(CONTROLLED_ENDPOINTS.length, 30);
+  assert.equal(new Set(CONTROLLED_ENDPOINTS.map(([method, path]) => `${method} ${path}`)).size, 30);
   assert.ok(CONTROLLED_ENDPOINTS.some(([method, path]) => method === "POST" && path.endsWith("/turns")));
+  assert.ok(CONTROLLED_ENDPOINTS.some(([method, path]) => method === "GET" && path === "/chat/cities"));
+  for (const method of ["GET", "POST"]) assert.ok(CONTROLLED_ENDPOINTS.some(([verb, path]) => verb === method && path.endsWith("/places")));
   for (const endpoint of identityAndUsage) assert.ok(CONTROLLED_ENDPOINTS.some(([method, path]) => method === endpoint[0] && path === endpoint[1]));
   const backend = await startControlledBackend({ port: 0 });
   try {
@@ -37,6 +39,27 @@ test("all current resources include identity and usage; authentication transport
       assert.ok(Object.values(record.authentication_headers).every(value => typeof value === "boolean"));
       assert.equal(Object.hasOwn(record, "headers"), false);
     }
+  } finally { await backend.close(); }
+});
+
+test("chat-2 city/read/command paths retain method, query, body and safe auth metadata", async () => {
+  const backend = await startControlledBackend({ port: 0 });
+  const origin = `http://127.0.0.1:${backend.port}`;
+  try {
+    const endpoints = CONTROLLED_ENDPOINTS.filter(([, path]) => path === "/chat/cities" || path.endsWith("/places"));
+    for (const [method, path] of endpoints) {
+      const body = method === "POST" ? JSON.stringify({ action: "search", keyword: "受控地点" }) : undefined;
+      const response = await fetch(`${origin}${path}?query=哈尔滨&tag=甲&tag=乙`, {
+        method, body, headers: { ...SYNTHETIC_AUTH_HEADERS, "content-type": "application/json" },
+      });
+      const record = await response.json();
+      assert.equal(record.path, path);
+      assert.equal(record.method, method);
+      assert.equal(record.sha256, digest(body ?? ""));
+      assert.deepEqual(record.query, [["query", "哈尔滨"], ["tag", "甲"], ["tag", "乙"]]);
+      assert.deepEqual(record.authentication_headers, { cookie_matches: true, origin_matches: true, csrf_matches: true });
+    }
+    assert.equal(backend.records.length, 3);
   } finally { await backend.close(); }
 });
 

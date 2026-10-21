@@ -5,7 +5,7 @@ from typing import Annotated, Literal, Self
 
 from pydantic import AfterValidator, BaseModel, ConfigDict, Field, StringConstraints, field_validator, model_validator
 
-from app.destinations import DestinationId
+from app.chat_cities import CITIES, LEGACY_CITIES, city_for, legacy_city_id
 from app.planning_limits import MAX_TRIP_DAYS
 
 def plain_text(value: str) -> str:
@@ -32,7 +32,11 @@ class Strict(BaseModel):
 
 
 class Intent(Strict):
-    destination_id: DestinationId | None = None
+    # chat city reference is intentionally independent of six-city scheduling
+    # and saved-trip-v1/v2/v3. Previously persisted slugs remain readable.
+    destination_id: str | None = Field(default=None, json_schema_extra={"anyOf": [
+        {"type": "string", "enum": [*LEGACY_CITIES, *CITIES]}, {"type": "null"},
+    ]})
     start_date: str | None = None
     end_date: str | None = None
     travelers: int | None = Field(default=None, ge=1, le=100)
@@ -41,6 +45,13 @@ class Intent(Strict):
     required_place_hints: list[ShortText] = Field(default_factory=list, max_length=6)
     preferences: list[ShortText] = Field(default_factory=list, max_length=8)
     transport_mode: Literal["walking", "transit"] | None = None
+
+    @field_validator("destination_id")
+    @classmethod
+    def directory_city(cls, value: str | None) -> str | None:
+        if value is not None:
+            city_for(legacy_city_id(value) or value)
+        return value
 
     @field_validator("start_date", "end_date")
     @classmethod

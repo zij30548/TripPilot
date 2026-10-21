@@ -179,6 +179,10 @@ def _mysql_copy_locked(source: Engine, target: Engine, receipt: Path, anchor: Pa
             or source.url == target.url or re.fullmatch(r"trippilot_(?:chat|test)_[0-9a-f]{32}", target.url.database or "") is None):
         raise Refused("isolated_mysql_copy_required")
     validate_private_schema(source)
+    from app.chat_places_storage import validate_chat_places_extension
+    with source.connect() as connection:
+        if validate_chat_places_extension(connection, required=False):
+            raise Refused("chat_places_extension_requires_own_copy_tool")
     expected_identity = _anchor_identity(anchor)
     anchor_hash = _hash(anchor)
     with source.connect() as connection:
