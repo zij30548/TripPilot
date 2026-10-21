@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { isAssistantState, readAssistantState, sendAssistantTurn, type AssistantState } from "./assistant";
+import { isAssistantState, readAssistantState, sendAssistantTurn, sendDialogueTurn, type AssistantState } from "./assistant";
 import { CHAT_ID, OP_ID, OTHER_CHAT_ID, conversationFixture } from "./chat-test-fixtures";
 
 export const assistantStateFixture = (overrides: Partial<AssistantState> = {}): AssistantState => ({
@@ -14,6 +14,17 @@ beforeEach(() => { fetcher = vi.fn(); vi.stubGlobal("fetch", fetcher); });
 afterEach(() => { vi.useRealTimers(); });
 
 describe("EchoMind travel assistant strict transport", () => {
+  it("binds the minimal dialogue surface while preserving strict operation validation and legacy defaults", async () => {
+    fetcher.mockImplementation(async () => reply(conversationFixture()));
+    const body = { operation_id: OP_ID, expected_revision: 0, text: "想去杭州" };
+    await sendDialogueTurn(CHAT_ID, body, new AbortController().signal);
+    expect(new Headers(fetcher.mock.calls[0][1].headers).get("X-TripPilot-Surface")).toBe("dialogue-v1");
+    expect(JSON.parse(fetcher.mock.calls[0][1].body)).toEqual(body);
+    await sendAssistantTurn(CHAT_ID, body, new AbortController().signal);
+    expect(new Headers(fetcher.mock.calls[1][1].headers).has("X-TripPilot-Surface")).toBe(false);
+    fetcher.mockResolvedValue(reply(conversationFixture({ id: OTHER_CHAT_ID })));
+    await expect(sendDialogueTurn(CHAT_ID, body, new AbortController().signal)).rejects.toThrow("不属于本次");
+  });
   it("uses the separate assistant endpoint once with unchanged revision/operation; never falls back to legacy intent", async () => {
     fetcher.mockResolvedValue(reply(conversationFixture()));
     const body = { operation_id: OP_ID, expected_revision: 0, text: "想去杭州" };

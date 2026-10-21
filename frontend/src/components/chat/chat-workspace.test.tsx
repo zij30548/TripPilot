@@ -1,6 +1,8 @@
 import { act, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import Home from "@/app/page";
+// Keep the former travel-card composition as compatibility coverage. It is no
+// longer the three-surface product homepage; its existing assertions remain.
+import Home from "./chat-workspace";
 import { CHAT_ID, OP_ID, conversationFixture, deferred, emptyConversation } from "@/lib/chat-test-fixtures";
 import { assistantPlanningFixture } from "@/lib/assistant-planning.test-fixtures";
 import { BATCH_ID, succeeded } from "@/lib/chat-places-test-fixtures";
@@ -29,7 +31,7 @@ beforeEach(() => {
   vi.stubGlobal("fetch", fetcher);
 });
 
-describe("default chat-only composition", () => {
+describe("retained legacy travel-card composition", () => {
   it("opens without old planning controllers or automatic model/business calls", async () => {
     render(<Home />);
     await screen.findByRole("button", { name: "杭州旅行" });

@@ -38,6 +38,7 @@ router = APIRouter(prefix="/chat/conversations", tags=["travel-assistant"], rout
 Store = Annotated[ChatStore, Depends(get_chat_store)]
 Places = Annotated[ChatPlacesStore, Depends(get_chat_places_store)]
 _CODE = re.compile(r"[a-z][a-z0-9_]{0,79}")
+_DIALOGUE_TOOLS = frozenset({"inspect_trip", "update_trip_requirements", "request_clarification"})
 
 
 def get_assistant_store() -> AssistantStore:
@@ -195,6 +196,14 @@ async def assistant_turn(conversation_id: Identifier, raw: Request, store: Store
                          user: User, factory: Factory,
                          settings: Annotated[Settings, Depends(get_settings)],
                          client: Annotated[httpx.AsyncClient, Depends(get_qwen_http_client)]) -> dict:
+    # This selects a smaller presentation-compatible capability set, not an
+    # authorization bypass or an arbitrary client-provided tool registry.
+    # Missing preserves the established legacy callers. Reject duplicates,
+    # combined values and unknown versions before reserving a durable turn.
+    surfaces = raw.headers.getlist("x-trippilot-surface")
+    if surfaces and surfaces != ["dialogue-v1"]:
+        raise HTTPException(422, detail={"code": "assistant_invalid_surface"})
+    dialogue_only = bool(surfaces)
     command = await body(raw, SubmitTurn)
     reservation: dict | None = None
     task: dict | None = None
@@ -321,6 +330,8 @@ async def assistant_turn(conversation_id: Identifier, raw: Request, store: Store
             ToolSpec("get_day_schedule", "引导查看本地正式行程面板的一个日期，不把任务检查点当正式草案", {"type": "object", "properties": {"date": {"type": "string", "format": "date", "minLength": 10, "maxLength": 10}}, "required": ["date"], "additionalProperties": False}, day, terminal=True),
             ToolSpec("get_budget_summary", "提示当前费用核对入口，不复制金额计算", empty, budget, terminal=True),
         ]
+        if dialogue_only:
+            registered = [spec for spec in registered if spec.name in _DIALOGUE_TOOLS]
         cities = [{"id": city.id, "name": city.name} for city in CITIES.values()
                   if city.id == (legacy_city_id(intent.destination_id) or intent.destination_id) or city.name.removesuffix("市") in command.text]
         context = {"requirements": frozen["requirements"], "recent_messages": [{"role": item["role"], "text": item["text"]} for item in initial["messages"][-4:]],
@@ -329,6 +340,12 @@ async def assistant_turn(conversation_id: Identifier, raw: Request, store: Store
                                                   for item in preferences if item["key"] == "travel_preferences"],
                    "other_confirmed_preference_count": sum(item["key"] != "travel_preferences" for item in preferences),
                    "preference_scope": "用户明确同意的沟通参考，未承诺转成排程硬约束；本次要求优先。"}
+        if dialogue_only:
+            context["interaction_surface"] = {
+                "id": "dialogue-v1",
+                "available_actions": sorted(_DIALOGUE_TOOLS),
+                "limitations": "当前纯聊天界面只整理需求或澄清；未提供真实POI预览确认、正式行程生成、日期时间轴或费用读取。不能指向不存在的地点卡、行程或费用面板，也不能声称已执行这些操作。",
+            }
         orchestrator = factory(QwenGateway(settings, client), registered, skill_manager=skills())
 
         async def execute() -> dict:
@@ -416,7 +433,8 @@ async def assistant_turn(conversation_id: Identifier, raw: Request, store: Store
                 pass
         if committed_followup_error and not isinstance(error, (asyncio.CancelledError, HTTPException)):
             raise HTTPException(503, detail={"code": "assistant_post_commit_readback_required",
-                "message": "会话或候选可能已经提交，但后续处理未完整确认。请重新读取会话、地点卡与执行记录；不要重发同一操作。"}) from None
+                "message": ("会话可能已经提交，但后续处理未完整确认。请重新读取会话与执行记录；不要重发同一操作。" if dialogue_only else
+                            "会话或候选可能已经提交，但后续处理未完整确认。请重新读取会话、地点卡与执行记录；不要重发同一操作。")}) from None
         if isinstance(error, ChatError):
             raise safe_error(error) from None
         if isinstance(error, RuntimeFailure):

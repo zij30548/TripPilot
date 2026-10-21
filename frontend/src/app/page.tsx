@@ -1,5 +1,4 @@
-import ChatWorkspace from "@/components/chat/chat-workspace";
-
 export default function Home() {
-  return <ChatWorkspace />;
+  // The shared shell owns the persistent three-surface workspace.
+  return null;
 }

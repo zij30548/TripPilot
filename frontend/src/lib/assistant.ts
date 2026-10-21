@@ -51,7 +51,7 @@ function assistantError(code: string | null): string {
   return chatErrorMessage(code?.startsWith("assistant_") ? code.slice(10) : code);
 }
 
-async function request(path: string, signal: AbortSignal, body?: ChatTurnRequest): Promise<unknown> {
+async function request(path: string, signal: AbortSignal, body?: ChatTurnRequest, dialogue = false): Promise<unknown> {
   if (signal.aborted) throw new DOMException("已取消", "AbortError");
   const controller = new AbortController();
   const abort = () => controller.abort();
@@ -61,7 +61,7 @@ async function request(path: string, signal: AbortSignal, body?: ChatTurnRequest
   try {
     const response = await apiFetch(`${API_ENDPOINTS.chatConversations}${path}`, {
       method: body ? "POST" : "GET", signal: controller.signal,
-      ...(body ? { headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) } : {}),
+      ...(body ? { headers: { "Content-Type": "application/json", ...(dialogue ? { "X-TripPilot-Surface": "dialogue-v1" } : {}) }, body: JSON.stringify(body) } : {}),
     });
     const limit = body ? 384 * 1024 : 64 * 1024;
     const declared = response.headers.get("content-length");
@@ -100,8 +100,17 @@ async function request(path: string, signal: AbortSignal, body?: ChatTurnRequest
 }
 
 export async function sendAssistantTurn(id: string, body: ChatTurnRequest, signal: AbortSignal): Promise<ChatConversation> {
+  return sendBoundTurn(id, body, signal, false);
+}
+
+/** The minimal dialogue only offers tools with a usable text-only outcome. */
+export async function sendDialogueTurn(id: string, body: ChatTurnRequest, signal: AbortSignal): Promise<ChatConversation> {
+  return sendBoundTurn(id, body, signal, true);
+}
+
+async function sendBoundTurn(id: string, body: ChatTurnRequest, signal: AbortSignal, dialogue: boolean): Promise<ChatConversation> {
   if (!UUID.test(id)) throw new Error("会话标识无效。");
-  const value = await request(`/${id}/assistant-turns`, signal, body);
+  const value = await request(`/${id}/assistant-turns`, signal, body, dialogue);
   if (!isChatConversation(value) || value.id !== id || value.last_turn?.operation_id !== body.operation_id || value.revision <= body.expected_revision) {
     throw new Error("助手回复不属于本次会话请求，未应用。");
   }

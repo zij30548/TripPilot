@@ -1,6 +1,7 @@
 import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
-import Home from "@/app/page";
+// Retained legacy composition, not the new text-only product homepage.
+import Home from "./chat-workspace";
 import ChatPlaces from "./chat-places";
 import { CHAT_ID, emptyConversation } from "@/lib/chat-test-fixtures";
 import { batchFixture, placeFixture, placesConversation, placesFixture, succeeded } from "@/lib/chat-places-test-fixtures";

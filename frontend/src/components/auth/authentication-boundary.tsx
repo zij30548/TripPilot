@@ -5,19 +5,26 @@ import { authServerSnapshot, authSnapshot, checkSession, login, logout, register
 import { BusinessUsageControls } from "./business-usage-controls";
 import { PasswordInput } from "./password-input";
 
-export function AuthenticationBoundary({ children }: { children: ReactNode }) {
+export function AuthenticationBoundary({ children, compact = false }: { children: ReactNode; compact?: boolean }) {
   const auth = useSyncExternalStore(subscribeAuth, authSnapshot, authServerSnapshot);
   useEffect(startAuthLifecycle, []);
 
   if (auth.phase === "authenticated" && auth.session?.user) return (
     <>
-      <header className="border-b border-slate-200 bg-white px-4 py-3 text-sm">
+      {compact ? <header className="absolute right-5 top-4 z-30 text-xs text-[#748078] md:right-8 md:top-[18px]">
+        <details className="relative"><summary className="flex min-h-10 cursor-pointer list-none items-center gap-2 rounded-full border border-[#e5eae7] bg-white px-3 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#294e43]" aria-label="账号菜单"><span className="grid size-6 place-items-center rounded-full bg-[#edf3ef] text-[10px] text-[#294e43]">{auth.session.user.username.slice(0, 1).toUpperCase()}</span><span className="max-w-24 truncate">{auth.session.user.username}</span><span aria-hidden="true">⌄</span></summary>
+          <div className="absolute right-0 mt-2 w-[min(340px,calc(100vw-40px))] rounded-2xl border border-[#e4eae6] bg-white p-4 shadow-xl">
+            <button type="button" className="mb-3 min-h-10 w-full rounded-lg px-3 text-left hover:bg-[#f7f8fa]" onClick={() => void logout(auth.epoch)}>退出登录</button>
+            <BusinessUsageControls key={`usage-${auth.epoch}`} epoch={auth.epoch} disabled={auth.verifying} />
+          </div>
+        </details>
+      </header> : <><header className="border-b border-slate-200 bg-white px-4 py-3 text-sm">
         <div className="mx-auto flex max-w-6xl flex-wrap items-center justify-between gap-3">
           <span>邀请内测 · 当前账号：{auth.session.user.username}</span>
           <button type="button" className="rounded-lg border px-3 py-2" onClick={() => void logout(auth.epoch)}>退出登录</button>
         </div>
       </header>
-      <BusinessUsageControls key={`usage-${auth.epoch}`} epoch={auth.epoch} disabled={auth.verifying} />
+      <BusinessUsageControls key={`usage-${auth.epoch}`} epoch={auth.epoch} disabled={auth.verifying} /></>}
       {auth.verifying && <p role="status" className="p-4 text-center">正在核对登录状态…</p>}
       {/* Same identity checks hide, but do not unmount, ongoing work. */}
       <div key={auth.epoch} hidden={auth.verifying} inert={auth.verifying}>{children}</div>
