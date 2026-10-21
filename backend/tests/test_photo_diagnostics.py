@@ -4,13 +4,13 @@ import unittest
 
 import httpx
 
-from app.config import Settings
-from app.integrations.photo_diagnostics import MAX_ISSUES, record_structure
-from app.integrations.qwen import QwenError
-from app.integrations.qwen_vision import QwenVisionClient
+from core.config import Settings
+from tooling.providers.photo_diagnostics import MAX_ISSUES, record_structure
+from tooling.providers.qwen import QwenError
+from tooling.providers.qwen_vision import QwenVisionClient
 from test_photo import answer, SELECTION
 
-LOGGER = "app.integrations.photo_diagnostics"
+LOGGER = "tooling.providers.photo_diagnostics"
 UNTRUSTED = "private-test-value\nAuthorization: secret-placeholder data:image/jpeg;base64,NOTREAL"
 
 

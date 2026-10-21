@@ -11,14 +11,14 @@ from unittest.mock import AsyncMock, patch
 import httpx
 from tests.business_client import BusinessTestClient as TestClient
 
-from app.api.places import get_http_client
-from app.config import Settings, get_settings
-from app.integrations.amap import AmapError
-from app.integrations.amap_walking import AmapWalkingClient, INVALID_DATA
-from app.schemas.route import WalkingRoute, WalkingRouteResponse
-from app.schemas.schedule import ScheduleEdge, ScheduleRequest, clock_minutes
-from app.services.schedule import build_schedule
-from app.services.schedule_routes import (
+from api.places import get_http_client
+from core.config import Settings, get_settings
+from tooling.providers.amap import AmapError
+from tooling.providers.amap_walking import AmapWalkingClient, INVALID_DATA
+from core.schemas.route import WalkingRoute, WalkingRouteResponse
+from core.schemas.schedule import ScheduleEdge, ScheduleRequest, clock_minutes
+from tooling.travel.schedule import build_schedule
+from tooling.travel.schedule_routes import (
     MIN_ROUTE_START_INTERVAL_SECONDS, ROUTE_BATCH_TIMEOUT_SECONDS, collect_schedule_edges, required_edges,
 )
 from main import app
@@ -261,7 +261,7 @@ class ScheduleApiTests(unittest.TestCase):
     def setUp(self) -> None:
         # Pacing has dedicated controlled-clock coverage below; unrelated API
         # tests need not spend real seconds waiting between fixture requests.
-        self.enterContext(patch("app.services.schedule_routes.MIN_ROUTE_START_INTERVAL_SECONDS", 0))
+        self.enterContext(patch("tooling.travel.schedule_routes.MIN_ROUTE_START_INTERVAL_SECONDS", 0))
         self.enterContext(patch.dict(os.environ, {}, clear=True))
         self.settings = Settings(_env_file=None, amap_web_key=TEST_KEY)
         self.requests: list[httpx.Request] = []
@@ -412,7 +412,7 @@ class ScheduleApiTests(unittest.TestCase):
     def test_connection_retry_budget_is_at_most_thirty_four(self) -> None:
         for a, b in required_edges(request(6)):
             self.failures[(a.place_id, b.place_id)] = httpx.ConnectError
-        with self.assertLogs("app.integrations.amap_walking", level="WARNING") as logs:
+        with self.assertLogs("tooling.providers.amap_walking", level="WARNING") as logs:
             response = self.post(payload(6))
         self.assertEqual(len(self.requests), 34)
         self.assertEqual(response.json()["status"], "unscheduled")
@@ -460,7 +460,7 @@ class ScheduleApiTests(unittest.TestCase):
 
 class ScheduleBudgetTests(unittest.IsolatedAsyncioTestCase):
     async def asyncSetUp(self) -> None:
-        self.enterContext(patch("app.services.schedule_routes.MIN_ROUTE_START_INTERVAL_SECONDS", 0))
+        self.enterContext(patch("tooling.travel.schedule_routes.MIN_ROUTE_START_INTERVAL_SECONDS", 0))
 
     async def test_twenty_second_search_budget_includes_queue_and_cleans_all_tasks(self) -> None:
         self.assertEqual(ROUTE_BATCH_TIMEOUT_SECONDS, 20.0)
@@ -478,7 +478,7 @@ class ScheduleBudgetTests(unittest.IsolatedAsyncioTestCase):
         amap = AsyncMock(spec=AmapWalkingClient)
         amap.walking.side_effect = walking
         before = monotonic()
-        with patch("app.services.schedule_routes.ROUTE_BATCH_TIMEOUT_SECONDS", 0.035):
+        with patch("tooling.travel.schedule_routes.ROUTE_BATCH_TIMEOUT_SECONDS", 0.035):
             result = await collect_schedule_edges(request(6), amap)
         self.assertLess(monotonic() - before, 0.5)
         self.assertEqual(len(started), 3)
@@ -542,7 +542,7 @@ class SchedulePacingTests(unittest.IsolatedAsyncioTestCase):
 
         amap = AsyncMock(spec=AmapWalkingClient)
         amap.walking.side_effect = walking
-        with patch("app.services.schedule_routes.MIN_ROUTE_START_INTERVAL_SECONDS", 0.01):
+        with patch("tooling.travel.schedule_routes.MIN_ROUTE_START_INTERVAL_SECONDS", 0.01):
             results = await collect_schedule_edges(request(2), amap)
         self.assertEqual(len(starts), 5)
         self.assertTrue(all(edge.status == "ok" for edge in results))
@@ -563,8 +563,8 @@ class SchedulePacingTests(unittest.IsolatedAsyncioTestCase):
 
         amap = AsyncMock(spec=AmapWalkingClient)
         amap.walking.side_effect = walking
-        with patch("app.services.schedule_routes.MIN_ROUTE_START_INTERVAL_SECONDS", 1), \
-                patch("app.services.schedule_routes.ROUTE_BATCH_TIMEOUT_SECONDS", 0.025):
+        with patch("tooling.travel.schedule_routes.MIN_ROUTE_START_INTERVAL_SECONDS", 1), \
+                patch("tooling.travel.schedule_routes.ROUTE_BATCH_TIMEOUT_SECONDS", 0.025):
             result = await collect_schedule_edges(request(6), amap)
         self.assertEqual(len(started), 1)
         self.assertEqual(len(cancelled), 1)
@@ -582,7 +582,7 @@ class SchedulePacingTests(unittest.IsolatedAsyncioTestCase):
 
         amap = AsyncMock(spec=AmapWalkingClient)
         amap.walking.side_effect = walking
-        with patch("app.services.schedule_routes.MIN_ROUTE_START_INTERVAL_SECONDS", 1):
+        with patch("tooling.travel.schedule_routes.MIN_ROUTE_START_INTERVAL_SECONDS", 1):
             task = asyncio.create_task(collect_schedule_edges(request(6), amap))
             await entered.wait()
             task.cancel()
@@ -594,7 +594,7 @@ class SchedulePacingTests(unittest.IsolatedAsyncioTestCase):
     async def test_same_place_edges_bypass_pacer_and_do_not_consume_a_start(self) -> None:
         req = request(1, must_visit_places=[place("p1", longitude=121.4, latitude=31.2)])
         amap = AsyncMock(spec=AmapWalkingClient)
-        with patch("app.services.schedule_routes.asyncio.sleep", new_callable=AsyncMock) as sleep:
+        with patch("tooling.travel.schedule_routes.asyncio.sleep", new_callable=AsyncMock) as sleep:
             results = await collect_schedule_edges(req, amap)
         self.assertTrue(all(edge.status == "same_place" for edge in results))
         amap.walking.assert_not_called()

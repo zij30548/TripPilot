@@ -19,7 +19,7 @@ beforeEach(() => vi.resetAllMocks());
 describe("closed destination contract and archive compatibility", () => {
   it("shared definitions and Python/TypeScript closed allowlists are identical, not widened to arbitrary strings", () => {
     const backend = resolve(process.cwd(), "../backend");
-    const actual = JSON.parse(execFileSync(`${backend}/.venv/bin/python`, ["-B", "-c", "import json; from typing import get_args; from app.destinations import DestinationId, DESTINATIONS; print(json.dumps({'ids': get_args(DestinationId), 'rows': [d.model_dump(mode='json') for d in DESTINATIONS.values()]}))"], { cwd: backend, encoding: "utf8" }));
+    const actual = JSON.parse(execFileSync(`${backend}/.venv/bin/python`, ["-B", "-c", "import json; from typing import get_args; from core.destinations import DestinationId, DESTINATIONS; print(json.dumps({'ids': get_args(DestinationId), 'rows': [d.model_dump(mode='json') for d in DESTINATIONS.values()]}))"], { cwd: backend, encoding: "utf8" }));
     expect(actual.ids).toEqual([...DESTINATION_IDS]); expect(actual.rows).toEqual(DESTINATIONS);
     expect(DESTINATIONS.map(d => d.id)).toEqual([...DESTINATION_IDS]);
     expect(new Set(DESTINATION_IDS).size).toBe(6);

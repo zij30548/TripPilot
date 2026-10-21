@@ -24,8 +24,8 @@ describe("conservative photo contract", () => {
     const backend = path.resolve(process.cwd(), "../backend");
     const output = execFileSync(path.join(backend, ".venv/bin/python"), ["-B", "-c", `
 import json
-from app.schemas.photo import PhotoResponse
-from app.schemas.explanation import ExplanationUsage
+from core.schemas.photo import PhotoResponse
+from core.schemas.explanation import ExplanationUsage
 print(json.dumps([PhotoResponse(request_id="test", destination_id="shanghai", model="qwen3-vl-plus",
     usage=ExplanationUsage(input_tokens=None, output_tokens=None), status=status, clues=clues).model_dump()
     for status, clues in [("possible", [{"name":"东方明珠", "city":None}]), ("uncertain", []), ("unrecognized", [])]], ensure_ascii=False))

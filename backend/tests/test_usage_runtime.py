@@ -9,14 +9,14 @@ from unittest.mock import AsyncMock, patch
 
 import httpx
 
-from app.business_usage import UsageError
-from app.integrations.amap import AmapClient
-from app.integrations.amap_walking import AmapWalkingClient
-from app.schemas.candidates import CandidateRequest
-from app.schemas.route import RouteEndpoint, WalkingRouteRequest
-from app.services.candidates import prepare_candidates
-from app.services.schedule_routes import ScheduleRouteCollector
-from app.usage_runtime import MeteredAsyncClient, MeteredTransport, media_usage
+from core.business_usage import UsageError
+from tooling.providers.amap import AmapClient
+from tooling.providers.amap_walking import AmapWalkingClient
+from core.schemas.candidates import CandidateRequest
+from core.schemas.route import RouteEndpoint, WalkingRouteRequest
+from tooling.travel.candidates import prepare_candidates
+from tooling.travel.schedule_routes import ScheduleRouteCollector
+from core.usage_runtime import MeteredAsyncClient, MeteredTransport, media_usage
 from tests.usage_fixture import UsageFixture
 
 POI_URL = "https://restapi.amap.com/v5/place/text"
@@ -128,7 +128,7 @@ class RuntimeUsageTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(calls, [])
         with self.fixture.bind("/places/search"):
             async with self.client(lambda _: httpx.Response(200, content=b"invalid-json")) as client:
-                from app.integrations.amap import AmapError
+                from tooling.providers.amap import AmapError
                 with self.assertRaises(AmapError):
                     await AmapClient(client, "test").search("park", "上海")
         self.assertEqual(self.rows()[0][1], "received")

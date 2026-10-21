@@ -3,8 +3,8 @@
 import json
 from datetime import datetime, timezone
 
-from app.integrations.amap_weather import convert_forecast
-from app.schemas.weather import NON_PRECIPITATION, RAIN, RAIN_SNOW, SNOW, WeatherRequest
+from tooling.providers.amap_weather import convert_forecast
+from core.schemas.weather import NON_PRECIPITATION, RAIN, RAIN_SNOW, SNOW, WeatherRequest
 
 
 def cases() -> list[dict[str, object]]:

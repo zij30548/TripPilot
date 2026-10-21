@@ -4,10 +4,10 @@ import json
 from pathlib import Path
 import unittest
 
-from app.integrations.qwen import MODEL, QwenError
-from app.schemas.explanation import ExplanationUsage
-from app.schemas.knowledge_answer import ModelAnswer
-from app.services.knowledge_answer import SYSTEM, answer_payload, render_answer
+from tooling.providers.qwen import MODEL, QwenError
+from core.schemas.explanation import ExplanationUsage
+from core.schemas.knowledge_answer import ModelAnswer
+from tooling.travel.knowledge_answer import SYSTEM, answer_payload, render_answer
 from tests.test_knowledge_answer import fixtures
 
 

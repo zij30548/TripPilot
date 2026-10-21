@@ -16,8 +16,8 @@ from unittest.mock import patch
 
 from pydantic import StringConstraints, TypeAdapter, ValidationError
 
-from app.schemas.chat import Intent, Selection, ShortText
-from app.services.chat import (
+from core.schemas.chat import Intent, Selection, ShortText
+from tooling.travel.chat import (
     PROMPT_VERSION, PROVIDER_SCHEMA_VERSION, apply_selection, model_payload,
     provider_schema,
 )

@@ -8,11 +8,11 @@ import httpx
 from tests.business_client import BusinessTestClient as TestClient
 from pydantic import ValidationError
 
-from app.api.explanation import get_qwen_http_client
-from app.config import get_settings
-from app.integrations.qwen import QwenClient, QwenError, parse_content
-from app.integrations.qwen_tools import QwenToolClient, parse_tool_call, tool_payload
-from app.schemas.itinerary_query import ItineraryQueryRequest, ItineraryQueryResponse
+from api.explanation import get_qwen_http_client
+from core.config import get_settings
+from tooling.providers.qwen import QwenClient, QwenError, parse_content
+from tooling.providers.qwen_tools import QwenToolClient, parse_tool_call, tool_payload
+from core.schemas.itinerary_query import ItineraryQueryRequest, ItineraryQueryResponse
 from main import app
 from tests.test_explanation import settings
 
@@ -125,7 +125,7 @@ class ToolTransport(unittest.IsolatedAsyncioTestCase):
     async def test_old_json_path_keeps_safe_recursive_parse_failure(self):
         raw = {"choices": [{"finish_reason": "stop", "message": {"role": "assistant", "content": "{}"}}]}
         async with httpx.AsyncClient(transport=httpx.MockTransport(lambda req: httpx.Response(200, json=raw))) as client:
-            with patch("app.integrations.qwen.parse_content", side_effect=RecursionError), self.assertRaises(QwenError) as caught:
+            with patch("tooling.providers.qwen.parse_content", side_effect=RecursionError), self.assertRaises(QwenError) as caught:
                 await QwenClient(settings(), client).generate({"messages": []})
             self.assertEqual(caught.exception.code, "structure")
 
@@ -134,7 +134,7 @@ class ToolTransport(unittest.IsolatedAsyncioTestCase):
         async def slow(req):
             calls.append(req); await asyncio.sleep(10); return httpx.Response(200, json=envelope())
         async with httpx.AsyncClient(transport=httpx.MockTransport(slow)) as client:
-            with patch("app.integrations.qwen.DEADLINE_SECONDS", .01):
+            with patch("tooling.providers.qwen.DEADLINE_SECONDS", .01):
                 with self.assertRaises(QwenError) as caught: await QwenToolClient(settings(), client).choose(ItineraryQueryRequest.model_validate(body()))
                 self.assertEqual(caught.exception.code, "timeout")
             task = asyncio.create_task(QwenToolClient(settings(), client).choose(ItineraryQueryRequest.model_validate(body())))

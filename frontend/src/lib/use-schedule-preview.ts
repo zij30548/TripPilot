@@ -16,7 +16,7 @@ export type SchedulePreviewState = { status: "idle" | "loading" | "success" | "f
 const idle = (): SchedulePreviewState => ({ status: "idle", response: null, message: null });
 
 export type ScheduleInitialization = { settings: ScheduleSettings; candidates: CandidatePoolSnapshot };
-export function useSchedulePreview(request: TripRequest, onInvalidate?: () => void, initial?: ScheduleInitialization) {
+export function useSchedulePreview(request: TripRequest, onInvalidate?: () => void, initial?: ScheduleInitialization, canOperate?: () => boolean) {
   const [settings, setSettings] = useState<ScheduleSettings>(() => structuredClone(initial?.settings ?? defaultScheduleSettings(request)));
   const alive = useRef(true);
   const settingsRef = useRef(settings);
@@ -50,7 +50,7 @@ export function useSchedulePreview(request: TripRequest, onInvalidate?: () => vo
     publish({ status: "idle", response: null, message: input.loading ? "候选地点正在更新，原草案已清除。" : "候选地点或排除选择已更新，请重新生成草案。" });
   };
   const update = (change: (current: ScheduleSettings) => ScheduleSettings) => {
-    if (!alive.current) return;
+    if (!alive.current || canOperate?.() === false) return;
     cancel();
     const next = change(settingsRef.current); settingsRef.current = next; setSettings(next);
     publish({ status: "idle", response: null, message: "设置已更新，请重新生成草案。" });
@@ -69,7 +69,7 @@ export function useSchedulePreview(request: TripRequest, onInvalidate?: () => vo
     update((current) => ({ ...current, transportMode }));
   };
   const query = async (): Promise<boolean> => {
-    if (!alive.current || pending.current) return false;
+    if (!alive.current || canOperate?.() === false || pending.current) return false;
     const optionalPlaces = eligibleOptional(request, candidateRef.current).slice(0, 3);
     const issue = validateScheduleInput(request, settingsRef.current, optionalPlaces, candidateRef.current.loading);
     const body = issue ? null : buildRequest(request, settingsRef.current, optionalPlaces);
@@ -78,25 +78,28 @@ export function useSchedulePreview(request: TripRequest, onInvalidate?: () => vo
     publish({ status: "loading", response: null, message: null });
     try {
       const { schedule: response, drawing } = unpackSchedule(await querySchedulePreview(body, active.signal, true));
-      if (version.current !== generation || active.signal.aborted) return false;
+      if (version.current !== generation || active.signal.aborted || canOperate?.() === false) return false;
       publish({ status: "success", response, drawing, message: null }); return true;
     } catch (error) {
       if (version.current !== generation || active.signal.aborted) return false;
       publish({ status: "failed", response: null, message: error instanceof ScheduleError ? error.message : "生成行程草案失败，请主动重试。" }); return false;
-    } finally { if (version.current === generation) { controller.current = null; pending.current = false; } }
+    } finally { if (version.current === generation) {
+      controller.current = null; pending.current = false;
+      if (canOperate?.() === false && stateRef.current.status === "loading") publish({ status: "failed", response: null, message: "地点准备尚待核对，未应用本次结果；请核对后主动生成。" });
+    } }
   };
 
   // Capture only a validated current success. Refs include historical stays that
   // are not currently in the first three, without adding them to the request.
   const capture = (): ScheduleCapture | null => {
-    if (!alive.current) return null;
+    if (!alive.current || canOperate?.() === false) return null;
     const input = buildRequest(request, settingsRef.current, eligibleOptional(request, candidateRef.current).slice(0, 3));
     const current = stateRef.current;
     if (pending.current || candidateRef.current.loading || current.status !== "success" || !input || !isScheduleResponse(current.response, input)) return null;
     return structuredClone({ version: version.current, original: current.response, drawing: current.drawing, request, settings: settingsRef.current, candidates: candidateRef.current });
   };
   const adoptAdjustment = (base: ScheduleCapture, targetId: string, exclusion: CandidateExclusion, proposed: PreparedAdjustment, response: ScheduleResponse, drawing?: DrawingState): boolean => {
-    if (!alive.current || version.current !== base.version || pending.current || !exclusion.isCurrent()) return false;
+    if (!alive.current || canOperate?.() === false || version.current !== base.version || pending.current || !exclusion.isCurrent()) return false;
     const prepared = prepareAdjustmentInput(base, targetId, exclusion.snapshot);
     if (!prepared.value || JSON.stringify(prepared.value.request) !== JSON.stringify(proposed.request) ||
         adoptionIssue(base, targetId, prepared.value.request, response)) return false;

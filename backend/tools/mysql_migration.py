@@ -29,14 +29,14 @@ from argon2.exceptions import InvalidHashError
 sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
 from deploy.backup import (FILES, Refused,
                            inspect_pair, private_directory, sha256)
-from app.business_usage import UsageError
-from app.mysql_storage import (MYSQL_STORAGE_VERSION, MySQLSettings,
+from core.business_usage import UsageError
+from memory.mysql_storage import (MYSQL_STORAGE_VERSION, MySQLSettings,
                                current_mysql_engine, engine_from_url,
                                initialize_private_schema, validate_private_schema)
-from app.mysql_usage import (initialize_usage_schema,
+from memory.mysql_usage import (initialize_usage_schema,
                              import_usage_rows, validate_usage_schema)
-from app.saved_trips import SavedTripRow, detail
-from app.storage import StorageError
+from memory.saved_trips import SavedTripRow, detail
+from memory.storage import StorageError
 
 COPY_ORDER = ("accounts", "auth_sessions", "login_buckets", "saved_trips")
 MAX_ROW_BYTES = 16 * 1024 * 1024  # includes escaped JSON; original archive limit remains 2 MiB
@@ -218,7 +218,7 @@ def migrate(source: Path, engine: Engine, receipt: Path, *, source_stopped: bool
 
 
 def verify() -> None:
-    from app.business_usage import get_usage_store
+    from core.business_usage import get_usage_store
     current_mysql_engine()
     get_usage_store().verify()
 

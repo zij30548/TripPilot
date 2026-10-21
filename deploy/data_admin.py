@@ -22,10 +22,10 @@ def mysql_selected() -> bool:
 
 
 def validate_environment() -> None:
-    from app.auth import AuthSettings
-    from app.config import Settings
-    from app.business_usage import UsageSettings
-    from app.storage import StorageSettings
+    from core.auth import AuthSettings
+    from core.config import Settings
+    from core.business_usage import UsageSettings
+    from memory.storage import StorageSettings
     auth, settings, usage, storage = AuthSettings(_env_file=None), Settings(_env_file=None), UsageSettings(_env_file=None), StorageSettings(_env_file=None)
     from config import validate_mysql
     validate_mysql({key: os.environ.get(key, "") for key in ("TRIPPILOT_MYSQL_URL", "BUSINESS_USAGE_IDENTITY_PATH")})
@@ -39,7 +39,7 @@ def validate_environment() -> None:
 def initialize_identity(directory: Path) -> str:
     if mysql_selected(): raise ValueError("mysql_requires_explicit_migration_not_sqlite_init")
     from backup import IDENTITY_COLUMNS, inspect_database, private_directory
-    from app.storage import engine_for
+    from memory.storage import engine_for
     private_directory(directory)
     path = directory / "identity.sqlite3"
     if path.exists() or path.is_symlink():
@@ -57,7 +57,7 @@ def initialize_identity(directory: Path) -> str:
 
 def initialize_usage(directory: Path) -> str:
     if mysql_selected(): raise ValueError("mysql_requires_explicit_migration_not_sqlite_init")
-    from app.business_usage import UsageStore
+    from core.business_usage import UsageStore
     from backup import IDENTITY_COLUMNS, inspect_database, private_directory, private_file, write_new
     private_directory(directory)
     path, anchor = directory / "usage.sqlite3", directory / "usage.sqlite3.identity"

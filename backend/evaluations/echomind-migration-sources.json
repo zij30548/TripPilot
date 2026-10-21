@@ -1,0 +1,19 @@
+{
+  "schema_version": "echomind-migration-source-v1",
+  "source_repository": "Biscuit-AI531/EchoMind",
+  "source_commit": "ef847eb5b719ef98be9d5673f3429e62cd88109e",
+  "migration_kind": "travel-domain-architecture-adaptation-not-whole-repository-copy",
+  "runtime_version": "trippilot-echo-runtime-v1",
+  "source_files": {
+    "agents/agent_orchestrator.py": "54e89800c01af6eefe40fec8ef9006cb3ff03ad24b274dd6af8386b28e25df08",
+    "core/intent_recognizer.py": "0888b018e6f621c2898567a8aa134a38cf8c538b28fcf90c148a50f87fbe3a35",
+    "core/skill_loader.py": "26618d02cde5592955bd45b7a6752e6fbfa3e06de76ed325658f5257f142aaaf",
+    "core/llm_utils.py": "8f7dbda693b254ec5779a3ee6186b6c9cdc0f82a7705ac7a664cfc1e4a58047b",
+    "memory/conversation_memory.py": "c4f91dbde1a0b5e033736d1eabb231a3ccf09ef8bf1497e60cae96a10c2f2355",
+    "monitor/performance_monitor.py": "54d2062cfe77f704c126faec382eb29d1db64279a45c41fc05bfe523d751185c",
+    "evaluation/evaluator.py": "b183a860864a3fc820554d911e55e190426aa558bc95be01209898d2a81f4a1b"
+  },
+  "adopted_patterns": ["role_dispatch", "native_tool_result_loop", "trusted_skills", "layered_memory", "execution_observation", "separate_outcome_evaluation"],
+  "replaced_for_trippilot": ["customer_service_domains", "anthropic_transport", "unbounded_aggregate_fallbacks", "automatic_profile_inference", "redis_chroma_default_stack", "model_judge_default_calls"],
+  "rights_note": "The supplied reference has no root LICENSE file. No redistribution license or original authorship is asserted; preserve source attribution and review rights before wider redistribution. Uploaded env/data/venv/nested Git are not delivered."
+}

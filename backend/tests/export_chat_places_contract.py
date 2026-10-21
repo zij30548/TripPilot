@@ -1,8 +1,8 @@
 """Actual Pydantic chat-2 outputs for TypeScript guards; no HTTP/config/DB."""
 import json
 
-from app.schemas.chat_places import Batch, ChatPlacesWorkspace
-from app.schemas.destination import LocatedPlace
+from core.schemas.chat_places import Batch, ChatPlacesWorkspace
+from core.schemas.destination import LocatedPlace
 
 
 def cases() -> list[dict]:

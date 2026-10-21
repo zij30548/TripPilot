@@ -14,18 +14,18 @@ const api = vi.hoisted(() => ({ schedule: vi.fn(), weather: vi.fn(), candidates:
 vi.mock("./schedule-api", async (original) => ({ ...await original<typeof import("./schedule-api")>(), querySchedulePreview: api.schedule }));
 vi.mock("./weather-api", async (original) => ({ ...await original<typeof import("./weather-api")>(), queryWeatherForecast: api.weather }));
 vi.mock("./candidates-api", async (original) => ({ ...await original<typeof import("./candidates-api")>(), queryCandidates: api.candidates }));
-function useHarness(noRequired = false) {
+function useHarness(noRequired = false, canOperate?:()=>boolean) {
   const request = noRequired ? { ...tripRequest(), must_visit: [], must_visit_places: [] } : tripRequest();
   const revision = useWeatherCheckRevision();
-  const draft = useSchedulePreview(request, revision.invalidate);
-  const candidates = useCandidatePool(request, draft.updateCandidates);
-  const weather = useWeatherForecast({ start_date: request.start_date, end_date: request.end_date }, revision.invalidate);
+  const draft = useSchedulePreview(request, revision.invalidate, undefined, canOperate);
+  const candidates = useCandidatePool(request, draft.updateCandidates, undefined, canOperate);
+  const weather = useWeatherForecast({ start_date: request.start_date, end_date: request.end_date }, revision.invalidate, canOperate);
   const check = useWeatherScheduleCheck({ schedule: draft, candidates, weather }, revision);
-  const preview = useScheduleAdjustment({ schedule: draft, candidates, weather, check }, revision);
+  const preview = useScheduleAdjustment({ schedule: draft, candidates, weather, check }, revision, canOperate);
   return { draft, candidates, weather, check, preview };
 }
-async function ready(mode: "walking" | "transit" = "walking", noRequired = false) {
-  const view = renderHook(() => useHarness(noRequired));
+async function ready(mode: "walking" | "transit" = "walking", noRequired = false, canOperate?:()=>boolean) {
+  const view = renderHook(() => useHarness(noRequired, canOperate));
   await act(async () => { await view.result.current.candidates.query(); });
   if (mode === "transit") act(() => view.result.current.draft.setTransportMode(mode));
   await act(async () => { await view.result.current.draft.query(); await view.result.current.weather.query(); });
@@ -40,6 +40,38 @@ beforeEach(() => {
 afterEach(() => vi.useRealTimers());
 
 describe("isolated adjustment request and synchronous adoption", () => {
+  it.each(["draft", "candidates", "weather"] as const)("a blocked late %s result is not accepted and always releases its own pending slot",async kind=>{
+    let allowed=true;const canOperate=()=>allowed,{result}=await ready("walking",false,canOperate),pending=deferred<unknown>();
+    if(kind==="draft")api.schedule.mockReturnValueOnce(pending.promise);
+    if(kind==="candidates")api.candidates.mockReturnValueOnce(pending.promise);
+    if(kind==="weather")api.weather.mockReturnValueOnce(pending.promise);
+    let task!:Promise<boolean>;
+    act(()=>{task=result.current[kind].query();});
+    allowed=false;
+    await act(async()=>{
+      pending.resolve(kind==="draft"?adjustmentResponse(api.schedule.mock.calls.at(-1)![0]):kind==="candidates"?candidateResponse():forecast());
+      expect(await task).toBe(false);
+    });
+    expect(result.current[kind].state.status).toBe("failed");
+    allowed=true;
+    await act(async()=>{expect(await result.current[kind].query()).toBe(true);});
+    expect(result.current[kind].state.status).toBe("success");
+  });
+  it("a synchronous place capability change blocks retained generate, capture, preview and adopt without changing the current draft",async()=>{
+    let allowed=true;const canOperate=()=>allowed,{result}=await ready("walking",false,canOperate);
+    await act(async()=>{await result.current.preview.start(optionals[0].id);});
+    const old=result.current,original=old.draft.state.response,shown=old.preview.state;
+    allowed=false;
+    await act(async()=>{
+      expect(await old.draft.query()).toBe(false);expect(old.draft.capture()).toBeNull();
+      expect(await old.preview.start(optionals[1].id)).toBe(false);expect(old.preview.canUsePreview()).toBe(false);expect(old.preview.adopt()).toBe(false);
+      expect(await old.candidates.query()).toBe(false);expect(await old.weather.query()).toBe(false);
+    });
+    expect(api.schedule).toHaveBeenCalledTimes(2);expect(api.candidates).toHaveBeenCalledTimes(1);expect(api.weather).toHaveBeenCalledTimes(1);
+    expect(result.current.draft.state.response).toBe(original);expect(result.current.preview.state).toBe(shown);expect(result.current.candidates.excludedIds.size).toBe(0);
+    allowed=true;act(()=>{expect(old.preview.canUsePreview()).toBe(true);expect(old.preview.adopt()).toBe(true);});
+    expect(result.current.draft.state.response).toEqual(shown.response);
+  });
   it.each(["walking", "transit"] as const)("%s: preview is private; adopt exactly what was shown, then ordinary query uses identical input", async (mode) => {
     const { result } = await ready(mode);
     act(() => result.current.check.annotate(required.id, "indoor")); act(() => result.current.check.check());

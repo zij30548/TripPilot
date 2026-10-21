@@ -22,12 +22,12 @@ from sqlalchemy.engine import Engine
 from sqlalchemy.exc import SQLAlchemyError
 from sqlmodel import SQLModel
 
-from app.chat_models import CHAT_TABLES, CHAT_VERSION
-from app.chat_storage import chat_tables, validate_chat_extension
-from app.mysql_storage import (MYSQL_STORAGE_VERSION, MySQLSettings, current_mysql_engine,
+from memory.chat_models import CHAT_TABLES, CHAT_VERSION
+from memory.chat_storage import chat_tables, validate_chat_extension
+from memory.mysql_storage import (MYSQL_STORAGE_VERSION, MySQLSettings, current_mysql_engine,
                                engine_from_url, initialize_private_schema, private_tables, validate_private_schema)
-from app.mysql_usage import initialize_usage_schema, usage_attempts, usage_metadata, validate_usage_schema
-from app.storage import LEGACY_PATH, STORAGE_VERSION, StorageError, _backup_new, engine_for
+from memory.mysql_usage import initialize_usage_schema, usage_attempts, usage_metadata, validate_usage_schema
+from memory.storage import LEGACY_PATH, STORAGE_VERSION, StorageError, _backup_new, engine_for
 
 
 class Refused(Exception):
@@ -179,8 +179,11 @@ def _mysql_copy_locked(source: Engine, target: Engine, receipt: Path, anchor: Pa
             or source.url == target.url or re.fullmatch(r"trippilot_(?:chat|test)_[0-9a-f]{32}", target.url.database or "") is None):
         raise Refused("isolated_mysql_copy_required")
     validate_private_schema(source)
-    from app.chat_places_storage import validate_chat_places_extension
+    from memory.chat_places_storage import validate_chat_places_extension
     with source.connect() as connection:
+        from memory.assistant_store import validate_assistant_extension
+        if validate_assistant_extension(connection, required=False):
+            raise Refused("assistant_extension_requires_own_copy_tool")
         if validate_chat_places_extension(connection, required=False):
             raise Refused("chat_places_extension_requires_own_copy_tool")
     expected_identity = _anchor_identity(anchor)

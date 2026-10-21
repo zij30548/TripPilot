@@ -90,7 +90,7 @@ class QwenDeploymentConfig(unittest.TestCase):
     def test_nonempty_host_path_matrix_matches_actual_backend_boundary(self) -> None:
         # Import the real backend only in this test, never from deploy/config.py.
         with patch.object(sys, "path", [str(ROOT / "backend"), *sys.path]):
-            from app.integrations.qwen import QwenError, beijing_endpoint
+            from tooling.providers.qwen import QwenError, beijing_endpoint
         from pydantic import SecretStr
         for accepted, urls in ((True, VALID_URLS), (False, INVALID_URLS)):
             for url in urls:

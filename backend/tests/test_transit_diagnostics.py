@@ -6,7 +6,7 @@ from unittest.mock import patch
 
 import httpx
 
-from app.integrations.amap_transit import TransitDataError, _convert_route
+from tooling.providers.amap_transit import TransitDataError, _convert_route
 from tests.test_transit import sample_proposal, sample_upstream, TEST_KEY
 from tests import test_schedule_transit
 
@@ -24,7 +24,7 @@ class TransitDiagnosticsTests(unittest.TestCase):
             with self.subTest(field=field):
                 data = sample_upstream()
                 mutate(data["route"]["transits"][0])
-                with self.assertLogs("app.integrations.amap_transit", "WARNING") as logs:
+                with self.assertLogs("tooling.providers.amap_transit", "WARNING") as logs:
                     with self.assertRaises(TransitDataError) as caught:
                         _convert_route(data)
                 self.assertEqual([(i.field, i.reason) for i in caught.exception.issues], [(field, reason)])
@@ -34,7 +34,7 @@ class TransitDiagnosticsTests(unittest.TestCase):
     def test_degenerate_access_geometry_has_safe_incomplete_diagnostic_not_rejection(self) -> None:
         data = sample_upstream()
         data["route"]["transits"][0]["segments"][0]["walking"]["steps"][0]["polyline"] = "121.446312,31.223412;121.446312,31.223412"
-        with self.assertLogs("app.integrations.amap_transit", "INFO") as logs:
+        with self.assertLogs("tooling.providers.amap_transit", "INFO") as logs:
             status, route = _convert_route(data)
         self.assertEqual(status, "ok")
         self.assertFalse(route.geometry_complete)
@@ -50,7 +50,7 @@ class TransitDiagnosticsTests(unittest.TestCase):
         data[secret] = secret
         proposal = sample_proposal() | {"duration": secret}
         data["route"]["transits"] = [proposal] * 100
-        with self.assertLogs("app.integrations.amap_transit", "WARNING") as logs:
+        with self.assertLogs("tooling.providers.amap_transit", "WARNING") as logs:
             with self.assertRaises(TransitDataError) as caught:
                 _convert_route(data)
         self.assertEqual(len(logs.output), 4)
@@ -60,7 +60,7 @@ class TransitDiagnosticsTests(unittest.TestCase):
         unsupported = sample_proposal()
         unsupported["segments"][0]["taxi"] = {"name": secret}
         data["route"]["transits"] = [unsupported] * 1000 + [proposal]
-        with self.assertLogs("app.integrations.amap_transit", "WARNING") as logs:
+        with self.assertLogs("tooling.providers.amap_transit", "WARNING") as logs:
             with self.assertRaises(TransitDataError) as caught:
                 _convert_route(data)
         self.assertEqual(caught.exception.issues[0].field, "route.transits[overflow].duration")
@@ -92,7 +92,7 @@ class TransitDiagnosticsTests(unittest.TestCase):
         case.setUp()
         self.addCleanup(case.doCleanups)
         original = case.fixture.response
-        import app.api.places as places_api
+        import api.places as places_api
         async def mock_client() -> AsyncIterator[httpx.AsyncClient]:
             def handle(req: httpx.Request) -> httpx.Response:
                 case.fixture.requests.append(req)

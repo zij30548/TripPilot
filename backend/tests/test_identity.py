@@ -11,11 +11,11 @@ from fastapi import FastAPI, Request
 from fastapi.testclient import TestClient
 from sqlmodel import Session, select
 
-from app import auth
-from app.api import auth as auth_api
-from app.identity_models import AccountRow, LoginBucketRow, SessionRow
-from app.storage import engine_for
-from app.storage import StorageError
+from core import auth
+from api import auth as auth_api
+from memory.identity_models import AccountRow, LoginBucketRow, SessionRow
+from memory.storage import engine_for
+from memory.storage import StorageError
 from tools import account_admin
 
 ORIGIN = "http://127.0.0.1:3000"
@@ -43,9 +43,9 @@ class IdentitySecurity(unittest.TestCase):
         self.directory = tempfile.TemporaryDirectory()
         self.path = Path(self.directory.name) / "identity.sqlite3"
         self.settings = auth.AuthSettings(_env_file=None, auth_cookie_secure=False, auth_allowed_origins=(ORIGIN,))
-        self.patches = [patch("app.auth.database_path", return_value=self.path),
-                        patch("app.auth.get_auth_settings", return_value=self.settings),
-                        patch("app.api.auth.get_auth_settings", return_value=self.settings)]
+        self.patches = [patch("core.auth.database_path", return_value=self.path),
+                        patch("core.auth.get_auth_settings", return_value=self.settings),
+                        patch("api.auth.get_auth_settings", return_value=self.settings)]
         for item in self.patches: item.start()
         self.account = auth.create_account("invite-a", PASSWORD)
         self.app = test_app()
@@ -151,7 +151,7 @@ class IdentitySecurity(unittest.TestCase):
 
     def test_expiry_revoke_disabled_and_account_switch_rotation(self):
         self.login()
-        with patch("app.auth.now_seconds", return_value=auth.now_seconds() + 30_000):
+        with patch("core.auth.now_seconds", return_value=auth.now_seconds() + 30_000):
             self.assertEqual(self.client.get("/protected").status_code, 401)
         self.assertEqual(auth.revoke_account("invite-a"), 1)
         self.assertEqual(self.client.get("/protected").status_code, 401)
@@ -178,7 +178,7 @@ class IdentitySecurity(unittest.TestCase):
         engine_for(str(self.path)).dispose()
         engine_for.cache_clear()
         self.assertEqual(self.client.post("/auth/login", json={"username": "invite-a", "password": PASSWORD}, headers=headers).status_code, 429)
-        with patch("app.auth._HASH_CAPACITY.acquire", return_value=False):
+        with patch("core.auth._HASH_CAPACITY.acquire", return_value=False):
             self.assertEqual(self.client.post("/auth/login", json={"username": "invite-c", "password": PASSWORD}, headers=headers).status_code, 429)
         with Session(engine_for(str(self.path))) as db:
             self.assertGreater(len(db.exec(select(LoginBucketRow)).all()), 1)
@@ -212,7 +212,7 @@ class IdentitySecurity(unittest.TestCase):
         response = self.client.get("/protected")
         self.assertEqual(response.headers["cache-control"], "no-store")
         self.assertIn("Cookie", response.headers["vary"])
-        with patch("app.auth.engine_for", side_effect=StorageError("storage_migration_required")):
+        with patch("core.auth.engine_for", side_effect=StorageError("storage_migration_required")):
             for path in ("/protected", "/auth/session"):
                 failure = self.client.get(path)
                 self.assertEqual(failure.status_code, 503)
@@ -227,7 +227,7 @@ class IdentitySecurity(unittest.TestCase):
             auth.reserve_login_attempt("new-subject")
         with Session(engine_for(str(self.path))) as db:
             self.assertEqual(len(db.exec(select(LoginBucketRow)).all()), 31)
-        with patch("app.auth.now_seconds", return_value=auth.now_seconds() + 901):
+        with patch("core.auth.now_seconds", return_value=auth.now_seconds() + 901):
             auth.reserve_login_attempt("subject-0")
 
     def test_admin_password_never_argument_output_or_error(self):
@@ -246,7 +246,7 @@ class IdentitySecurity(unittest.TestCase):
             self.assertEqual(account_admin.main(), 2)
 
     def test_new_login_does_not_keep_unbounded_active_sessions(self):
-        with patch("app.auth.reserve_login_attempt"):
+        with patch("core.auth.reserve_login_attempt"):
             for _ in range(10):
                 auth.login("invite-a", PASSWORD, None)
         with Session(engine_for(str(self.path))) as db:

@@ -20,18 +20,19 @@ import time
 import httpx
 import uvicorn
 
-from app.api.places import get_http_client
-from app.config import get_settings
-from app.integrations.amap import REQUEST_TIMEOUT
-from app.schemas.destination import CityScheduleRequest
+from api.places import get_http_client
+from core.config import get_settings
+from tooling.providers.amap import REQUEST_TIMEOUT
+from core.schemas.destination import CityScheduleRequest
 
 ROOT = Path(__file__).resolve().parents[2]
 DIRECTORY = ROOT.parent / "trippilot-evidence/release-1b/batch-20261018"
 LIMIT = 4 * 1024 * 1024  # Evidence limit only, never a product response limit.
 PATHS = {"/v5/place/text", "/v3/direction/transit/integrated", "/v3/direction/walking"}
-FILES = ["backend/app/integrations/amap.py", "backend/app/integrations/amap_transit.py",
-         "backend/app/integrations/amap_walking.py", "backend/app/services/schedule_routes.py",
-         "backend/app/services/schedule.py", "backend/app/api/schedule.py",
+SOURCE_LAYOUT = "echo-v1"
+FILES = ["backend/tooling/providers/amap.py", "backend/tooling/providers/amap_transit.py",
+         "backend/tooling/providers/amap_walking.py", "backend/tooling/travel/schedule_routes.py",
+         "backend/tooling/travel/schedule.py", "backend/api/schedule.py",
          "frontend/src/components/trip/schedule-preview.tsx", "frontend/src/lib/schedule-blocker.ts",
          "backend/tools/traffic_acceptance.py", "backend/tests/test_traffic_acceptance.py"]
 CASES = [
@@ -88,7 +89,7 @@ def scrub(value: object, secrets: tuple[str, ...]) -> object:
 def freeze(directory: Path = DIRECTORY) -> None:
     directory.mkdir(parents=True, exist_ok=True)
     write_new(directory / "protocol.json", {
-        "stage": "release-1b", "cases": CASES, "model_calls": 0,
+        "stage": "release-1b", "source_layout": SOURCE_LAYOUT, "cases": CASES, "model_calls": 0,
         "head": subprocess.check_output(["git", "rev-parse", "HEAD"], cwd=ROOT, text=True).strip(),
         "files": {path: digest((ROOT / path).read_bytes()) for path in FILES},
         "build_id": (ROOT / "frontend/.next/BUILD_ID").read_text().strip(),
@@ -102,8 +103,19 @@ def freeze(directory: Path = DIRECTORY) -> None:
 
 def verify(directory: Path) -> dict:
     protocol = json.loads((directory / "protocol.json").read_bytes())
-    if protocol["cases"] != CASES or any(digest((ROOT / p).read_bytes()) != h for p, h in protocol["files"].items()):
+    # Old receipts keep their own exact path/hash manifest. Never map them to
+    # new source paths or refresh hashes to make a historical freeze pass.
+    files = protocol.get("files")
+    if (protocol.get("cases") != CASES or not isinstance(files, dict) or not files
+            or protocol.get("source_layout") not in (None, SOURCE_LAYOUT)
+            or protocol.get("source_layout") == SOURCE_LAYOUT and set(files) != set(FILES)):
         raise ValueError("Frozen business version changed")
+    try:
+        if any(not isinstance(p, str) or not isinstance(h, str) or digest((ROOT / p).read_bytes()) != h
+               for p, h in files.items()):
+            raise ValueError("Frozen business version changed")
+    except OSError:
+        raise ValueError("Frozen business version changed") from None
     if (ROOT / "frontend/.next/BUILD_ID").read_text().strip() != protocol["build_id"]:
         raise ValueError("Frozen production build changed")
     return protocol
@@ -112,10 +124,13 @@ def verify(directory: Path) -> dict:
 def freeze_repair(directory: Path = DIRECTORY) -> None:
     """One announced c02 post-fix recheck, never rewrite the initial freeze."""
     original = json.loads((directory / "protocol.json").read_bytes())
-    reviewed_changes = {"backend/app/integrations/amap_transit.py",
+    reviewed_changes = {"backend/tooling/providers/amap_transit.py",
                         "backend/tools/traffic_acceptance.py", "backend/tests/test_traffic_acceptance.py"}
-    if any(digest((ROOT / p).read_bytes()) != h for p, h in original["files"].items() if p not in reviewed_changes):
-        raise ValueError("Unreviewed frozen file changed")
+    try:
+        if any(digest((ROOT / p).read_bytes()) != h for p, h in original["files"].items() if p not in reviewed_changes):
+            raise ValueError("Unreviewed frozen file changed")
+    except OSError:
+        raise ValueError("Unreviewed frozen file changed") from None
     if (ROOT / "frontend/.next/BUILD_ID").read_text().strip() != original["build_id"]:
         raise ValueError("Production build changed")
     for case in CASES:
@@ -126,6 +141,7 @@ def freeze_repair(directory: Path = DIRECTORY) -> None:
     target.mkdir(exist_ok=False)
     write_new(target / "protocol.json", {
         **original,
+        "source_layout": SOURCE_LAYOUT,
         "files": {p: digest((ROOT / p).read_bytes()) for p in FILES},
         "purpose": "One c02 unchanged-input post-fix UI recheck: two original directed transit edges; no other case rerun/search/model/DB.",
         "original_protocol_hash": digest((directory / "protocol.json").read_bytes()),
@@ -153,9 +169,9 @@ def verify_repair(directory: Path) -> dict:
 
 def replay_transit(directory: Path = DIRECTORY) -> None:
     """Offline replay only. Read saved upstream bodies; never create an HTTP client."""
-    from app.integrations.amap_transit import _convert_route
-    from app.schemas.schedule import ScheduleEdge
-    from app.services.schedule import build_schedule
+    from tooling.providers.amap_transit import _convert_route
+    from core.schemas.schedule import ScheduleEdge
+    from tooling.travel.schedule import build_schedule
     rows = [json.loads(line) for line in (directory / "attempts.jsonl").read_text().splitlines()]
     for case_id in ["c01", "c02"]:
         original = json.loads((directory / f"{case_id}-response.json").read_bytes())["body"]["schedule"]
@@ -183,7 +199,7 @@ def replay_transit(directory: Path = DIRECTORY) -> None:
         write_new(directory / f"{case_id}-offline-replay.json", {
             "kind": "saved-real-upstream-offline-replay-not-new-live-verification",
             "replayed_at": datetime.now(timezone.utc).isoformat(),
-            "adapter_hash": digest((ROOT / "backend/app/integrations/amap_transit.py").read_bytes()),
+            "adapter_hash": digest((ROOT / "backend/tooling/providers/amap_transit.py").read_bytes()),
             "original_response_hash": digest((directory / f"{case_id}-response.json").read_bytes()),
             "upstream_references": references, "schedule": replayed.model_dump(mode="json"),
         })
@@ -315,7 +331,7 @@ def serve(directory: Path = DIRECTORY, *, repair: bool = False) -> None:
         def emit(self, record: logging.LogRecord) -> None:
             append(directory, {"event": "diagnostic", "case": CONTEXT.get(), "logger": record.name,
                                "message": str(scrub(record.getMessage(), secrets))[:1000]})
-    for name in ["app.integrations.amap_transit", "app.integrations.amap_walking", "app.services.schedule_routes"]:
+    for name in ["tooling.providers.amap_transit", "tooling.providers.amap_walking", "tooling.travel.schedule_routes"]:
         logging.getLogger(name).addHandler(DiagnosticHandler())
         logging.getLogger(name).setLevel(logging.INFO)
     app.dependency_overrides[get_http_client] = client

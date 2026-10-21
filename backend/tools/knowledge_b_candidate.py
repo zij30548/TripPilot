@@ -4,10 +4,10 @@ import json
 
 from pydantic import Field, model_validator
 
-from app.integrations.qwen import MAX_PROMPT_BYTES
-from app.schemas.knowledge import KnowledgeResponse, Strict
-from app.schemas.knowledge_answer import AnswerRequest, EvidenceId, MissingCode
-from app.services.knowledge import build_index, fingerprint
+from tooling.providers.qwen import MAX_PROMPT_BYTES
+from core.schemas.knowledge import KnowledgeResponse, Strict
+from core.schemas.knowledge_answer import AnswerRequest, EvidenceId, MissingCode
+from tooling.travel.knowledge import build_index, fingerprint
 from tools.knowledge_evidence_trial import MISSING_TEXT, selection_payload
 
 VERSION = "knowledge-evidence-selection-v2-bound-units"

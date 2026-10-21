@@ -14,11 +14,11 @@ import time
 import httpx
 from pydantic import ValidationError
 
-from app.config import Settings, get_settings
-from app.integrations.qwen import MODEL, QwenClient, QwenError, configured_endpoint, strict_json
-from app.schemas.knowledge import KnowledgeRequest, KnowledgeResponse
-from app.schemas.knowledge_answer import AnswerRequest
-from app.services.knowledge import DATA, build_index, fingerprint
+from core.config import Settings, get_settings
+from tooling.providers.qwen import MODEL, QwenClient, QwenError, configured_endpoint, strict_json
+from core.schemas.knowledge import KnowledgeRequest, KnowledgeResponse
+from core.schemas.knowledge_answer import AnswerRequest
+from tooling.travel.knowledge import DATA, build_index, fingerprint
 from tools.knowledge_ab_trial import QUALITY_ERRORS, TrialStopped, create_json, locked, pending, wire_hash
 from tools.knowledge_acceptance import CountedTransport, Ledger, context
 from tools.knowledge_b_candidate import VERSION, bind, payload_for, render

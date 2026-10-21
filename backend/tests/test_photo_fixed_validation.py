@@ -11,9 +11,9 @@ from unittest.mock import patch
 import httpx
 from PIL import Image
 
-from app.config import Settings
-from app.integrations.qwen import QwenError
-from app.integrations.qwen_vision import QwenVisionClient
+from core.config import Settings
+from tooling.providers.qwen import QwenError
+from tooling.providers.qwen_vision import QwenVisionClient
 from tools import photo_fixed_validation as trial
 
 

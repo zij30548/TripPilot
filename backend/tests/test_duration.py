@@ -12,24 +12,24 @@ from uuid import uuid4
 import httpx
 from sqlmodel import Session
 
-from app.destinations import DESTINATIONS
-from app.planning_limits import LIMITS
-from app.schemas.destination import CityScheduleRequest, CityScheduleResponse, CityTripRequest
-from app.schemas.explanation import ScheduleSnapshot
-from app.schemas.adjustment_intent import AdjustmentIntentRequest
-from app.schemas.itinerary_query import ItineraryQueryRequest
-from app.schemas.saved_trip import SaveTrip, snapshot_adapter
-from app.schemas.schedule import ScheduleEdge, ScheduleRequest
-from app.schemas.weather import CityWeatherRequest
-from app.saved_trips import engine_for, save, detail, SavedTripRow
+from core.destinations import DESTINATIONS
+from core.planning_limits import LIMITS
+from core.schemas.destination import CityScheduleRequest, CityScheduleResponse, CityTripRequest
+from core.schemas.explanation import ScheduleSnapshot
+from core.schemas.adjustment_intent import AdjustmentIntentRequest
+from core.schemas.itinerary_query import ItineraryQueryRequest
+from core.schemas.saved_trip import SaveTrip, snapshot_adapter
+from core.schemas.schedule import ScheduleEdge, ScheduleRequest
+from core.schemas.weather import CityWeatherRequest
+from memory.saved_trips import engine_for, save, detail, SavedTripRow
 from tests.archive_owner import OWNER, seed_owner
-from app.integrations.amap_walking import AmapWalkingClient
-from app.integrations.amap_transit import AmapTransitClient
-from app.integrations.amap_weather import convert_forecast
-from app.services.explanation import compact_schedule, validate_snapshot
-from app.services.schedule import build_required_schedule, build_schedule
-from app.services.schedule_routes import ScheduleRouteCollector, required_edges, optional_edges, unique_pairs
-from app.services.schedule_drawing import drawing_for
+from tooling.providers.amap_walking import AmapWalkingClient
+from tooling.providers.amap_transit import AmapTransitClient
+from tooling.providers.amap_weather import convert_forecast
+from tooling.travel.explanation import compact_schedule, validate_snapshot
+from tooling.travel.schedule import build_required_schedule, build_schedule
+from tooling.travel.schedule_routes import ScheduleRouteCollector, required_edges, optional_edges, unique_pairs
+from tooling.travel.schedule_drawing import drawing_for
 from tests.test_destinations import modern_snapshot
 from tests.test_schedule import NOW
 from tests.test_schedule_optional import payload, ok_route
@@ -199,7 +199,7 @@ class DurationBudget(unittest.IsolatedAsyncioTestCase):
                 return httpx.Response(200,json=data)
             async with httpx.AsyncClient(transport=httpx.MockTransport(handle)) as http:
                 adapter=AmapWalkingClient(http,"controlled") if mode=="walking" else AmapTransitClient(http,"controlled")
-                with patch("app.services.schedule_routes.MIN_ROUTE_START_INTERVAL_SECONDS",0):
+                with patch("tooling.travel.schedule_routes.MIN_ROUTE_START_INTERVAL_SECONDS",0):
                     req=city_request(mode=mode).core(); collector=ScheduleRouteCollector(adapter,mode)
                     first=await collector.collect(required_edges(req)); baseline=build_required_schedule(req,first,NOW)
                     self.assertFalse(baseline.unscheduled)
@@ -213,7 +213,7 @@ class DurationBudget(unittest.IsolatedAsyncioTestCase):
 
     async def test_shared_deadline_not_reset_and_cancel_cleans_pending(self):
         req=city_request().core(); adapter=AsyncMock(spec=AmapWalkingClient); adapter.walking.return_value=ok_route()
-        with patch("app.services.schedule_routes.MIN_ROUTE_START_INTERVAL_SECONDS",0):
+        with patch("tooling.travel.schedule_routes.MIN_ROUTE_START_INTERVAL_SECONDS",0):
             collector=ScheduleRouteCollector(adapter)
             edges=await collector.collect(required_edges(req)); baseline=build_required_schedule(req,edges,NOW)
             collector.deadline=0

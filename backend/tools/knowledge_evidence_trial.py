@@ -12,12 +12,12 @@ from typing import Annotated
 
 from pydantic import Field, StringConstraints, model_validator
 
-from app.integrations.qwen import MAX_PROMPT_BYTES, MODEL, strict_json
-from app.schemas.explanation import ExplanationUsage
-from app.schemas.knowledge import KnowledgeResponse, Strict
-from app.schemas.knowledge_answer import AnswerResponse, EvidenceId, MissingCode
-from app.services.knowledge import DATA, build_index, fingerprint
-from app.services.knowledge_answer import SYSTEM, answer_payload, render_answer
+from tooling.providers.qwen import MAX_PROMPT_BYTES, MODEL, strict_json
+from core.schemas.explanation import ExplanationUsage
+from core.schemas.knowledge import KnowledgeResponse, Strict
+from core.schemas.knowledge_answer import AnswerResponse, EvidenceId, MissingCode
+from tooling.travel.knowledge import DATA, build_index, fingerprint
+from tooling.travel.knowledge_answer import SYSTEM, answer_payload, render_answer
 
 VERSION = "knowledge-evidence-selection-offline-v1"
 EVIDENCE = DATA.parents[2] / "trippilot-evidence/6d-2"

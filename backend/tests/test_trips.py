@@ -5,7 +5,7 @@ from pydantic import ValidationError
 
 from tests.business_client import BusinessTestClient as TestClient
 
-from app.schemas.trip import TripPlan, WeatherSummary
+from core.schemas.trip import TripPlan, WeatherSummary
 from main import app
 
 

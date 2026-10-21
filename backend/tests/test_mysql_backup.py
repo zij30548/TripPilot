@@ -12,13 +12,13 @@ from sqlalchemy import inspect, select, text
 from sqlalchemy.exc import OperationalError
 from sqlmodel import Session
 
-from app.auth import PASSWORD_HASHER
-from app.identity_models import AccountRow, InvitationRow, SessionRow
-from app.mysql_storage import initialize_private_schema, validate_private_schema
-from app.mysql_usage import initialize_usage_schema, usage_attempts
-from app.saved_trips import SavedTripRow, get_record, save
-from app.schemas.saved_trip import SaveTrip
-from app.storage import StorageError
+from core.auth import PASSWORD_HASHER
+from memory.identity_models import AccountRow, InvitationRow, SessionRow
+from memory.mysql_storage import initialize_private_schema, validate_private_schema
+from memory.mysql_usage import initialize_usage_schema, usage_attempts
+from memory.saved_trips import SavedTripRow, get_record, save
+from core.schemas.saved_trip import SaveTrip
+from memory.storage import StorageError
 from tests.mysql_support import temporary_mysql
 from tests.test_saved_trips import payload
 from tools.mysql_backup import Refused, backup, inspect_backup, restore_drill

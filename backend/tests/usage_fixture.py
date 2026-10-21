@@ -4,8 +4,8 @@ from pathlib import Path
 import tempfile
 import weakref
 
-from app.business_usage import DailyLimit, SERVICES, UsageSettings, UsageStore
-from app.usage_runtime import bind_usage_context, reset_usage_context
+from core.business_usage import DailyLimit, SERVICES, UsageSettings, UsageStore
+from core.usage_runtime import bind_usage_context, reset_usage_context
 
 
 class UsageFixture:

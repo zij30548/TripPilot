@@ -11,12 +11,12 @@ from tests.business_client import BusinessTestClient as TestClient
 from fastapi import HTTPException, Request
 from pydantic import ValidationError
 
-from app.api.explanation import explain_schedule, get_qwen_http_client
-from app.config import Settings, get_settings
-from app.integrations.qwen import MODEL, QwenClient, QwenError, configured_endpoint, model_payload, parse_result
-from app.logging_filters import RedactHttpCredentials
-from app.schemas.explanation import ExplanationRequest, ModelSelection, ScheduleSnapshot
-from app.services.explanation import CODE_TYPES, build_facts, compact_schedule, fixed_limitations, render_selection, validate_snapshot
+from api.explanation import explain_schedule, get_qwen_http_client
+from core.config import Settings, get_settings
+from tooling.providers.qwen import MODEL, QwenClient, QwenError, configured_endpoint, model_payload, parse_result
+from core.logging_filters import RedactHttpCredentials
+from core.schemas.explanation import ExplanationRequest, ModelSelection, ScheduleSnapshot
+from tooling.travel.explanation import CODE_TYPES, build_facts, compact_schedule, fixed_limitations, render_selection, validate_snapshot
 from main import app
 from tests.explanation_samples import business_samples
 
@@ -214,7 +214,7 @@ class QwenTests(unittest.IsolatedAsyncioTestCase):
                 finally:
                     cancelled.set()
         async with httpx.AsyncClient(transport=httpx.MockTransport(lambda r: httpx.Response(200, stream=Slow()))) as client:
-            with patch("app.integrations.qwen.DEADLINE_SECONDS", .02), self.assertRaises(QwenError) as caught:
+            with patch("tooling.providers.qwen.DEADLINE_SECONDS", .02), self.assertRaises(QwenError) as caught:
                 await QwenClient(settings(), client).select([])
             self.assertEqual(caught.exception.code, "timeout"); self.assertTrue(cancelled.is_set())
             task = asyncio.create_task(QwenClient(settings(), client).select([]))
@@ -288,7 +288,7 @@ class ExplanationAPITests(unittest.TestCase):
             self.assertIn("基于当前提交快照", response.json()["limitations"][0])
             self.assertEqual(len(calls), 1)
             app.dependency_overrides[get_settings] = lambda: settings()
-            with patch("app.integrations.qwen.QwenClient.select", return_value=(ModelSelection.model_validate({"highlights": [{"message_code": "visits", "fact_ids": ["f0"]}]}), parse_result(envelope())[1])):
+            with patch("tooling.providers.qwen.QwenClient.select", return_value=(ModelSelection.model_validate({"highlights": [{"message_code": "visits", "fact_ids": ["f0"]}]}), parse_result(envelope())[1])):
                 invalid_reference = client.post("/trips/schedule-explanation", json=body)
                 self.assertEqual(invalid_reference.status_code, 502)
                 self.assertEqual(invalid_reference.json()["detail"]["code"], "references")

@@ -10,14 +10,14 @@ from unittest.mock import AsyncMock, patch
 import httpx
 from pydantic import ValidationError
 
-from app.api.places import get_http_client
-from app.integrations.amap import AmapError, AmapTimeoutError
-from app.integrations.amap_transit import AmapTransitClient, INVALID_DATA, _proposal
-from app.integrations.amap_walking import AmapWalkingClient
-from app.schemas.schedule import ScheduleEdge, ScheduleRequest
-from app.schemas.transit import TransitRouteResponse
-from app.services.schedule import add_optional_schedule, build_required_schedule, build_schedule
-from app.services.schedule_routes import (
+from api.places import get_http_client
+from tooling.providers.amap import AmapError, AmapTimeoutError
+from tooling.providers.amap_transit import AmapTransitClient, INVALID_DATA, _proposal
+from tooling.providers.amap_walking import AmapWalkingClient
+from core.schemas.schedule import ScheduleEdge, ScheduleRequest
+from core.schemas.transit import TransitRouteResponse
+from tooling.travel.schedule import add_optional_schedule, build_required_schedule, build_schedule
+from tooling.travel.schedule_routes import (
     ScheduleRouteCollector, collect_schedule_edges, edge_key, optional_edges, required_edges, unique_pairs,
 )
 from main import app
@@ -171,7 +171,7 @@ class TransitScheduleApiTests(unittest.TestCase):
         self.fixture = transit.TransitRouteApiTests()
         self.fixture.setUp()
         self.addCleanup(self.fixture.doCleanups)
-        self.enterContext(patch("app.services.schedule_routes.MIN_ROUTE_START_INTERVAL_SECONDS", 0))
+        self.enterContext(patch("tooling.travel.schedule_routes.MIN_ROUTE_START_INTERVAL_SECONDS", 0))
 
     def post(self, data: dict | None = None) -> httpx.Response:
         return self.fixture.client.post("/trips/schedule-preview", json=data or optional.payload(1, 0, transport_mode="transit"))
@@ -241,7 +241,7 @@ class TransitScheduleApiTests(unittest.TestCase):
         self.assertNotIn(transit.TEST_KEY, failed.text)
         self.fixture.failure = httpx.ReadTimeout
         self.fixture.requests.clear()
-        with self.assertLogs("app.integrations.amap_transit", level="WARNING") as logs:
+        with self.assertLogs("tooling.providers.amap_transit", level="WARNING") as logs:
             timeout = self.post()
         self.assertEqual(timeout.json()["edges"][0]["status"], "timeout")
         self.assertEqual(len(self.fixture.requests), 2)  # one per edge, no read retry
@@ -279,7 +279,7 @@ class TransitScheduleApiTests(unittest.TestCase):
             data["duration_settings"] = [setting | ({"minutes": 15, "source": "user"} if setting["place_id"].startswith("o") else {})
                                          for setting in data["duration_settings"]]
             with patch.dict(app.dependency_overrides, {get_http_client: dependency}), \
-                    self.assertLogs("app.integrations.amap_transit", level="WARNING"):
+                    self.assertLogs("tooling.providers.amap_transit", level="WARNING"):
                 response = self.post(data)
             self.assertEqual(response.status_code, 200)
             self.assertEqual(response.json()["status"], "complete")
@@ -291,7 +291,7 @@ class TransitScheduleApiTests(unittest.TestCase):
 
 class TransitScheduleCollectorTests(unittest.IsolatedAsyncioTestCase):
     async def asyncSetUp(self) -> None:
-        self.enterContext(patch("app.services.schedule_routes.MIN_ROUTE_START_INTERVAL_SECONDS", 0))
+        self.enterContext(patch("tooling.travel.schedule_routes.MIN_ROUTE_START_INTERVAL_SECONDS", 0))
 
     async def test_mode_is_in_directed_memo_and_result_reused_across_phases(self) -> None:
         req = request(1, 0)
@@ -311,7 +311,7 @@ class TransitScheduleCollectorTests(unittest.IsolatedAsyncioTestCase):
         client = AsyncMock(spec=AmapTransitClient)
         client.transit.return_value = route()
         req = request(1, 2)
-        with patch("app.services.schedule_routes.ROUTE_BATCH_TIMEOUT_SECONDS", 0.02):
+        with patch("tooling.travel.schedule_routes.ROUTE_BATCH_TIMEOUT_SECONDS", 0.02):
             collector = ScheduleRouteCollector(client, "transit")
         first = await collector.collect(required_edges(req))
         baseline = build_required_schedule(req, first, NOW)
@@ -338,7 +338,7 @@ class TransitScheduleCollectorTests(unittest.IsolatedAsyncioTestCase):
 
         client = AsyncMock(spec=AmapTransitClient)
         client.transit.side_effect = query
-        with patch("app.services.schedule_routes.ROUTE_BATCH_TIMEOUT_SECONDS", 0.025):
+        with patch("tooling.travel.schedule_routes.ROUTE_BATCH_TIMEOUT_SECONDS", 0.025):
             results = await collect_schedule_edges(request(6, 0), client)
         self.assertEqual(len(entered), 3)
         self.assertEqual(len(cancelled), 3)
@@ -356,7 +356,7 @@ class TransitScheduleCollectorTests(unittest.IsolatedAsyncioTestCase):
         client = AsyncMock(spec=AmapTransitClient)
         client.transit.side_effect = query
         pairs = required_edges(request(1, 0))
-        with patch("app.services.schedule_routes.MIN_ROUTE_START_INTERVAL_SECONDS", 0.012):
+        with patch("tooling.travel.schedule_routes.MIN_ROUTE_START_INTERVAL_SECONDS", 0.012):
             collector = ScheduleRouteCollector(client, "transit")
             await collector.collect(pairs[:1])
             await collector.collect(pairs[1:])
@@ -369,7 +369,7 @@ class TransitScheduleCollectorTests(unittest.IsolatedAsyncioTestCase):
             await asyncio.Event().wait()
 
         client.transit.side_effect = wait
-        with patch("app.services.schedule_routes.MIN_ROUTE_START_INTERVAL_SECONDS", 1):
+        with patch("tooling.travel.schedule_routes.MIN_ROUTE_START_INTERVAL_SECONDS", 1):
             task = asyncio.create_task(collect_schedule_edges(request(6, 0), client))
             await entered.wait()
             task.cancel()

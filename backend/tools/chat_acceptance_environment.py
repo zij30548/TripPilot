@@ -20,15 +20,15 @@ from sqlalchemy import create_engine, text
 from sqlalchemy.engine import Engine, URL, make_url
 from sqlalchemy.exc import SQLAlchemyError
 
-from app.auth import PASSWORD_HASHER
-from app.business_usage import SERVICES
-from app.chat_places_storage import ChatPlacesStore
-from app.chat_storage import ChatStore
-from app.identity_models import AccountRow
-from app.mysql_storage import initialize_private_schema, validate_private_schema
-from app.mysql_usage import initialize_usage_schema, validate_usage_schema
-from app.schemas.chat import Intent, SubmitTurn
-from app.services.chat import render_reply
+from core.auth import PASSWORD_HASHER
+from core.business_usage import SERVICES
+from memory.chat_places_storage import ChatPlacesStore
+from memory.chat_storage import ChatStore
+from memory.identity_models import AccountRow
+from memory.mysql_storage import initialize_private_schema, validate_private_schema
+from memory.mysql_usage import initialize_usage_schema, validate_usage_schema
+from core.schemas.chat import Intent, SubmitTurn
+from tooling.travel.chat import render_reply
 from tools.chat_places_storage import provision_chat_places_extension
 from tools.chat_storage import provision_chat_extension
 

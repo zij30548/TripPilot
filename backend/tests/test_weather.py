@@ -14,11 +14,11 @@ import httpx
 from tests.business_client import BusinessTestClient as TestClient
 from pydantic import ValidationError
 
-from app.api.places import get_http_client
-from app.config import Settings, get_settings
-from app.integrations.amap import AmapError, AmapTimeoutError
-from app.integrations.amap_weather import AmapWeatherClient, convert_forecast
-from app.schemas.weather import (
+from api.places import get_http_client
+from core.config import Settings, get_settings
+from tooling.providers.amap import AmapError, AmapTimeoutError
+from tooling.providers.amap_weather import AmapWeatherClient, convert_forecast
+from core.schemas.weather import (
     NON_PRECIPITATION, RAIN, RAIN_SNOW, SNOW, WeatherForecastResponse,
     WeatherRequest, precipitation_for,
 )
@@ -351,7 +351,7 @@ class WeatherApiTests(unittest.TestCase):
 
     def test_logger_records_only_safe_failure_class(self) -> None:
         self.failures = [httpx.ConnectError, httpx.ReadTimeout]
-        with self.assertLogs("app.integrations.amap_weather", level="WARNING") as captured:
+        with self.assertLogs("tooling.providers.amap_weather", level="WARNING") as captured:
             self.assertEqual(self.forecast().status_code, 504)
         logs = "\n".join(captured.output)
         self.assertIn("ConnectError", logs)
@@ -380,7 +380,7 @@ class WeatherDeadlineTests(unittest.IsolatedAsyncioTestCase):
 
         async with httpx.AsyncClient(transport=httpx.MockTransport(handle)) as client:
             started = asyncio.get_running_loop().time()
-            with patch("app.integrations.amap_weather.BATCH_TIMEOUT_SECONDS", 0.06):
+            with patch("tooling.providers.amap_weather.BATCH_TIMEOUT_SECONDS", 0.06):
                 with self.assertRaises(AmapTimeoutError):
                     await AmapWeatherClient(client, TEST_KEY).forecast(WeatherRequest.model_validate(sample_request()))
             elapsed = asyncio.get_running_loop().time() - started
@@ -400,7 +400,7 @@ class WeatherDeadlineTests(unittest.IsolatedAsyncioTestCase):
             return httpx.Response(200, json=sample_upstream())
 
         async with httpx.AsyncClient(transport=httpx.MockTransport(handle)) as client:
-            with patch("app.integrations.amap_weather.BATCH_TIMEOUT_SECONDS", 0), self.assertRaises(AmapTimeoutError):
+            with patch("tooling.providers.amap_weather.BATCH_TIMEOUT_SECONDS", 0), self.assertRaises(AmapTimeoutError):
                 await AmapWeatherClient(client, TEST_KEY).forecast(WeatherRequest.model_validate(sample_request()))
         self.assertEqual(attempts, 0)
 
@@ -436,6 +436,6 @@ class WeatherDeadlineTests(unittest.IsolatedAsyncioTestCase):
             return actual_conversion(*args, **kwargs)
 
         async with httpx.AsyncClient(transport=httpx.MockTransport(lambda request: response)) as client:
-            with patch("app.integrations.amap_weather.BATCH_TIMEOUT_SECONDS", 0.01), patch("app.integrations.amap_weather.convert_forecast", delayed):
+            with patch("tooling.providers.amap_weather.BATCH_TIMEOUT_SECONDS", 0.01), patch("tooling.providers.amap_weather.convert_forecast", delayed):
                 with self.assertRaises(AmapTimeoutError):
                     await AmapWeatherClient(client, TEST_KEY).forecast(WeatherRequest.model_validate(sample_request()))

@@ -19,14 +19,14 @@ from sqlalchemy import inspect, text
 from sqlalchemy.exc import OperationalError
 from sqlmodel import Session, select
 
-from app import auth
-from app.api.auth import router
-from app.identity_models import AccountRow, InvitationRow, LoginBucketRow, SessionRow
-from app.mysql_storage import (MYSQL_STORAGE_VERSION, current_mysql_engine, initialize_private_schema,
+from core import auth
+from api.auth import router
+from memory.identity_models import AccountRow, InvitationRow, LoginBucketRow, SessionRow
+from memory.mysql_storage import (MYSQL_STORAGE_VERSION, current_mysql_engine, initialize_private_schema,
                                mysql_configured, validate_private_schema, validated_url)
-from app.saved_trips import ArchiveError, get_record, listing, save
-from app.schemas.saved_trip import SaveTrip
-from app.storage import StorageError
+from memory.saved_trips import ArchiveError, get_record, listing, save
+from core.schemas.saved_trip import SaveTrip
+from memory.storage import StorageError
 from tests.mysql_support import temporary_mysql
 from tests.test_saved_trips import payload
 from tools import invitation_admin
@@ -47,13 +47,13 @@ class MySQLConfiguration(unittest.TestCase):
                 self.assertNotIn(url, str(raised.exception)) if url else None
         valid = validated_url("mysql+pymysql://application:placeholder@127.0.0.1:3306/trippilot")
         self.assertEqual(valid.query, {"charset": "utf8mb4"})
-        with patch("app.mysql_storage._configured_url", return_value="malformed"), patch("app.storage.engine_for", side_effect=AssertionError("No fallback")):
-            from app.storage import current_engine
+        with patch("memory.mysql_storage._configured_url", return_value="malformed"), patch("memory.storage.engine_for", side_effect=AssertionError("No fallback")):
+            from memory.storage import current_engine
             with self.assertRaises(StorageError):
                 current_engine()
 
     def test_sqlite_registration_is_explicitly_unavailable_without_mutation(self):
-        with patch("app.auth.mysql_configured", return_value=False), patch("app.auth.identity_engine", side_effect=AssertionError("No SQLite registration write")):
+        with patch("core.auth.mysql_configured", return_value=False), patch("core.auth.identity_engine", side_effect=AssertionError("No SQLite registration write")):
             with self.assertRaises(HTTPException) as raised:
                 auth.register_account("new-user", PASSWORD, "a" * 43)
             self.assertEqual(raised.exception.status_code, 503)
@@ -63,9 +63,9 @@ class MySQLIdentity(unittest.TestCase):
     def setUp(self):
         self.engine, self.cleanup = temporary_mysql()
         initialize_private_schema(self.engine)
-        self.patches = [patch("app.auth.identity_engine", return_value=self.engine),
-                        patch("app.auth.current_mysql_engine", return_value=self.engine),
-                        patch("app.auth.mysql_configured", return_value=True)]
+        self.patches = [patch("core.auth.identity_engine", return_value=self.engine),
+                        patch("core.auth.current_mysql_engine", return_value=self.engine),
+                        patch("core.auth.mysql_configured", return_value=True)]
         for item in self.patches:
             item.start()
 
@@ -122,7 +122,7 @@ class MySQLIdentity(unittest.TestCase):
             return result
         # Both calls verify the same initial account before either acquires its
         # admission lock. No mock session/database responses are substituted.
-        with patch("app.auth.PASSWORD_HASHER", wraps=real_hasher) as hasher:
+        with patch("core.auth.PASSWORD_HASHER", wraps=real_hasher) as hasher:
             hasher.verify.side_effect = verify
             with ThreadPoolExecutor(max_workers=2) as pool:
                 results = list(pool.map(lambda _: auth.login("session-user", PASSWORD, None), range(2)))
@@ -140,7 +140,7 @@ class MySQLIdentity(unittest.TestCase):
             if not proceed.wait(timeout=5):
                 raise AssertionError("Controlled disable did not complete")
             return result
-        with patch("app.auth.PASSWORD_HASHER", wraps=real_hasher) as hasher:
+        with patch("core.auth.PASSWORD_HASHER", wraps=real_hasher) as hasher:
             hasher.verify.side_effect = verify
             with ThreadPoolExecutor(max_workers=1) as pool:
                 result = pool.submit(auth.login, "disabled-during-login", PASSWORD, None)
@@ -170,7 +170,7 @@ class MySQLIdentity(unittest.TestCase):
                 db.add(row)
                 db.commit()
             return result
-        with patch("app.auth.PASSWORD_HASHER", wraps=real_hasher) as hasher:
+        with patch("core.auth.PASSWORD_HASHER", wraps=real_hasher) as hasher:
             hasher.verify.side_effect = verify
             with self.assertRaises(HTTPException) as raised:
                 auth.login("changed-password", PASSWORD, None)
@@ -273,14 +273,14 @@ class MySQLIdentity(unittest.TestCase):
 
     def test_persistent_registration_limit_before_hashing_and_shared_hash_capacity(self):
         _, token = self.invitation()
-        with patch("app.auth._HASH_CAPACITY.acquire", return_value=False):
+        with patch("core.auth._HASH_CAPACITY.acquire", return_value=False):
             with self.assertRaises(HTTPException) as raised:
                 auth.register_account("busy-user", PASSWORD, token)
             self.assertEqual(raised.exception.detail["code"], "registration_busy")
         for index in range(9):
             auth.reserve_identity_attempt("registration", f"user-{index}")
         self.engine.dispose()
-        with patch("app.auth.PASSWORD_HASHER") as hasher:
+        with patch("core.auth.PASSWORD_HASHER") as hasher:
             hasher.hash.side_effect = AssertionError("Limit before expensive work")
             with self.assertRaises(HTTPException) as raised:
                 auth.register_account("over-limit", PASSWORD, token)
@@ -313,7 +313,7 @@ class MySQLIdentity(unittest.TestCase):
         app.include_router(router)
         _, token = self.invitation()
         value = {"username": "web-user", "password": PASSWORD, "invitation_code": token}
-        with patch("app.auth.get_auth_settings", return_value=settings), patch("app.api.auth.get_auth_settings", return_value=settings), TestClient(app) as client:
+        with patch("core.auth.get_auth_settings", return_value=settings), patch("api.auth.get_auth_settings", return_value=settings), TestClient(app) as client:
             response = client.get("/auth/session")
             headers = {"origin": ORIGIN, "x-csrf-token": response.json()["csrf_token"]}
             self.assertEqual(client.post("/auth/register", json=value).status_code, 403)

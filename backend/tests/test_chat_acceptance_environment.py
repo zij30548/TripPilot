@@ -5,8 +5,8 @@ import tempfile
 import unittest
 from unittest.mock import patch
 
-from app.chat_storage import ChatStore
-from app.storage import engine_for
+from memory.chat_storage import ChatStore
+from memory.storage import engine_for
 from tests.archive_owner import OWNER, seed_owner
 from tools.chat_acceptance_environment import (CASE_IDS, Refused, _directory, _new,
     admin_url, prepare, seed_conversations, seed_plan, usage_limits, validate_seeds)

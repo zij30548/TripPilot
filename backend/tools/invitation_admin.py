@@ -8,8 +8,8 @@ import sys
 
 from sqlalchemy.exc import SQLAlchemyError
 
-from app.auth import create_invitation, revoke_invitation
-from app.storage import StorageError
+from core.auth import create_invitation, revoke_invitation
+from memory.storage import StorageError
 
 
 def main() -> int:

@@ -4,9 +4,9 @@ from unittest.mock import patch
 
 from tests.business_client import BusinessTestClient as TestClient
 
-from app.api.explanation import get_qwen_http_client
-from app.config import get_settings
-from app.schemas.knowledge import KnowledgeResponse
+from api.explanation import get_qwen_http_client
+from core.config import get_settings
+from core.schemas.knowledge import KnowledgeResponse
 from main import app
 
 
@@ -18,7 +18,7 @@ class OfficialKnowledgeTests(unittest.TestCase):
         app.dependency_overrides[get_settings] = forbidden
         app.dependency_overrides[get_qwen_http_client] = forbidden
         try:
-            with TestClient(app) as client, patch("app.integrations.qwen.QwenClient.generate") as generate:
+            with TestClient(app) as client, patch("tooling.providers.qwen.QwenClient.generate") as generate:
                 for body in [b"", b"not-json", b'{"enabled":true,"model":"anything"}', b"x" * 4097]:
                     with self.subTest(body_length=len(body)):
                         r = client.post("/knowledge/answer?enabled=true", content=body,
@@ -38,7 +38,7 @@ class OfficialKnowledgeTests(unittest.TestCase):
                          "answer_disabled_knowledge_answer_post")
         # Invalid input is still handled by the existing itinerary AI endpoints,
         # not by a global Qwen-disable switch. No actual model request is needed.
-        with TestClient(app) as client, patch("app.integrations.qwen.QwenClient.generate") as generate:
+        with TestClient(app) as client, patch("tooling.providers.qwen.QwenClient.generate") as generate:
             for path, operation in [("/trips/schedule-explanation", "explain_schedule_trips_schedule_explanation_post"),
                                     ("/trips/adjustment-intent", "adjustment_intent_trips_adjustment_intent_post")]:
                 self.assertEqual(paths[path]["post"]["operationId"], operation)
@@ -46,7 +46,7 @@ class OfficialKnowledgeTests(unittest.TestCase):
             generate.assert_not_called()
 
     def test_three_campuses_and_empty_result_remain_local_without_model(self) -> None:
-        with TestClient(app) as client, patch("app.integrations.qwen.QwenClient.generate") as generate, \
+        with TestClient(app) as client, patch("tooling.providers.qwen.QwenClient.generate") as generate, \
                 patch("httpx.AsyncClient.send", side_effect=AssertionError("No external requests")):
             for venue, question in [("museum_people", "2025免预约"), ("museum_east", "数字馆预约"),
                                     ("natural", "儿童免票陪同"), ("natural", "迪士尼烟花")]:

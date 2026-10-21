@@ -225,7 +225,7 @@ class BackupTests(unittest.TestCase):
             backup.verify_backup(incomplete)
 
     def test_schema_constants_match_current_app_without_importing_it(self) -> None:
-        tree = ast.parse((ROOT / "backend/app/business_usage.py").read_text())
+        tree = ast.parse((ROOT / "backend/core/business_usage.py").read_text())
         values = {node.targets[0].id: ast.literal_eval(node.value) for node in tree.body
                   if isinstance(node, ast.Assign) and isinstance(node.targets[0], ast.Name)
                   and node.targets[0].id in {"_TABLES", "_INDEXES"}}

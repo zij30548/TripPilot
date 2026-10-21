@@ -10,7 +10,7 @@ import tempfile
 import unittest
 from unittest.mock import patch
 
-from app.storage import engine_for
+from memory.storage import engine_for
 from tools.identity_acceptance import controlled_app, prepare
 
 
@@ -34,8 +34,8 @@ class AcceptanceHarness(unittest.TestCase):
                 engine_for(str(database)).dispose(); engine_for.cache_clear()
 
     def test_business_inputs_are_explicitly_synthetic_and_models_blocked(self):
-        from app.api.places import get_http_client
-        from app.api.explanation import get_qwen_http_client
+        from api.places import get_http_client
+        from api.explanation import get_qwen_http_client
         from main import app
         previous = dict(app.dependency_overrides)
         try:

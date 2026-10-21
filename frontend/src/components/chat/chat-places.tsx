@@ -1,17 +1,17 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import type { ChatConversation } from "@/lib/chat";
 import { chatCity, chatCityOptions } from "@/lib/chat-cities";
-import { useChatPlaces } from "@/lib/chat-places-controller";
-import { CLARIFICATIONS, type PlaceRole } from "@/lib/chat-places";
+import { useChatPlaces, type PlacesPlanningAvailability } from "@/lib/chat-places-controller";
+import { CLARIFICATIONS, type PlaceRole, type PlacesWorkspace } from "@/lib/chat-places";
 
 const focus = "focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#376d5b]";
 const button = `min-h-11 rounded-xl border border-[#cbd6c6] px-3 py-2 text-sm disabled:cursor-not-allowed disabled:opacity-45 ${focus}`;
 
 /** Compact chat result card, not the old planning controllers or a new scheduler. */
-export default function ChatPlaces({ conversation, open, blocked }: { conversation: ChatConversation; open: boolean; blocked: boolean }) {
-  const tools = useChatPlaces(conversation, open, blocked), { state } = tools;
+export default function ChatPlaces({ conversation, open, blocked, onWorkspace, onAvailability }: { conversation: ChatConversation; open: boolean; blocked: boolean; onWorkspace?: (workspace: PlacesWorkspace) => void; onAvailability?: (value: PlacesPlanningAvailability) => void }) {
+  const tools = useChatPlaces(conversation, open, blocked, onAvailability), { state } = tools;
   const [cityText, setCityText] = useState("");
   const [proposedCity, setProposedCity] = useState<string | null>(null);
   const [query, setQuery] = useState("");
@@ -25,6 +25,7 @@ export default function ChatPlaces({ conversation, open, blocked }: { conversati
   const canWrite = tools.usable && !busy && !state.needsRead && !running;
   const cityChoices = chatCityOptions(cityText);
   const proposed = chatCity(proposedCity ?? workspace?.proposed_city_id ?? null);
+  useEffect(() => { if (workspace) onWorkspace?.(workspace); }, [workspace, onWorkspace]);
 
   return <section hidden={!open} aria-label="真实地点准备" className="mt-6 rounded-[22px] border border-[#dce4dc] bg-[#fffefa] p-5 sm:p-6">
     <h2 className="text-lg font-semibold">把想去的名字，核对成真实地点</h2>
@@ -106,7 +107,7 @@ export default function ChatPlaces({ conversation, open, blocked }: { conversati
         <ol className="mt-3 space-y-2">{workspace.required_places.map((place, index) => <li key={place.id} className="flex flex-wrap items-center justify-between gap-2 rounded-xl bg-[#f3f5ed] px-3 py-2 text-sm">
           <span className="min-w-0 break-words">{index + 1}. {place.name}</span><button type="button" className={`${button} text-xs`} disabled={!canWrite} onClick={() => void tools.act({ action: "remove", place_id: place.id, role: "required" })}>移除{place.name}</button>
         </li>)}</ol>
-        <p className="mt-3 text-xs leading-6 text-[#73816a]">必去{workspace.required_places.length}/6。这里不是正式行程或任务断点；生成、费用、调整与行程存档将在后续阶段接入。工作副本与需求城市不一致时不能据此生成。</p>
+        <p className="mt-3 text-xs leading-6 text-[#73816a]">必去{workspace.required_places.length}/6。这里准备真实地点；确认不会自动生成行程。请到行程面板核对当前输入并主动操作。工作副本与需求城市不一致时不能据此生成。</p>
       </div>
     </>}
   </section>;

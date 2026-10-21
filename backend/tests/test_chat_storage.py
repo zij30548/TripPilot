@@ -14,8 +14,8 @@ from sqlalchemy import text
 from sqlalchemy.engine import Connection
 from sqlalchemy.exc import OperationalError
 
-from app.chat_storage import ChatError, ChatStore, validate_chat_extension
-from app.storage import engine_for
+from memory.chat_storage import ChatError, ChatStore, validate_chat_extension
+from memory.storage import engine_for
 from tests.archive_owner import OWNER, seed_owner
 from tools.chat_storage import Refused, provision_chat_extension, sqlite_copy
 
@@ -173,7 +173,7 @@ class ChatStorage(unittest.TestCase):
             self.store.begin_turn(OWNER, other["id"], operation(), other["revision"], "继续")
 
     def test_delete_recreate_cannot_bypass_total_receipt_limit(self):
-        with patch("app.chat_storage.MAX_TOTAL_CONVERSATIONS", 2):
+        with patch("memory.chat_storage.MAX_TOTAL_CONVERSATIONS", 2):
             first = self.create()
             self.store.delete(OWNER, first["id"], first["revision"])
             second = self.create()

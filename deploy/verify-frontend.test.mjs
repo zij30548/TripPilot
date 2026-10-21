@@ -47,6 +47,28 @@ test('Linux/x64 gate never labels the current Mac or wrong architecture as Linux
   assert.throws(() => linuxOnly('linux', 'arm64'), /linux_x64_required/);
 });
 
+test('assistant additive routes require their exact reviewed source and manifest, without breaking staged historical releases', async () => {
+  await fixture(async (root, manifest) => {
+    // Existing staged chat builds still use their original six suffixes.
+    await checkRewrites(root, manifest);
+    await mkdir(join(root, 'src/lib/server'), { recursive: true });
+    await writeFile(join(root, 'src/lib/server/backend-routing.ts'), '["/assistant-turns", "/assistant-state", "/assistant-preferences"]');
+    await assert.rejects(checkRewrites(root, manifest), /backend_rewrites_mismatch/);
+    const current = structuredClone(manifest);
+    const at = current.rewrites.beforeFiles.length - 1;
+    current.rewrites.beforeFiles.splice(at, 0, ...['/assistant-turns', '/assistant-state', '/assistant-preferences'].map(suffix => ({
+      source: `/api/chat/conversations/:id([0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12})${suffix}`,
+      destination: `${ORIGIN}/chat/conversations/:id${suffix}`,
+    })));
+    await checkRewrites(root, current);
+    const wrong = structuredClone(current);
+    wrong.rewrites.beforeFiles[at].destination = `${ORIGIN}/chat/conversations/:id/turns`;
+    await assert.rejects(checkRewrites(root, wrong), /backend_rewrites_mismatch/);
+    await writeFile(join(root, 'src/lib/server/backend-routing.ts'), '["/assistant-turns"]');
+    await assert.rejects(checkRewrites(root, current), /assistant_allowlist_incomplete/);
+  });
+});
+
 test('complete artifact is bound to source, lock, static and build; mutable cache excluded', async () => {
   await fixture(async root => {
     const before = await inspectBuild(root);

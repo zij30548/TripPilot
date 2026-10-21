@@ -4,10 +4,10 @@ No live POI lookup, no user request reconstruction, no database or external I/O.
 """
 import json
 
-from app.schemas.destination import CityScheduleRequest, CityScheduleResponse
-from app.services.schedule import build_schedule
-from app.services.schedule import build_required_schedule
-from app.services.schedule_routes import required_edges
+from core.schemas.destination import CityScheduleRequest, CityScheduleResponse
+from tooling.travel.schedule import build_schedule
+from tooling.travel.schedule import build_required_schedule
+from tooling.travel.schedule_routes import required_edges
 from tests import test_schedule_optional as optional
 from tests import test_schedule_transit as transit
 

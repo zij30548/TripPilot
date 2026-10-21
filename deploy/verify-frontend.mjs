@@ -90,6 +90,16 @@ export async function checkRewrites(frontend, manifest) {
     ['/api/auth/register', '/api/chat/conversations', '/api/chat/cities']];
   const chat = api.includes('/api/chat/conversations');
   const chatPlaces = api.includes('/api/chat/cities');
+  let assistant = false;
+  try {
+    const routing = await readFile(join(frontend, 'src/lib/server/backend-routing.ts'), 'utf8');
+    assistant = /["']\/assistant-turns["']/.test(routing);
+    if (assistant && (!chatPlaces || !/["']\/assistant-state["']/.test(routing) || !/["']\/assistant-preferences["']/.test(routing))) fail('assistant_allowlist_incomplete');
+  } catch (error) {
+    // Historical source/test fixtures without this module have only the
+    // original fixed list. Other read failures are never version bypasses.
+    if (error?.code !== 'ENOENT') throw error;
+  }
   if (new Set(api).size !== api.length || !increments.some(increment => {
     const expected = [...LEGACY_API_PATHS, ...increment];
     return api.length === expected.length && expected.every(path => api.includes(path));
@@ -99,7 +109,7 @@ export async function checkRewrites(frontend, manifest) {
     { source: '/api/health', destination: `${ORIGIN}/health` },
     { source: '/api/saved-trips/:id([0-9a-f]{32})', destination: `${ORIGIN}/saved-trips/:id` },
   );
-  if (chat) for (const suffix of ['', '/turns', '/cancel', '/confirm', '/delete', ...(chatPlaces ? ['/places'] : [])]) expected.push({
+  if (chat) for (const suffix of ['', '/turns', '/cancel', '/confirm', '/delete', ...(chatPlaces ? ['/places'] : []), ...(assistant ? ['/assistant-turns', '/assistant-state', '/assistant-preferences'] : [])]) expected.push({
     source: `/api/chat/conversations/:id([0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12})${suffix}`,
     destination: `${ORIGIN}/chat/conversations/:id${suffix}`,
   });

@@ -9,8 +9,8 @@ from unittest.mock import patch
 
 import httpx
 
-from app.integrations.qwen import QwenError, configured_endpoint
-from app.services.knowledge import fingerprint
+from tooling.providers.qwen import QwenError, configured_endpoint
+from tooling.travel.knowledge import fingerprint
 from tests.test_knowledge_ab_trial import settings
 from tests.test_knowledge_model_selection import response
 from tools.knowledge_ab_trial import TrialStopped, pending

@@ -1,1 +1,0 @@
-"""TripPilot application modules."""

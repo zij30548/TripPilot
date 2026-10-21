@@ -12,9 +12,9 @@ from unittest.mock import patch
 from sqlalchemy.exc import OperationalError
 from sqlmodel import Session
 
-from app.saved_trips import ArchiveError, SavedTripRow, canonical, get_record, listing, save
-from app.schemas.saved_trip import SaveTrip
-from app.storage import LEGACY_PATH, STORAGE_VERSION, StorageError, StorageSettings, database_path, engine_for, migrate_legacy_copy, restore_legacy_backup
+from memory.saved_trips import ArchiveError, SavedTripRow, canonical, get_record, listing, save
+from core.schemas.saved_trip import SaveTrip
+from memory.storage import LEGACY_PATH, STORAGE_VERSION, StorageError, StorageSettings, database_path, engine_for, migrate_legacy_copy, restore_legacy_backup
 from tests.archive_owner import OWNER, seed_owner
 from tests.test_saved_trips import payload
 

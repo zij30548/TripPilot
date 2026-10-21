@@ -11,10 +11,10 @@ import uuid
 
 import uvicorn
 
-from app.config import get_settings
-from app.schemas.knowledge_answer import PROMPT_VERSION
-from app.services.knowledge import build_index, fingerprint
-from app.services.knowledge_answer import SYSTEM
+from core.config import get_settings
+from core.schemas.knowledge_answer import PROMPT_VERSION
+from tooling.travel.knowledge import build_index, fingerprint
+from tooling.travel.knowledge_answer import SYSTEM
 from tools.knowledge_acceptance import EVIDENCE, ROOT, Ledger, RecordedApp, app, install
 
 FIX = EVIDENCE / "fix"

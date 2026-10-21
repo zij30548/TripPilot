@@ -6,7 +6,7 @@ import tempfile
 import unittest
 from unittest.mock import patch
 from PIL import Image
-from app.integrations.qwen import QwenError
+from tooling.providers.qwen import QwenError
 from tools import photo_conservative_acceptance as trial
 
 

@@ -12,7 +12,7 @@ export type WeatherForecastState = {
 };
 const emptyState = (): WeatherForecastState => ({ status: "idle", response: null, message: null, showingPrevious: false });
 
-export function useWeatherForecast(request: WeatherForecastRequest, onInvalidate?: () => void) {
+export function useWeatherForecast(request: WeatherForecastRequest, onInvalidate?: () => void, canOperate?:()=>boolean) {
   const { start_date, end_date, destination_id } = request;
   const valid = isWeatherForecastRequest(request);
   const requestKey = JSON.stringify([start_date, end_date, destination_id, valid]);
@@ -50,7 +50,7 @@ export function useWeatherForecast(request: WeatherForecastRequest, onInvalidate
   useEffect(() => cancelPending, [cancelPending]);
 
   const query = useCallback(async (): Promise<boolean> => {
-    if (pending.current) return false;
+    if (canOperate?.() === false || pending.current) return false;
     if (!isWeatherForecastRequest(input.current)) {
       setState({ status: "failed", response: null, message: "请确认旅行日期为连续的 1～7 天后再查询天气。", showingPrevious: false });
       return false;
@@ -64,7 +64,7 @@ export function useWeatherForecast(request: WeatherForecastRequest, onInvalidate
     setState({ status: "loading", response: lastValid.current, message: null, showingPrevious: lastValid.current !== null });
     try {
       const response = await queryWeatherForecast(snapshot, requestController.signal);
-      if (requestVersion !== version.current || requestController.signal.aborted) return false;
+      if (requestVersion !== version.current || requestController.signal.aborted || canOperate?.() === false) return false;
       lastValid.current = response;
       setState({ status: "success", response, message: null, showingPrevious: false });
       return true;
@@ -74,8 +74,12 @@ export function useWeatherForecast(request: WeatherForecastRequest, onInvalidate
         message: `${error instanceof WeatherError ? error.message : "查询天气失败，请主动重试。"}${lastValid.current ? " 当前展示上次成功查询的整批结果。" : ""}` });
       return false;
     } finally {
-      if (requestVersion === version.current) { controller.current = null; pending.current = false; }
+      if (requestVersion === version.current) {
+        controller.current = null; pending.current = false;
+        if (canOperate?.() === false) setState({ status: "failed", response: lastValid.current, showingPrevious: lastValid.current !== null,
+          message: "地点准备尚待核对，未应用本次天气结果；请核对后主动查询。" });
+      }
     }
-  }, [cancelPending]);
+  }, [cancelPending, canOperate]);
   return { state, query, invalidate, canQuery: valid };
 }

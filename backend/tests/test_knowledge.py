@@ -6,8 +6,8 @@ import unittest
 from unittest.mock import patch
 from tests.business_client import BusinessTestClient as TestClient
 from pydantic import ValidationError
-from app.schemas.knowledge import Corpus, KnowledgeRequest, KnowledgeResponse
-from app.services.knowledge import DATA, KnowledgeIndex, build_index, evaluate, fingerprint, tokens
+from core.schemas.knowledge import Corpus, KnowledgeRequest, KnowledgeResponse
+from tooling.travel.knowledge import DATA, KnowledgeIndex, build_index, evaluate, fingerprint, tokens
 from main import app
 
 
@@ -123,7 +123,7 @@ class KnowledgeTests(unittest.TestCase):
         self.assertNotIn("受控异常", (DATA / "corpus.json").read_text())
 
     def test_api_valid_echo_and_no_external_side_effect(self) -> None:
-        with patch("httpx.AsyncClient.request", side_effect=AssertionError("No upstream")), patch("app.saved_trips.save", side_effect=AssertionError("No database write")):
+        with patch("httpx.AsyncClient.request", side_effect=AssertionError("No upstream")), patch("memory.saved_trips.save", side_effect=AssertionError("No database write")):
             result = self.client.post("/knowledge/search", json={"venue_id": "museum_east", "question": "数字馆预约", "limit": 3})
         self.assertEqual(result.status_code, 200)
         parsed = KnowledgeResponse.model_validate_json(result.content)
@@ -139,7 +139,7 @@ class KnowledgeTests(unittest.TestCase):
         for raw in [b'{"venue_id":"natural","venue_id":"museum_east","question":"ab"}', b'{"question":NaN}', b'[' * 2000]:
             self.assertEqual(self.client.post("/knowledge/search", content=raw).status_code, 422)
         self.assertEqual(self.client.post("/knowledge/search", content=b"x" * 4097).status_code, 413)
-        with patch("app.api.knowledge.get_index", side_effect=ValueError("private path")):
+        with patch("api.knowledge.get_index", side_effect=ValueError("private path")):
             response = self.client.post("/knowledge/search", json=base)
         self.assertEqual(response.status_code, 503); self.assertNotIn("private path", response.text)
 

@@ -1,8 +1,8 @@
 """Actual Python outputs for TS checks; real local corpus + controlled model only."""
 import json
-from app.integrations.qwen import MODEL
-from app.schemas.explanation import ExplanationUsage
-from app.services.knowledge_answer import render_answer
+from tooling.providers.qwen import MODEL
+from core.schemas.explanation import ExplanationUsage
+from tooling.travel.knowledge_answer import render_answer
 from tests.test_knowledge_answer import fixtures
 
 rows = []

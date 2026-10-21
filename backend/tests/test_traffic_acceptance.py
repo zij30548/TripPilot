@@ -8,13 +8,14 @@ from unittest.mock import patch
 
 import httpx
 
-from app.integrations.amap_transit import AmapTransitClient
-from app.schemas.transit import TransitRouteRequest
-from tools.traffic_acceptance import RecordingTransport, Gate, freeze, prepare, scrub, freeze_repair, verify_repair, replay_transit, CASES
-from app.schemas.destination import CityScheduleRequest
-from app.schemas.schedule import ScheduleEdge
-from app.services.schedule_routes import required_edges
-from app.services.schedule import build_schedule
+from tooling.providers.amap_transit import AmapTransitClient
+from core.schemas.transit import TransitRouteRequest
+from tools.traffic_acceptance import (RecordingTransport, Gate, freeze, prepare, scrub, freeze_repair,
+                                      verify_repair, replay_transit, CASES, SOURCE_LAYOUT, FILES)
+from core.schemas.destination import CityScheduleRequest
+from core.schemas.schedule import ScheduleEdge
+from tooling.travel.schedule_routes import required_edges
+from tooling.travel.schedule import build_schedule
 from tests.test_schedule import NOW
 from tests.test_transit import sample_request, sample_upstream
 from tests.test_schedule_optional import payload
@@ -108,6 +109,40 @@ class RecorderTests(unittest.IsolatedAsyncioTestCase):
             self.assertFalse((path / "c01-attempt.json").exists())
             with self.assertRaises(FileExistsError):
                 freeze(path)
+
+    async def test_legacy_source_manifest_is_rejected_without_rewriting_or_attempt(self) -> None:
+        async def app(*_args):
+            raise AssertionError("must not dispatch historical frozen work")
+        with tempfile.TemporaryDirectory() as folder:
+            path = Path(folder)
+            freeze(path)
+            prepare("c01", controlled_input(), path)
+            protocol_path = path / "protocol.json"
+            protocol = json.loads(protocol_path.read_bytes())
+            self.assertEqual(protocol["source_layout"], SOURCE_LAYOUT)
+            old = "backend/app/integrations/amap.py"
+            protocol["files"][old] = protocol["files"].pop(FILES[0])
+            protocol.pop("source_layout")
+            protocol_path.write_text(json.dumps(protocol))
+            before = protocol_path.read_bytes()
+            async with httpx.AsyncClient(transport=httpx.ASGITransport(app=Gate(app, path)), base_url="http://test") as client:
+                with self.assertRaisesRegex(ValueError, "Frozen business version changed"):
+                    await client.post("/trips/schedule-preview", json=controlled_input())
+            self.assertEqual(protocol_path.read_bytes(), before)
+            self.assertFalse((path / "c01-attempt.json").exists())
+            self.assertFalse((path / "attempts.jsonl").exists())
+
+    async def test_current_source_layout_cannot_omit_a_required_frozen_source(self) -> None:
+        with tempfile.TemporaryDirectory() as folder:
+            path = Path(folder)
+            freeze(path)
+            protocol_path = path / "protocol.json"
+            protocol = json.loads(protocol_path.read_bytes())
+            protocol["files"].pop(FILES[0])
+            protocol_path.write_text(json.dumps(protocol))
+            with self.assertRaisesRegex(ValueError, "Frozen business version changed"):
+                prepare("c01", controlled_input(), path)
+            self.assertFalse((path / "c01-input.json").exists())
 
     async def test_scrub_removes_credentials_even_in_unknown_keys_and_strings(self) -> None:
         secret = "a-sensitive-test-value"

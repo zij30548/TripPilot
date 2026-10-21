@@ -10,9 +10,9 @@ from unittest.mock import patch
 
 import httpx
 
-from app.config import Settings
-from app.integrations.qwen import MODEL, QwenError
-from app.services.knowledge import DATA
+from core.config import Settings
+from tooling.providers.qwen import MODEL, QwenError
+from tooling.travel.knowledge import DATA
 from tools.knowledge_ab_trial import BATCH, TrialLedger, TrialStopped, initialize, next_operation, pending, wire_hash
 from tools.knowledge_evidence_trial import prepare
 

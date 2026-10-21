@@ -18,11 +18,11 @@ import uuid
 import httpx
 import uvicorn
 
-from app.api.explanation import get_qwen_http_client
-from app.integrations.qwen import QwenClient, QwenError
-from app.schemas.knowledge_answer import PROMPT_VERSION
-from app.services.knowledge import build_index, fingerprint
-from app.services.knowledge_answer import SYSTEM
+from api.explanation import get_qwen_http_client
+from tooling.providers.qwen import QwenClient, QwenError
+from core.schemas.knowledge_answer import PROMPT_VERSION
+from tooling.travel.knowledge import build_index, fingerprint
+from tooling.travel.knowledge_answer import SYSTEM
 from main import app
 
 ROOT = Path(__file__).resolve().parents[1]

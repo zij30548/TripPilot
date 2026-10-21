@@ -15,12 +15,12 @@ from typing import Annotated, Literal
 
 from pydantic import BaseModel, ConfigDict, Field, StringConstraints, ValidationError
 
-from app.integrations.qwen import strict_json
-from app.integrations.qwen_vision import (
+from tooling.providers.qwen import strict_json
+from tooling.providers.qwen_vision import (
     DEADLINE, MAX_PAYLOAD, MAX_RESPONSE, MODEL, PROMPT, PROMPT_VERSION, vision_payload,
 )
-from app.schemas.photo import PhotoSelection
-from app.services.photo import normalize_photo
+from core.schemas.photo import PhotoSelection
+from tooling.travel.photo import normalize_photo
 
 ROOT = Path(__file__).resolve().parents[2]
 VERSION = "media-photo-review-v1"

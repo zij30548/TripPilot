@@ -1,8 +1,12 @@
 # TripPilot 产品与 Agent 架构演进
 
-本页只保留当前架构决策。阶段编号、范围、依赖、验收和停止点统一见 [CHAT_REBUILD_PLAN](CHAT_REBUILD_PLAN.md)，H01～H12工程约定统一见 [HARNESS_ENGINEERING](HARNESS_ENGINEERING.md)。两者均不是一次性实施或模型调用授权。
+本页保留架构决策与历史阶段来源。当前迁移范围、实际代码和证据见[ECHOMIND_MIGRATION](ECHOMIND_MIGRATION.md)及[PROGRESS](PROGRESS.md)；迁移前阶段细则保留在[CHAT_REBUILD_PLAN](CHAT_REBUILD_PLAN.md)，H01～H12工程约定见[HARNESS_ENGINEERING](HARNESS_ENGINEERING.md)。规划文档不是一次性实施或模型调用授权。
 
-## 2026-10-20：聊天优先的旅行 Agent 重构决策（当前入口）
+> **2026-10-22最新架构事实**：EchoMind旅行适配后端已按 `api/agents/core/tooling/memory/monitor/evaluation/skills` 分层，聊天有界原生反馈、共享预算、明确偏好及持久任务收据已有独立MySQL／受控Chrome检查。另以新8次授权实际5次模型／4高德固定复验：首版1失败保留、兼容修复后3个剩余请求及上海步行费用存档链有真实证据，未重跑首题／不能泛化。正式规划内嵌既有 `EditablePlanningSession`，未保存内容刷新丢失；日期／费用工具只是程序面板导航。有限角色共享工具，不是并行专业Agent；任务收据不等于完整恢复。实际用户数据切换和云端部署未验，知识库问答仍停用，旧失败与额度独立保留。
+
+以下2026-10-20／21阶段原文作为历史设计保留，其中“当前／尚未／不开始chat-3”等只表示当时状态；本次用户迁移授权取代旧实施停止点，不产生额外模型额度或部署许可。
+
+## 2026-10-20：聊天优先的旅行 Agent 重构决策（历史）
 
 仍做旅行助手，彻底重做交互；不转通用客服，也不把旧面板全部塞进气泡。默认 `/` 为聊天，`/legacy` 独立保留旧工作区，登录注册、账号隔离、额度、用户数据和历史证据不删除。
 chat-1已实现多轮需求意向及持久化；2026-10-21获准离线实现chat-2有限工具／Skill与地点准备，实际检查见[CHAT_2](CHAT_2.md)。真实模型语义、本轮真实POI、新聊天生产备份／恢复及线上MySQL切换仍未完成；不自动开始chat-3，停止点见[PROGRESS](PROGRESS.md)。
@@ -54,4 +58,4 @@ chat-1已实现多轮需求意向及持久化；2026-10-21获准离线实现chat
 ## 历史与当前停止点
 
 完整旧架构讨论、旧序列及讲解记录保留在 [2026-10-21归档](archive/2026-10-21/AGENT_EVOLUTION.md)；该副本是历史，不覆盖本页、阶段计划及PROGRESS当前摘要。旧评分、失败、冻结协议和调用台账保持原含义。
-当前完成chat-1及chat-2实现／离线与受控检查，真实语义／本轮真实POI和生产备份准入待补；不自动获得chat-3、loop、多Agent、部署或模型调用授权。
+迁移前停止点（历史）：当前完成chat-1及chat-2实现／离线与受控检查，真实语义／本轮真实POI和生产备份准入待补；不自动获得chat-3、loop、多Agent、部署或模型调用授权。最新实现与停止点以上述迁移报告及PROGRESS为准。

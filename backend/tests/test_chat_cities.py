@@ -5,9 +5,9 @@ import json
 from pathlib import Path
 import unittest
 
-from app.chat_cities import (CATALOG_VERSION, CITIES, city_for, legacy_city_id, load_catalog,
+from core.chat_cities import (CATALOG_VERSION, CITIES, city_for, legacy_city_id, load_catalog,
                              region_belongs_to, resolve_city, search_cities)
-from app.destinations import DESTINATIONS, PlaceRegion
+from core.destinations import DESTINATIONS, PlaceRegion
 from tools.chat_city_catalog import SOURCE_SHA256, source_rows
 
 

@@ -30,39 +30,39 @@ export type WorkspaceEdit = { read: () => WorkspaceInputs; invalidate: () => voi
 
 // Shared real workflow, independent from TripPlan and its Mock/map example.
 // Initial inputs are installed atomically by lazy hook initialization, never effects.
-export default function PlanningWorkspace({ request, initial, origin = "new", requirementsEdited = false, onEdit, onDirty, children }: {
-  request: TripRequest; initial?: WorkspaceInputs; origin?: "new" | "history" | "demo"; requirementsEdited?: boolean; onEdit: (context: WorkspaceEdit) => void; onDirty?: () => void; children?: ReactNode;
+export default function PlanningWorkspace({ request, initial, origin = "new", requirementsEdited = false, onEdit, onDirty, children, canOperate }: {
+  request: TripRequest; initial?: WorkspaceInputs; origin?: "new" | "history" | "demo"; requirementsEdited?: boolean; onEdit: (context: WorkspaceEdit) => void; onDirty?: () => void; children?: ReactNode; canOperate?: () => boolean;
 }) {
   const [costInputs, setCostInputs] = useState(() => structuredClone(initial?.costs ?? emptyCostInputs()));
   const costRef = useRef(costInputs), alive = useRef(true), result = useRef<HTMLDivElement>(null);
   const checkRevision = useWeatherCheckRevision();
   const invalidateCheck = checkRevision.invalidate;
   const changed = useCallback(() => { invalidateCheck(); if (alive.current) onDirty?.(); }, [invalidateCheck, onDirty]);
-  const schedule = useSchedulePreview(request, changed, initial);
+  const schedule = useSchedulePreview(request, changed, initial, canOperate);
   const getQueryCosts = useCallback(() => costRef.current, []);
   const queryAssistant = useItineraryQuery(schedule, getQueryCosts);
   const explanation = useScheduleExplanation(schedule);
-  const candidates = useCandidatePool(request, schedule.updateCandidates, initial?.candidates);
+  const candidates = useCandidatePool(request, schedule.updateCandidates, initial?.candidates, canOperate);
   const weatherRequest = { start_date: request.start_date, end_date: request.end_date, ...(request.destination_id ? { destination_id: request.destination_id } : {}) };
-  const weather = useWeatherForecast(weatherRequest, checkRevision.invalidate);
+  const weather = useWeatherForecast(weatherRequest, checkRevision.invalidate, canOperate);
   const weatherCheck = useWeatherScheduleCheck({ schedule, weather, candidates }, checkRevision);
-  const adjustment = useScheduleAdjustment({ schedule, candidates, weather, check: weatherCheck }, checkRevision);
+  const adjustment = useScheduleAdjustment({ schedule, candidates, weather, check: weatherCheck }, checkRevision, canOperate);
   useEffect(() => {
     alive.current = true;
     result.current?.focus(); result.current?.scrollIntoView({ block: "start" });
     return () => { alive.current = false; };
   }, []);
   const editCost = (row: UserCost, value: string) => {
-    if (!alive.current) return;
+    if (!alive.current || canOperate?.() === false) return;
     queryAssistant.costsChanged();
     costRef.current = updateCostInput(costRef.current, row, value);
     setCostInputs(costRef.current); onDirty?.();
   };
   const invalidate = () => { weatherCheck.clear(); weather.invalidate(); candidates.invalidate(); schedule.invalidate(); };
   const editRequest = () => {
-    if (!alive.current) return;
+    if (!alive.current || canOperate?.() === false) return;
     if (origin === "demo") invalidate(); // Only the explicitly isolated legacy example retains its reset behavior.
-    onEdit({ isCurrent: () => alive.current,
+    onEdit({ isCurrent: () => alive.current && canOperate?.() !== false,
       read: () => structuredClone({ request, ...schedule.readInputs(), candidates: candidates.readSnapshot(), costs: costRef.current }), invalidate });
   };
   const go = (id: string) => {
@@ -108,7 +108,7 @@ export default function PlanningWorkspace({ request, initial, origin = "new", re
     <NaturalAdjustment adjustment={adjustment} response={schedule.state.status === "success" ? schedule.state.response : null} />
     <WeatherScheduleCheck check={weatherCheck} onEdit={editRequest} onPreview={adjustment.start} previewLoading={adjustment.loading} />
     <ScheduleAdjustment adjustment={adjustment} annotations={weatherCheck.annotations} costInputs={costInputs} onEditCost={editCost} />
-    <SaveTrip schedule={schedule} requirements={request} getCosts={() => costRef.current} />
+    <SaveTrip schedule={schedule} requirements={request} getCosts={() => costRef.current} canOperate={canOperate} />
     </WorkflowSection>
     {children}
   </div>;

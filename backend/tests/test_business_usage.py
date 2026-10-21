@@ -16,7 +16,7 @@ from zoneinfo import ZoneInfo
 
 from pydantic import ValidationError
 
-from app.business_usage import (DEFAULT_PATH, PRIVATE_PATH, LEGACY_PATH, SERVICES,
+from core.business_usage import (DEFAULT_PATH, PRIVATE_PATH, LEGACY_PATH, SERVICES,
                                 UsageError, UsageSettings, UsageStore, get_usage_settings)
 
 OWNER_A = "a" * 32
@@ -168,7 +168,7 @@ class PersistentBusinessUsage(unittest.TestCase):
     def test_two_processes_share_global_atomic_limit(self):
         script = """
 import sys
-from app.business_usage import UsageSettings, UsageStore, UsageError, SERVICES
+from core.business_usage import UsageSettings, UsageStore, UsageError, SERVICES
 path, owner, timestamp = sys.argv[1:]
 limits={key:{'account':100,'global':7} for key in SERVICES}
 config=UsageSettings(_env_file=None,business_usage_path=path,business_daily_limits=limits,business_rate_account_limit=100,business_rate_global_limit=100)
@@ -223,7 +223,7 @@ print(success)
             db.execute("UPDATE usage_metadata SET value='business-usage-v1' WHERE key='version'")
             db.execute("CREATE TABLE unexpected (id TEXT)")
         self.error("business_usage_unavailable", self.store.verify)
-        with patch("app.business_usage.sqlite3.connect", side_effect=sqlite3.OperationalError("sensitive path sql")):
+        with patch("core.business_usage.sqlite3.connect", side_effect=sqlite3.OperationalError("sensitive path sql")):
             error = self.error("business_usage_unavailable", self.store.reserve, OWNER_A, "amap_route")
         self.assertNotIn("sensitive", json.dumps(error.detail()))
         self.assertEqual(error.status, 503)
@@ -286,7 +286,7 @@ print(success)
         with patch.dict(os.environ, {"BUSINESS_RATE_ACCOUNT_LIMIT": "2", "BUSINESS_RATE_GLOBAL_LIMIT": "10", "BUSINESS_RATE_WINDOW_SECONDS": "30"}):
             config = UsageSettings(_env_file=None)
         self.assertEqual((config.business_rate_account_limit, config.business_rate_global_limit, config.business_rate_window_seconds), (2, 10, 30))
-        with patch("app.business_usage.UsageSettings", side_effect=ValueError("private environment")):
+        with patch("core.business_usage.UsageSettings", side_effect=ValueError("private environment")):
             self.error("business_usage_unavailable", get_usage_settings)
 
     def test_invalid_clock_and_cli_no_sensitive_error(self):
@@ -346,7 +346,7 @@ print(success)
                     store.reserve(OWNER_A, "amap_route")
                     paid_steps.append("should not reach provider")
 
-                with patch("app.business_usage.sqlite3.connect", side_effect=lambda *args, **kwargs: FaultedConnection(real_connect(*args, **kwargs), **failures)):
+                with patch("core.business_usage.sqlite3.connect", side_effect=lambda *args, **kwargs: FaultedConnection(real_connect(*args, **kwargs), **failures)):
                     error = self.error("business_usage_unavailable", dispatch)
                 self.assertEqual(error.status, 503)
                 self.assertNotIn("private", json.dumps(error.detail()))
@@ -373,7 +373,7 @@ print(success)
 
         path = Path(self.directory.name) / "init-close.sqlite3"
         store = UsageStore(settings(path), clock=lambda: NOW)
-        with patch("app.business_usage.sqlite3.connect", side_effect=lambda *args, **kwargs: CloseFailure(real_connect(*args, **kwargs))):
+        with patch("core.business_usage.sqlite3.connect", side_effect=lambda *args, **kwargs: CloseFailure(real_connect(*args, **kwargs))):
             error = self.error("business_usage_unavailable", store.initialize)
         self.assertNotIn("private", json.dumps(error.detail()))
         self.assertEqual(error.status, 503)

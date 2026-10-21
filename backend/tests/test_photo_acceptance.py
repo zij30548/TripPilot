@@ -3,7 +3,7 @@ from pathlib import Path
 import tempfile
 import unittest
 from unittest.mock import patch
-from app.integrations.qwen import QwenError
+from tooling.providers.qwen import QwenError
 from tools.photo_acceptance import PhotoLedger, IDS, digest, canonical, MODEL
 
 

@@ -7,10 +7,10 @@ from unittest.mock import patch
 
 import httpx
 
-from app.integrations.amap import AmapTimeoutError, SEARCH_URL
-from app.integrations.chat_places import ChatPlacesClient, ChatPlacesError, MAX_RESPONSE_BYTES
-from app.business_usage import UsageError
-from app.usage_runtime import MeteredAsyncClient
+from tooling.providers.amap import AmapTimeoutError, SEARCH_URL
+from tooling.providers.chat_places import ChatPlacesClient, ChatPlacesError, MAX_RESPONSE_BYTES
+from core.business_usage import UsageError
+from core.usage_runtime import MeteredAsyncClient
 from tests.usage_fixture import UsageFixture
 
 

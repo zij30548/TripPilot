@@ -1,9 +1,9 @@
 """Offline cross-language contract: no external calls, no credentials."""
 import json
 
-from app.schemas.adjustment_intent import AdjustmentIntentResponse
-from app.schemas.explanation import ExplanationUsage
-from app.services.adjustment_intent import validate_intent
+from core.schemas.adjustment_intent import AdjustmentIntentResponse
+from core.schemas.explanation import ExplanationUsage
+from tooling.travel.adjustment_intent import validate_intent
 from tests.test_adjustment_intent import body, sample, selection
 
 if __name__ == "__main__":

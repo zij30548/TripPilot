@@ -13,8 +13,8 @@ from uuid import uuid4
 
 import httpx
 
-from app.schemas.chat import Intent
-from app.services import chat as chat_service
+from core.schemas.chat import Intent
+from tooling.travel import chat as chat_service
 from tests.test_chat_provider_schema import historical_v2_schema
 from tools import chat_acceptance_runtime as runtime
 from tools.chat_acceptance import (AcceptanceStopped, BATCH, IDS, MODEL,

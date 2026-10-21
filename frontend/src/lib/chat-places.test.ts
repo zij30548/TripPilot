@@ -29,8 +29,8 @@ describe("chat-only city and POI contracts", () => {
     const backend = resolve(process.cwd(), "../backend");
     const values = JSON.parse(execFileSync(resolve(backend, ".venv/bin/python"), ["-B", "-c", `
 import json
-from app.chat_cities import CITIES
-from app.schemas.chat_places import ChatPlacesWorkspace
+from core.chat_cities import CITIES
+from core.schemas.chat_places import ChatPlacesWorkspace
 items = []
 for city_id in CITIES:
     items.append(ChatPlacesWorkspace(conversation_id="${CHAT_ID}",intent_revision=2,revision=0,city_id=city_id).model_dump(mode="json"))

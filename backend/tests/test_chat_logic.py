@@ -5,8 +5,8 @@ import unittest
 
 from pydantic import ValidationError
 
-from app.schemas.chat import Intent, Selection, SubmitTurn
-from app.services.chat import ChatContextLimit, apply_selection, missing_fields, model_payload, render_reply
+from core.schemas.chat import Intent, Selection, SubmitTurn
+from tooling.travel.chat import ChatContextLimit, apply_selection, missing_fields, model_payload, render_reply
 
 
 class ChatLogicTests(unittest.TestCase):
@@ -62,7 +62,7 @@ class ChatLogicTests(unittest.TestCase):
         data = json.loads(payload["messages"][1]["content"])
         self.assertEqual(data["latest_user_text"], user)
         self.assertEqual(data["today"], "2026-10-20")
-        from app.chat_cities import CITIES
+        from core.chat_cities import CITIES
         self.assertEqual(data["supported_destinations"], [{"id": key, "name": city.name} for key, city in CITIES.items()])
         self.assertFalse(payload["stream"])
         self.assertFalse(payload["enable_thinking"])

@@ -23,12 +23,13 @@ const initial: ChatWorkspaceState = { conversation: null, items: [], nextOffset:
 type Active = { version: number; controller: AbortController; kind: ChatWorkspaceState["pending"]; conversationId?: string; operationId?: string };
 
 /** UI version and server revision have different jobs: ABA vs persisted conflicts. */
-export function useChatWorkspace() {
+export function useChatWorkspace(sendTurn: typeof sendChatTurn = sendChatTurn) {
   const [state, setState] = useState<ChatWorkspaceState>(initial);
   const current = useRef(state), alive = useRef(true), version = useRef(0), active = useRef<Active | null>(null);
   const listing = useRef<{ version: number; controller: AbortController } | null>(null), listVersion = useRef(0);
   const epoch = useRef(authSnapshot().epoch);
   const creation = useRef<string | null>(null);
+  const renderedVersion = version.current;
   const update = useCallback((patch: Partial<ChatWorkspaceState>) => {
     if (!alive.current) return;
     current.current = { ...current.current, ...patch };
@@ -161,17 +162,21 @@ export function useChatWorkspace() {
     update({ draft: value });
   }
   async function send() {
-    if (current.current !== state || active.current || state.needsRefresh || epoch.current !== authSnapshot().epoch) return;
-    const text = state.draft.trim();
+    // Input events update the synchronous snapshot before React commits a new
+    // render. Capture that text, while rejecting handlers from another operation
+    // generation (including new-chat and A→B→A), identity or active request.
+    const input = current.current;
+    if (renderedVersion !== version.current || active.current || input.needsRefresh || epoch.current !== authSnapshot().epoch) return;
+    const text = input.draft.trim();
     if (!text || Array.from(text).length > 2000 || /[\u0000-\u0008\u000b\u000c\u000e-\u001f\u007f]/.test(text)) {
       update({ error: "请输入1～2000字旅行需求，不接受控制字符。" }); return;
     }
-    if (["running", "uncertain"].includes(state.conversation?.last_turn?.state ?? "")) return;
+    if (["running", "uncertain"].includes(input.conversation?.last_turn?.state ?? "")) return;
     const operationId = crypto.randomUUID();
-    const request = begin("sending", state.conversation?.id, operationId);
+    const request = begin("sending", input.conversation?.id, operationId);
     update({ pending: "sending", pendingText: text, error: null, notice: null, draft: "" });
     try {
-      let base = state.conversation;
+      let base = input.conversation;
       if (!base) {
         creation.current ??= crypto.randomUUID();
         base = await createChatConversation(creation.current, request.controller.signal);
@@ -180,7 +185,7 @@ export function useChatWorkspace() {
         creation.current = null;
         update({ conversation: base, items: upsert(base) });
       }
-      const response = await sendChatTurn(base.id, { operation_id: operationId, expected_revision: base.revision, text }, request.controller.signal);
+      const response = await sendTurn(base.id, { operation_id: operationId, expected_revision: base.revision, text }, request.controller.signal);
       if (!valid(request)) return;
       update({ conversation: response, items: upsert(response), pendingText: null,
         needsRefresh: response.last_turn?.state === "uncertain",

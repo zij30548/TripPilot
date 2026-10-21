@@ -2,7 +2,7 @@
 import argparse
 from pathlib import Path
 
-from app.storage import StorageError, migrate_legacy_copy, restore_legacy_backup
+from memory.storage import StorageError, migrate_legacy_copy, restore_legacy_backup
 
 
 def main() -> int:

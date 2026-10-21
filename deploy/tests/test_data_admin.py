@@ -12,8 +12,8 @@ sys.path.insert(0, str(DEPLOY))
 sys.path.insert(0, str(DEPLOY.parent / "backend"))
 import data_admin
 from backup import inspect_pair
-from app.business_usage import UsageSettings, UsageStore
-from app.storage import engine_for
+from core.business_usage import UsageSettings, UsageStore
+from memory.storage import engine_for
 
 
 class ExplicitDataInitialization(unittest.TestCase):
@@ -33,7 +33,7 @@ class ExplicitDataInitialization(unittest.TestCase):
         self.assertIn("initialized", data_admin.initialize_identity(self.root))
         path = self.root / "identity.sqlite3"
         before = path.read_bytes()
-        with patch("app.storage.engine_for", side_effect=AssertionError("existing must not initialize")):
+        with patch("memory.storage.engine_for", side_effect=AssertionError("existing must not initialize")):
             self.assertIn("read-only", data_admin.initialize_identity(self.root))
         self.assertEqual(before, path.read_bytes())
 

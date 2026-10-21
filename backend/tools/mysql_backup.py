@@ -24,14 +24,14 @@ from sqlalchemy.engine import Engine
 from sqlalchemy.exc import SQLAlchemyError
 from sqlmodel import SQLModel
 
-from app.business_usage import UsageError
-from app.integrations.qwen import strict_json
-from app.mysql_storage import (MYSQL_STORAGE_VERSION, MySQLSettings, current_mysql_engine,
+from core.business_usage import UsageError
+from tooling.providers.qwen import strict_json
+from memory.mysql_storage import (MYSQL_STORAGE_VERSION, MySQLSettings, current_mysql_engine,
                                engine_from_url, initialize_private_schema, private_tables,
                                validate_private_schema)
-from app.mysql_usage import (MYSQL_USAGE_VERSION, _checked_attempt, initialize_usage_schema,
+from memory.mysql_usage import (MYSQL_USAGE_VERSION, _checked_attempt, initialize_usage_schema,
                              usage_attempts, usage_metadata, validate_usage_schema)
-from app.storage import StorageError
+from memory.storage import StorageError
 from tools.mysql_migration import Refused, _source_rows_valid
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
@@ -103,7 +103,7 @@ def backup(engine: Engine, anchor_path: Path, output_path: Path) -> dict[str, ob
     validate_private_schema(engine)
     # This legacy backup format has an exact eight-table manifest. Never emit a
     # seemingly complete backup which silently omits a newer chat extension.
-    from app.chat_models import CHAT_TABLES
+    from memory.chat_models import CHAT_TABLES
     with engine.connect() as connection:
         if CHAT_TABLES & set(inspect(connection).get_table_names()):
             raise Refused("backup_chat_extension_requires_chat_copy_tool")

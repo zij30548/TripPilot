@@ -8,8 +8,8 @@ from unittest.mock import patch
 import httpx
 from tests.business_client import BusinessTestClient as TestClient
 
-from app.api.places import get_http_client
-from app.config import BACKEND_ENV_FILE, Settings, get_settings
+from api.places import get_http_client
+from core.config import BACKEND_ENV_FILE, Settings, get_settings
 from main import app
 
 
@@ -92,7 +92,7 @@ class PlaceApiTests(unittest.TestCase):
                 self.response = httpx.Response(200, json={
                     "status": "1", "pois": [invalid, sample_poi()],
                 })
-                with self.assertLogs("app.integrations.amap", level="WARNING") as logs:
+                with self.assertLogs("tooling.providers.amap", level="WARNING") as logs:
                     response = self.search()
                 self.assertEqual(response.status_code, 200)
                 self.assertEqual(len(response.json()), 1)
@@ -104,7 +104,7 @@ class PlaceApiTests(unittest.TestCase):
         bad_pois = [no_location, None, [], sample_poi() | {"id": " "},
                     sample_poi() | {"name": None}]
         self.response = httpx.Response(200, json={"status": "1", "pois": bad_pois})
-        with self.assertLogs("app.integrations.amap", level="WARNING"):
+        with self.assertLogs("tooling.providers.amap", level="WARNING"):
             response = self.search()
         self.assertEqual(response.status_code, 200)
         self.assertEqual(response.json(), [])
@@ -149,7 +149,7 @@ class PlaceApiTests(unittest.TestCase):
             with self.subTest(failure=failure):
                 self.requests.clear()
                 self.failure = failure
-                with self.assertLogs("app.integrations.amap", level="WARNING") as logs:
+                with self.assertLogs("tooling.providers.amap", level="WARNING") as logs:
                     response = self.search()
                 self.assertEqual(response.status_code, status)
                 self.assertEqual(len(self.requests), attempts)
@@ -168,7 +168,7 @@ class PlaceApiTests(unittest.TestCase):
             with self.subTest(failure=failure):
                 self.requests.clear()
                 self.failures = [failure, None]
-                with self.assertLogs("app.integrations.amap", level="WARNING") as logs:
+                with self.assertLogs("tooling.providers.amap", level="WARNING") as logs:
                     response = self.search()
                 self.assertEqual(response.status_code, 200)
                 self.assertEqual(len(response.json()), 1)

@@ -39,9 +39,9 @@ def projected_native(raw: object) -> dict:
     """Keep actual structured choice evidence, never headers or thinking text."""
     if not isinstance(raw, dict):
         return {"kind": "non_object", "sha256": digest(canonical(raw))}
-    from app.integrations.qwen import parse_content, strict_json
-    from app.integrations.qwen_chat_places import parse_tool_call
-    from app.schemas.chat import Selection
+    from tooling.providers.qwen import parse_content, strict_json
+    from tooling.providers.qwen_chat_places import parse_tool_call
+    from core.schemas.chat import Selection
     result = {"metadata": safe_upstream_metadata(raw), "response_sha256": digest(canonical(raw))}
     try:
         choices = raw.get("choices")
@@ -64,7 +64,7 @@ def projected_native(raw: object) -> dict:
 
 
 def _read_json(path: Path) -> dict:
-    from app.integrations.qwen import strict_json
+    from tooling.providers.qwen import strict_json
     try:
         value = strict_json(_read(path, 2 * 1024 * 1024))
     except (OSError, ValueError, TypeError, RecursionError):
@@ -76,10 +76,10 @@ def _read_json(path: Path) -> dict:
 
 def frozen_payloads(bindings: dict, evaluation: dict, *, now: datetime) -> tuple[list[dict], dict]:
     """Derive requests from server-owned seed states, never evaluation labels."""
-    from app.schemas.chat_places import ChatPlacesWorkspace
-    from app.schemas.chat import Conversation
-    from app.services.chat import model_payload
-    from app.integrations.qwen_chat_places import tool_payload
+    from core.schemas.chat_places import ChatPlacesWorkspace
+    from core.schemas.chat import Conversation
+    from tooling.travel.chat import model_payload
+    from tooling.providers.qwen_chat_places import tool_payload
     payloads, requests = [], {}
     for case in evaluation["cases"]:
         identifier, question = case["id"], case["user_text"]
@@ -170,7 +170,7 @@ def prepare_freeze(directory: Path, private_directory: Path) -> None:
 
 def prepare_continuation(directory: Path) -> None:
     """Freeze only the eleven unsent operations; retain the original budget."""
-    from app.services.chat import PROVIDER_SCHEMA_VERSION
+    from tooling.travel.chat import PROVIDER_SCHEMA_VERSION
     if PROVIDER_SCHEMA_VERSION != "chat-intent-schema-v2-whole-text":
         raise AcceptanceStopped("historical_continuation_version_mismatch")
     protocol = _read_json(directory / "protocol.json")
@@ -322,7 +322,7 @@ class LiveGate:
                 or request.url.path != "/v5/place/text" or request.url.port not in (None, 443)):
             self.stop("unexpected_upstream")
             raise AcceptanceStopped("unexpected_upstream")
-        from app.chat_cities import city_for
+        from core.chat_cities import city_for
         params = dict(request.url.params)
         if (set(params) != {"key", "keywords", "region", "city_limit", "page_size", "page_num"}
                 or len(list(request.url.params.multi_items())) != len(params)
@@ -386,8 +386,8 @@ class RecordedPOIStream(httpx.AsyncByteStream):
 
 def install_live_gate(gate: LiveGate) -> None:
     """Test-process-only wrapper around unchanged metered production transport."""
-    from app.integrations.qwen import QwenClient, QwenError, strict_json
-    from app.usage_runtime import MeteredAsyncClient
+    from tooling.providers.qwen import QwenClient, QwenError, strict_json
+    from core.usage_runtime import MeteredAsyncClient
     original_send, original_request = MeteredAsyncClient.send, QwenClient._request
 
     async def send(self, request, **kwargs):

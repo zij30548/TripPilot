@@ -20,7 +20,7 @@ type State = { id: number; status: "idle" | "parsing" | "clarify" | "unsupported
 type Session = { id: number; input: FrozenInput; exclusion: CandidateExclusion; authorize: (id: string) => boolean; controller: AbortController };
 const idle = (id = 0, message: string | null = null): State => ({ id, status: "idle", source: null, input: null, response: null, message });
 
-export function useScheduleAdjustment({ schedule, candidates, weather, check }: Context, revision: ReturnType<typeof useWeatherCheckRevision>) {
+export function useScheduleAdjustment({ schedule, candidates, weather, check }: Context, revision: ReturnType<typeof useWeatherCheckRevision>, canOperate?:()=>boolean) {
   const { subscribe } = revision;
   const [state, setState] = useState<State>(() => idle());
   const [instruction, setInstructionState] = useState("");
@@ -39,6 +39,7 @@ export function useScheduleAdjustment({ schedule, candidates, weather, check }: 
   useEffect(() => stop, [stop]);
 
   const generate = async (base: ScheduleCapture, targetId: string, authorize: (id: string) => boolean, source: Source, requestId: string | null): Promise<boolean> => {
+    if (canOperate?.() === false) return false;
     const exclusion = candidates.prepareExclusion(targetId);
     if (!authorize(targetId) || !exclusion) { expire(); return false; }
     const prepared = prepareAdjustmentInput(base, targetId, exclusion.snapshot);
@@ -55,7 +56,7 @@ export function useScheduleAdjustment({ schedule, candidates, weather, check }: 
     try {
       const { schedule: response, drawing } = unpackSchedule(await querySchedulePreview(input.proposed.request, session.controller.signal, true));
       if (!current()) return false;
-      if (!session.authorize(targetId) || !exclusion.isCurrent()) { expire(); return false; }
+      if (canOperate?.() === false || !session.authorize(targetId) || !exclusion.isCurrent()) { expire(); return false; }
       if (!isScheduleResponse(response, input.proposed.request)) throw new ScheduleError("error", "调整预览数据未通过完整校验，原方案保持不变。");
       publish({ id: session.id, source, status: "ready", input, response: structuredClone(response), drawing: structuredClone(drawing), message: null });
       return true;
@@ -68,7 +69,7 @@ export function useScheduleAdjustment({ schedule, candidates, weather, check }: 
     } finally { if (current()) pending.current = false; }
   };
   const start = async (targetId: string): Promise<boolean> => {
-    if (pending.current || !check.canAdjustNow(targetId) || !check.report || !weather.state.response) return false;
+    if (canOperate?.() === false || pending.current || !check.canAdjustNow(targetId) || !check.report || !weather.state.response) return false;
     const base = schedule.capture();
     return base ? generate(base, targetId, check.canAdjustNow, "weather", null) : false;
   };
@@ -77,7 +78,7 @@ export function useScheduleAdjustment({ schedule, candidates, weather, check }: 
     if (stateRef.current.source === "natural") { stop(); publish(idle(version.current, "调整要求已修改，请主动生成新预览。")); }
   };
   const startNatural = async (): Promise<boolean> => {
-    if (pending.current) return false;
+    if (canOperate?.() === false || pending.current) return false;
     const base = schedule.capture(), text = instructionRef.current.trim();
     if (!base || !text || text.length > 400) return false;
     stop(); const generation = version.current, requestId = crypto.randomUUID(), controller = new AbortController();
@@ -86,7 +87,7 @@ export function useScheduleAdjustment({ schedule, candidates, weather, check }: 
     publish({ ...idle(generation), source: "natural", status: "parsing", message: "正在理解调整要求，原方案保持不变…" });
     try {
       const result = await queryAdjustmentIntent(base, text, requestId, controller.signal);
-      if (!current()) return false;
+      if (!current() || canOperate?.() === false) return false;
       if (!isIntentResponse(result, base, requestId)) throw new Error("调整目标未通过当前草案核对。");
       if (result.selection.decision !== "execute") {
         publish({ ...idle(generation), source: "natural", status: result.selection.decision, message: intentMessages[result.selection.reason_code] }); return false;
@@ -110,12 +111,12 @@ export function useScheduleAdjustment({ schedule, candidates, weather, check }: 
   // cost edits have no revision and do not change adoption eligibility.
   const canUsePreview = () => {
     const session = active.current;
-    return stateRef.current === state && state.status === "ready" && !issue && !!session && session.id === state.id &&
+    return canOperate?.() !== false && stateRef.current === state && state.status === "ready" && !issue && !!session && session.id === state.id &&
       session.exclusion.isCurrent() && session.authorize(session.input.targetId);
   };
   const adopt = () => {
     const session = active.current;
-    if (stateRef.current !== state || state.status !== "ready" || !session || session.id !== state.id || !state.response || !state.input) return false;
+    if (canOperate?.() === false || stateRef.current !== state || state.status !== "ready" || !session || session.id !== state.id || !state.response || !state.input) return false;
     if (!session.authorize(session.input.targetId) || !session.exclusion.isCurrent()) { expire(); return false; }
     if (adoptionIssue(session.input.base, session.input.targetId, session.input.proposed.request, state.response)) return false;
     // Consume this identity BEFORE the ordinary candidate publish invalidates

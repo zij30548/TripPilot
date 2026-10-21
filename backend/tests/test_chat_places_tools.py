@@ -6,13 +6,13 @@ from uuid import uuid4
 
 from pydantic import TypeAdapter, ValidationError
 
-from app.chat_cities import CITIES
-from app.integrations.qwen import QwenError, parse_content
-from app.integrations.qwen_chat_places import parse_tool_call, tool_payload
-from app.schemas.chat import Intent
-from app.schemas.chat_places import ChatPlacesRequest, ChatPlacesWorkspace
-from app.services.chat import model_payload
-from app.services.chat_places import CAPABILITIES, PREPARE_PLACE, SKILLS
+from core.chat_cities import CITIES
+from tooling.providers.qwen import QwenError, parse_content
+from tooling.providers.qwen_chat_places import parse_tool_call, tool_payload
+from core.schemas.chat import Intent
+from core.schemas.chat_places import ChatPlacesRequest, ChatPlacesWorkspace
+from tooling.travel.chat import model_payload
+from tooling.travel.chat_places import CAPABILITIES, PREPARE_PLACE, SKILLS
 
 
 def workspace() -> ChatPlacesWorkspace:
@@ -109,7 +109,7 @@ class ChatPlaceNativeToolTests(unittest.TestCase):
         for value in ("unknown", "999999", "上海", "上海杭州"):
             with self.assertRaises(ValidationError):
                 Intent(destination_id=value)
-        from app.destinations import destination_for
+        from core.destinations import destination_for
         with self.assertRaises(ValueError):
             destination_for("320500")
         payload = model_payload({"requirements": Intent().model_dump(), "messages": []}, "先苏州再杭州",

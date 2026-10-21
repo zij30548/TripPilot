@@ -9,8 +9,8 @@ import KnowledgeSearch from "@/components/knowledge-search";
 
 const backend = resolve(process.cwd(), "../backend");
 const responses = JSON.parse(execFileSync(resolve(backend, ".venv/bin/python"), ["-B", "-c", `import json
-from app.services.knowledge import build_index
-from app.schemas.knowledge import KnowledgeRequest
+from tooling.travel.knowledge import build_index
+from core.schemas.knowledge import KnowledgeRequest
 index=build_index()
 print(json.dumps([index.search(KnowledgeRequest(venue_id=v, question=q)).model_dump(mode="json") for v,q in [("museum_people","2025免预约"),("museum_east","数字馆预约"),("natural","化石挖掘"),("natural","迪士尼烟花"),("museum_people","2026特展购票"),("natural","学校团体预约")]],ensure_ascii=False))`], { cwd: backend, encoding: "utf8" })) as KnowledgeResponse[];
 const fixture = (index = 0) => structuredClone(responses[index]);

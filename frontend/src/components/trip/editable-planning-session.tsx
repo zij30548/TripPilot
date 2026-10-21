@@ -10,7 +10,7 @@ import { destination, needsDestinationPlaceConfirmation } from "@/lib/destinatio
 
 type EditSession = { id: number; workspace: WorkspaceEdit; dirtyBefore: boolean };
 export type PlanningOrigin = { kind: "new" } | { kind: "history"; source: SavedDetail };
-export default function EditablePlanningSession({ initial, sessionId, origin }: { initial: WorkspaceInputs; sessionId: string; origin: PlanningOrigin }) {
+export default function EditablePlanningSession({ initial, sessionId, origin, canOperate }: { initial: WorkspaceInputs; sessionId: string; origin: PlanningOrigin; canOperate?: () => boolean }) {
   const [inputs, setInputs] = useState(() => structuredClone(initial));
   const [revision, setRevision] = useState(0), [dirty, setDirty] = useState(false);
   const [editing, setEditing] = useState<EditSession | null>(null), editRef = useRef<EditSession | null>(null);
@@ -25,12 +25,12 @@ export default function EditablePlanningSession({ initial, sessionId, origin }: 
     return () => window.removeEventListener("beforeunload", leave);
   }, [dirty]);
   const edit = (workspace: WorkspaceEdit) => {
-    if (!alive.current || editRef.current || !workspace.isCurrent()) return;
+    if (!alive.current || canOperate?.() === false || editRef.current || !workspace.isCurrent()) return;
     const next = { id: ++serial.current, workspace, dirtyBefore: dirty };
     editRef.current = next; setEditing(next);
   };
   const confirm = (session: EditSession, request: TripRequest) => {
-    if (!alive.current || editRef.current !== session || !session.workspace.isCurrent()) return;
+    if (!alive.current || canOperate?.() === false || editRef.current !== session || !session.workspace.isCurrent()) return;
     try {
       const next = applyEditedRequirements(session.workspace.read(), request);
       // All conversion succeeds before synchronously invalidating the old workspace.
@@ -64,7 +64,7 @@ export default function EditablePlanningSession({ initial, sessionId, origin }: 
       }} />
     </section>}
     <div hidden={!!editing}>
-      <PlanningWorkspace key={`${sessionId}:${revision}`} request={inputs.request} initial={inputs} origin={origin.kind} requirementsEdited={revision > 0} onEdit={edit} onDirty={markDirty} />
+      <PlanningWorkspace key={`${sessionId}:${revision}`} request={inputs.request} initial={inputs} origin={origin.kind} requirementsEdited={revision > 0} onEdit={edit} onDirty={markDirty} canOperate={canOperate} />
     </div>
     {origin.kind === "history" && <details className="mt-8 rounded-2xl border border-[#315f51]/30 bg-white p-5">
       <summary className="cursor-pointer font-semibold">只读历史参考 · 不是新正式草案</summary>

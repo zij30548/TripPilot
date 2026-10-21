@@ -11,8 +11,8 @@ from uuid import uuid4
 
 import httpx
 
-from app.business_usage import UsageError
-from app.usage_runtime import MeteredAsyncClient
+from core.business_usage import UsageError
+from core.usage_runtime import MeteredAsyncClient
 from tests.usage_fixture import UsageFixture
 
 

@@ -2,8 +2,8 @@
 import json
 from datetime import datetime, timezone
 
-from app.schemas.explanation import ExplanationResponse, ExplanationUsage, ModelSelection
-from app.services.explanation import build_facts, compact_schedule, fixed_limitations, render_selection
+from core.schemas.explanation import ExplanationResponse, ExplanationUsage, ModelSelection
+from tooling.travel.explanation import build_facts, compact_schedule, fixed_limitations, render_selection
 from tests.explanation_samples import business_samples
 
 if __name__ == "__main__":

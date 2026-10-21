@@ -17,14 +17,14 @@ from sqlalchemy import event, inspect, text
 from sqlalchemy.exc import OperationalError
 from sqlmodel import Session, select
 
-from app.auth import PASSWORD_HASHER
-from app.business_usage import SERVICES, UsageSettings, UsageStore
-from app.identity_models import AccountRow, LoginBucketRow, SessionRow
-from app.mysql_storage import MYSQL_STORAGE_VERSION, validate_private_schema
-from app.mysql_usage import MySQLUsageStore
-from app.saved_trips import ArchiveError, SavedTripRow, get_record, listing, save
-from app.schemas.saved_trip import SaveTrip
-from app.storage import StorageError, engine_for
+from core.auth import PASSWORD_HASHER
+from core.business_usage import SERVICES, UsageSettings, UsageStore
+from memory.identity_models import AccountRow, LoginBucketRow, SessionRow
+from memory.mysql_storage import MYSQL_STORAGE_VERSION, validate_private_schema
+from memory.mysql_usage import MySQLUsageStore
+from memory.saved_trips import ArchiveError, SavedTripRow, get_record, listing, save
+from core.schemas.saved_trip import SaveTrip
+from memory.storage import StorageError, engine_for
 from tools import mysql_migration
 from tools.mysql_migration import FILES, Refused, inspect_pair, sha256
 from tests.mysql_support import temporary_mysql

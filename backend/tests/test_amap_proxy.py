@@ -10,10 +10,10 @@ from tests.business_client import BusinessTestClient as TestClient
 from pydantic import ValidationError
 from uvicorn.logging import AccessFormatter
 
-from app.api.amap_proxy import get_proxy_http_client
-from app.config import Settings, get_settings
-from app.integrations.amap_proxy import MAX_RESPONSE_BYTES
-from app.logging_filters import RedactHttpCredentials, install_http_log_redaction
+from api.amap_proxy import get_proxy_http_client
+from core.config import Settings, get_settings
+from tooling.providers.amap_proxy import MAX_RESPONSE_BYTES
+from core.logging_filters import RedactHttpCredentials, install_http_log_redaction
 from main import app
 
 

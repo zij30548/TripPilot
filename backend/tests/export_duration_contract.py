@@ -4,10 +4,10 @@ import tempfile
 from pathlib import Path
 from uuid import uuid4
 from sqlmodel import Session
-from app.destinations import DESTINATIONS
-from app.planning_limits import LIMITS
-from app.schemas.saved_trip import SaveTrip
-from app.saved_trips import engine_for, save
+from core.destinations import DESTINATIONS
+from core.planning_limits import LIMITS
+from core.schemas.saved_trip import SaveTrip
+from memory.saved_trips import engine_for, save
 from tests.test_duration import city_request, controlled_schedule, archive_for
 from tests.archive_owner import OWNER, seed_owner
 

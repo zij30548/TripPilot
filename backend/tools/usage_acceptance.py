@@ -14,8 +14,8 @@ from pathlib import Path
 from threading import Lock
 from typing import Iterator
 
-from app.business_usage import SERVICES, UsageError, UsageSettings, UsageStore
-from app.storage import StorageError
+from core.business_usage import SERVICES, UsageError, UsageSettings, UsageStore
+from memory.storage import StorageError
 
 
 def _paths(database: Path, usage_database: Path, credentials: Path | None = None) -> None:
@@ -106,11 +106,11 @@ class _Receipt:
 
 def controlled_app(receipt: Path | None = None):
     import httpx
-    from app.api.amap_proxy import get_proxy_http_client
-    from app.api.places import get_http_client
-    from app.api.explanation import get_qwen_http_client
-    from app.config import Settings, get_settings
-    from app.usage_runtime import MeteredAsyncClient
+    from api.amap_proxy import get_proxy_http_client
+    from api.places import get_http_client
+    from api.explanation import get_qwen_http_client
+    from core.config import Settings, get_settings
+    from core.usage_runtime import MeteredAsyncClient
     from main import app
 
     events = _Receipt(receipt)

@@ -11,8 +11,8 @@ from unittest.mock import patch
 
 import httpx
 
-from app.integrations.qwen import ALLOWED_MODELS, QwenError, configured_endpoint
-from app.services.knowledge import DATA, fingerprint
+from tooling.providers.qwen import ALLOWED_MODELS, QwenError, configured_endpoint
+from tooling.travel.knowledge import DATA, fingerprint
 from tests.test_knowledge_ab_trial import settings
 from tests.test_knowledge_b_validation import bound_for
 from tests.test_knowledge_model_selection import response

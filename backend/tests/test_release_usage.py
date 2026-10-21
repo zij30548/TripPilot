@@ -14,10 +14,10 @@ from unittest.mock import patch
 import httpx
 from fastapi.testclient import TestClient
 
-from app import auth
-from app.business_usage import SERVICES, UsageSettings, UsageStore, UsageError
-from app.config import Settings, get_settings
-from app.storage import engine_for
+from core import auth
+from core.business_usage import SERVICES, UsageSettings, UsageStore, UsageError
+from core.config import Settings, get_settings
+from memory.storage import engine_for
 from main import app
 from tests.test_saved_trips import payload
 
@@ -31,12 +31,12 @@ class ProductionUsageBoundary(unittest.TestCase):
         self.usage_path = Path(self.directory) / "usage.sqlite3"
         self.enterContext(patch.dict(os.environ, {"TRIPPILOT_DATABASE_PATH": str(self.path)}))
         settings = auth.AuthSettings(_env_file=None, auth_cookie_secure=False)
-        self.enterContext(patch("app.auth.get_auth_settings", return_value=settings))
-        self.enterContext(patch("app.api.auth.get_auth_settings", return_value=settings))
+        self.enterContext(patch("core.auth.get_auth_settings", return_value=settings))
+        self.enterContext(patch("api.auth.get_auth_settings", return_value=settings))
         self.limits = {service: {"account": 20, "global": 100} for service in SERVICES}
         self.limits["amap_poi"] = {"account": 2, "global": 3}
         self.settings = self.quota_settings()
-        self.enterContext(patch("app.business_usage.get_usage_settings", side_effect=lambda: self.settings))
+        self.enterContext(patch("core.business_usage.get_usage_settings", side_effect=lambda: self.settings))
         UsageStore(self.settings).initialize()
         self.first_id = auth.create_account("quota-a", "controlled-quota-a-password")
         self.second_id = auth.create_account("quota-b", "controlled-quota-b-password")
@@ -122,7 +122,7 @@ class ProductionUsageBoundary(unittest.TestCase):
 
     def test_counter_failure_stops_dispatch_without_disabling_history_or_answer_gate(self):
         headers = self.login(self.a, "a")
-        with patch("app.business_usage.UsageStore.reserve", side_effect=UsageError()):
+        with patch("core.business_usage.UsageStore.reserve", side_effect=UsageError()):
             failed = self.search(self.a)
             self.assertEqual(failed.status_code, 503)
             self.assertEqual(failed.json()["detail"]["code"], "business_usage_unavailable")
@@ -147,9 +147,12 @@ class ProductionUsageBoundary(unittest.TestCase):
 
 class ProductionTransportInventory(unittest.TestCase):
     def test_runtime_http_client_factories_all_install_metering(self):
-        root = Path(__file__).resolve().parents[1] / "app"
+        root = Path(__file__).resolve().parents[1]
         factories = []
-        for source in root.rglob("*.py"):
+        sources = [source for package in ("api", "agents", "core", "tooling", "memory", "monitor", "evaluation")
+                   for source in (root / package).rglob("*.py")]
+        self.assertTrue(sources)
+        for source in sources:
             tree = ast.parse(source.read_text())
             for node in ast.walk(tree):
                 if (isinstance(node, ast.Call) and isinstance(node.func, ast.Attribute)

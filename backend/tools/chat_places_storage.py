@@ -20,15 +20,15 @@ from sqlalchemy.engine import Engine
 from sqlalchemy.exc import SQLAlchemyError
 from sqlmodel import SQLModel
 
-from app.chat_models import CHAT_TABLES, CHAT_VERSION
-from app.chat_places_models import CHAT_PLACES_TABLES, CHAT_PLACES_VERSION
-from app.chat_places_storage import chat_places_tables, validate_chat_places_extension
-from app.chat_storage import ChatStore, chat_tables, validate_chat_extension
-from app.business_usage import UsageError
-from app.mysql_storage import (MYSQL_STORAGE_VERSION, MySQLSettings, current_mysql_engine, engine_from_url,
+from memory.chat_models import CHAT_TABLES, CHAT_VERSION
+from memory.chat_places_models import CHAT_PLACES_TABLES, CHAT_PLACES_VERSION
+from memory.chat_places_storage import chat_places_tables, validate_chat_places_extension
+from memory.chat_storage import ChatStore, chat_tables, validate_chat_extension
+from core.business_usage import UsageError
+from memory.mysql_storage import (MYSQL_STORAGE_VERSION, MySQLSettings, current_mysql_engine, engine_from_url,
                                initialize_private_schema, private_tables, validate_private_schema)
-from app.mysql_usage import initialize_usage_schema, usage_attempts, usage_metadata, validate_usage_schema
-from app.storage import StorageError
+from memory.mysql_usage import initialize_usage_schema, usage_attempts, usage_metadata, validate_usage_schema
+from memory.storage import StorageError
 from tools.chat_storage import Refused, _anchor_identity, _hash, _new_receipt, _rows_digest, _write
 from tools.mysql_backup import TABLES as BASE_TABLES, _valid_row as validate_base_row
 
@@ -120,6 +120,9 @@ def _copy_locked(source: Engine, target: Engine, receipt: Path, anchor: Path, *,
     identity, anchor_hash = _anchor_identity(anchor), _hash(anchor)
     with source.connect() as db:
         validate_chat_extension(db)
+        from memory.assistant_store import validate_assistant_extension
+        if validate_assistant_extension(db, required=False):
+            raise Refused("assistant_extension_requires_own_copy_tool")
         if validate_chat_places_extension(db, required=False) != rollback:
             raise Refused("source_extension_version_mismatch")
         if rollback and any(db.execute(select(text("COUNT(*)")).select_from(table)).scalar_one() for table in chat_places_tables()):

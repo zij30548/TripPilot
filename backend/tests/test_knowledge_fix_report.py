@@ -4,8 +4,8 @@ import json
 from pathlib import Path
 import unittest
 
-from app.schemas.knowledge_answer import AnswerResponse
-from app.services.knowledge import build_index
+from core.schemas.knowledge_answer import AnswerResponse
+from tooling.travel.knowledge import build_index
 
 ROOT = Path(__file__).resolve().parents[1]
 

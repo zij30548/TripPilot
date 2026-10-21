@@ -4,9 +4,9 @@ import random
 import unittest
 from datetime import datetime, timedelta, timezone
 
-from app.schemas.schedule import ScheduleEdge, ScheduleRequest, clock_minutes
-from app.services.schedule import build_schedule, hhmm
-from app.services.schedule_routes import required_edges
+from core.schemas.schedule import ScheduleEdge, ScheduleRequest, clock_minutes
+from tooling.travel.schedule import build_schedule, hhmm
+from tooling.travel.schedule_routes import required_edges
 
 
 class ScheduleInvariantTests(unittest.TestCase):

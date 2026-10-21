@@ -1,6 +1,6 @@
 """Twelve controlled business samples. No real itinerary/provider acceptance."""
-from app.schemas.schedule import ScheduleResponse
-from app.services.schedule import build_schedule
+from core.schemas.schedule import ScheduleResponse
+from tooling.travel.schedule import build_schedule
 from tests import test_schedule as walking
 from tests import test_schedule_optional as optional
 from tests import test_schedule_transit as transit

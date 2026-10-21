@@ -10,12 +10,12 @@ from unittest.mock import AsyncMock, patch
 import httpx
 from tests.business_client import BusinessTestClient as TestClient
 
-from app.api.places import get_http_client
-from app.config import Settings, get_settings
-from app.integrations.amap import AmapClient
-from app.schemas.candidates import CandidateRequest
-from app.schemas.place import ConfirmedPlace, Place
-from app.services.candidates import (
+from api.places import get_http_client
+from core.config import Settings, get_settings
+from tooling.providers.amap import AmapClient
+from core.schemas.candidates import CandidateRequest
+from core.schemas.place import ConfirmedPlace, Place
+from tooling.travel.candidates import (
     BATCH_TIMEOUT_SECONDS, INTEREST_KEYWORDS, prepare_candidates, retrieval_sources,
 )
 from main import app
@@ -218,7 +218,7 @@ class CandidatesApiTests(unittest.TestCase):
 
     def test_connection_only_retry_budget_is_twelve(self) -> None:
         self.errors = {keyword: httpx.ConnectError for _, keyword in INTEREST_KEYWORDS}
-        with self.assertLogs("app.integrations.amap", level="WARNING") as logs:
+        with self.assertLogs("tooling.providers.amap", level="WARNING") as logs:
             response = self.post(body(interests=ALL_INTERESTS * 2))
         self.assertEqual(response.json()["status"], "failed")
         self.assertEqual(len(self.requests), 12)
@@ -306,7 +306,7 @@ class CandidateBudgetTests(unittest.IsolatedAsyncioTestCase):
         amap = AsyncMock(spec=AmapClient)
         amap.search.side_effect = search
         before = monotonic()
-        with patch("app.services.candidates.BATCH_TIMEOUT_SECONDS", 0.035):
+        with patch("tooling.travel.candidates.BATCH_TIMEOUT_SECONDS", 0.035):
             result = await prepare_candidates(self.request(), amap)
         self.assertLess(monotonic() - before, 0.5)
         self.assertEqual(len(started), 3)
@@ -324,7 +324,7 @@ class CandidateBudgetTests(unittest.IsolatedAsyncioTestCase):
 
         amap = AsyncMock(spec=AmapClient)
         amap.search.side_effect = search
-        with patch("app.services.candidates.BATCH_TIMEOUT_SECONDS", 0.03):
+        with patch("tooling.travel.candidates.BATCH_TIMEOUT_SECONDS", 0.03):
             result = await prepare_candidates(self.request(), amap)
         self.assertEqual(result.status, "partial")
         self.assertEqual(result.queries[0].status, "success")
@@ -372,7 +372,7 @@ class CandidateBudgetTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(result.candidates[0].place.name, request.must_visit_places[0].name)
 
     async def test_duplicate_keywords_are_merged_even_if_mapping_evolves(self) -> None:
-        with patch("app.services.candidates.INTEREST_KEYWORDS", (("摄影", "公园"), ("美食", "公园"))):
+        with patch("tooling.travel.candidates.INTEREST_KEYWORDS", (("摄影", "公园"), ("美食", "公园"))):
             sources = retrieval_sources(["美食", "摄影"])
             self.assertEqual(len(sources), 1)
             self.assertEqual(sources[0].keyword, "公园")

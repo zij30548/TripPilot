@@ -19,11 +19,11 @@ import time
 import httpx
 from pydantic import ValidationError
 
-from app.config import get_settings
-from app.integrations import photo_diagnostics as diagnostics
-from app.integrations.qwen import QwenError, beijing_endpoint, parse_content, strict_json
-from app.integrations.qwen_vision import MODEL, PROMPT_VERSION, QwenVisionClient
-from app.schemas.photo import PhotoSelection
+from core.config import get_settings
+from tooling.providers import photo_diagnostics as diagnostics
+from tooling.providers.qwen import QwenError, beijing_endpoint, parse_content, strict_json
+from tooling.providers.qwen_vision import MODEL, PROMPT_VERSION, QwenVisionClient
+from core.schemas.photo import PhotoSelection
 from tools import photo_evaluation_manifest as preparation
 from tools.itinerary_query_acceptance import Ledger, ROOT
 

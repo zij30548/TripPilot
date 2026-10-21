@@ -1,0 +1,90 @@
+import { act, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
+import { beforeEach, describe, expect, it, vi } from "vitest";
+import AssistantPlanning from "./assistant-planning";
+import { assistantPlanningFixture } from "@/lib/assistant-planning.test-fixtures";
+import { adjustmentResponse } from "@/lib/schedule-adjustment.test-fixtures";
+import { deferred } from "@/lib/chat-test-fixtures";
+import type { ScheduleResponse } from "@/types/schedule";
+
+const api = vi.hoisted(() => ({ schedule: vi.fn(), candidates: vi.fn(), weather: vi.fn(), explanation: vi.fn(), intent: vi.fn(), save: vi.fn(), search: vi.fn() }));
+vi.mock("@/lib/schedule-api", async original => ({ ...await original<typeof import("@/lib/schedule-api")>(), querySchedulePreview: api.schedule }));
+vi.mock("@/lib/candidates-api", async original => ({ ...await original<typeof import("@/lib/candidates-api")>(), queryCandidates: api.candidates }));
+vi.mock("@/lib/weather-api", async original => ({ ...await original<typeof import("@/lib/weather-api")>(), queryWeatherForecast: api.weather }));
+vi.mock("@/lib/explanation-api", async original => ({ ...await original<typeof import("@/lib/explanation-api")>(), queryExplanation: api.explanation }));
+vi.mock("@/lib/adjustment-intent-api", async original => ({ ...await original<typeof import("@/lib/adjustment-intent-api")>(), queryAdjustmentIntent: api.intent }));
+vi.mock("@/lib/saved-trips", async original => ({ ...await original<typeof import("@/lib/saved-trips")>(), saveTrip: api.save }));
+vi.mock("@/lib/places-api", async original => ({ ...await original<typeof import("@/lib/places-api")>(), searchPlaces: api.search }));
+const click = async (name: string | RegExp) => act(async () => { fireEvent.click(screen.getByRole("button", { name })); });
+beforeEach(() => { vi.resetAllMocks(); api.schedule.mockImplementation(async request => adjustmentResponse(request)); vi.stubGlobal("fetch", vi.fn().mockRejectedValue(new Error("unexpected request"))); });
+
+describe("chat-integrated established planner (controlled business services)", () => {
+  it("disclosure and explicit preparation do not query; only generate requests the original validated schedule", async () => {
+    render(<AssistantPlanning {...assistantPlanningFixture()} />);
+    expect(screen.queryByRole("button", { name: "生成行程草案" })).toBeNull();
+    await click("打开行程工具");
+    expect(screen.getByText(/默认设置，可在准备前修改/)).toBeTruthy();
+    await click("核对并准备行程");
+    expect(screen.getByRole("button", { name: "生成行程草案" })).toBeTruthy();
+    for (const call of Object.values(api)) expect(call).not.toHaveBeenCalled();
+    expect(fetch).not.toHaveBeenCalled();
+    await click("生成行程草案");
+    expect(api.schedule).toHaveBeenCalledTimes(1);
+    expect(api.schedule.mock.calls[0][0]).toMatchObject({ destination_id: "hangzhou", transport_mode: "walking", daily_start_time: "09:00", daily_end_time: "18:00", lunch: { enabled: true } });
+    await screen.findByRole("region", { name: "正式草案费用与预算" });
+  });
+  it("collapse/reopen and an unrelated chat revision preserve generated draft and fee inputs without querying", async () => {
+    const fixture = assistantPlanningFixture(), view = render(<AssistantPlanning {...fixture} />);
+    await click("打开行程工具"); await click("核对并准备行程"); await click("生成行程草案");
+    const budget = await screen.findByRole("region", { name: "正式草案费用与预算" });
+    fireEvent.change(within(budget).getByRole("textbox", { name: /全程其他/ }), { target: { value: "25" } });
+    const timeline = screen.getByRole("list", { name: "草案时间线" }).textContent;
+    await click("收起行程工具"); await click("打开行程工具");
+    view.rerender(<AssistantPlanning conversation={{ ...fixture.conversation, revision: 3 }} places={fixture.places} />);
+    expect(screen.getByRole("list", { name: "草案时间线" }).textContent).toBe(timeline);
+    expect((within(screen.getByRole("region", { name: "正式草案费用与预算" })).getByRole("textbox", { name: /全程其他/ }) as HTMLInputElement).value).toBe("25");
+    expect(api.schedule).toHaveBeenCalledTimes(1);
+    expect(api.weather).not.toHaveBeenCalled(); expect(api.save).not.toHaveBeenCalled(); expect(fetch).not.toHaveBeenCalled();
+  });
+  it("transactional local edit cancellation keeps draft; confirmation invalidates only local planner without rewriting chat", async () => {
+    const fixture = assistantPlanningFixture(), original = structuredClone(fixture);
+    render(<AssistantPlanning {...fixture} />);
+    await click("打开行程工具"); await click("核对并准备行程"); await click("生成行程草案");
+    await click("修改旅行需求");
+    fireEvent.change(screen.getByLabelText(/总预算/), { target: { value: "5000" } });
+    await click("取消需求修改");
+    expect(screen.getByRole("list", { name: "草案时间线" })).toBeTruthy();
+    await click("修改旅行需求");
+    fireEvent.change(screen.getByLabelText(/总预算/), { target: { value: "5000" } });
+    await click("确认需求修改");
+    expect(screen.queryByRole("list", { name: "草案时间线" })).toBeNull();
+    expect(fixture).toEqual(original);
+    expect(api.schedule).toHaveBeenCalledTimes(1);
+  });
+  it.each(["success", "error"])("real source change then A→B→A cannot revive an old draft or late %s", async outcome => {
+    const fixture = assistantPlanningFixture(), late = deferred<ScheduleResponse>(); api.schedule.mockReturnValueOnce(late.promise);
+    const view = render(<AssistantPlanning {...fixture} />);
+    await click("打开行程工具"); await click("核对并准备行程"); await click("生成行程草案");
+    const [body, signal] = api.schedule.mock.calls[0];
+    const changed = { ...fixture.conversation, requirements: { ...fixture.conversation.requirements, travelers: 3 } };
+    view.rerender(<AssistantPlanning conversation={changed} places={fixture.places} />);
+    expect(signal.aborted).toBe(true);
+    view.rerender(<AssistantPlanning {...fixture} />);
+    await act(async () => { if (outcome === "success") late.resolve(adjustmentResponse(body)); else late.reject(new Error("old failure")); });
+    expect(screen.queryByRole("list", { name: "草案时间线" })).toBeNull();
+    expect(screen.getByText(/原规划副本已失效/)).toBeTruthy();
+    expect(api.schedule).toHaveBeenCalledTimes(1);
+    await click("核对并准备行程");
+    expect(screen.getByRole("button", { name: "生成行程草案" })).toBeTruthy();
+  });
+  it("missing/stale confirmations and unsupported cities fail locally; history is explicit read-only access", async () => {
+    const fixture = assistantPlanningFixture(), view = render(<AssistantPlanning conversation={fixture.conversation} />);
+    await click("打开行程工具"); await click("核对并准备行程");
+    expect(screen.getByRole("alert").textContent).toContain("地点准备");
+    view.rerender(<AssistantPlanning {...fixture} blocked />);
+    expect(screen.getByRole("button", { name: "核对并准备行程" }).hasAttribute("disabled")).toBe(true);
+    for (const call of Object.values(api)) expect(call).not.toHaveBeenCalled();
+    expect(fetch).not.toHaveBeenCalled();
+    expect(screen.getByRole("button", { name: "查看历史行程" })).toBeTruthy();
+    await waitFor(() => expect(screen.queryByRole("dialog", { name: "历史行程" })).toBeNull());
+  });
+});

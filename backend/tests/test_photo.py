@@ -6,12 +6,12 @@ from unittest.mock import patch
 import httpx
 from tests.business_client import BusinessTestClient as TestClient
 from PIL import Image
-from app.config import Settings, get_settings
-from app.api.explanation import get_qwen_http_client
-from app.integrations.qwen import QwenError, configured_endpoint
-from app.integrations.qwen_vision import QwenVisionClient, vision_payload
-from app.schemas.photo import PhotoSelection
-from app.services.photo import normalize_photo, PhotoError, MAX_BYTES
+from core.config import Settings, get_settings
+from api.explanation import get_qwen_http_client
+from tooling.providers.qwen import QwenError, configured_endpoint
+from tooling.providers.qwen_vision import QwenVisionClient, vision_payload
+from core.schemas.photo import PhotoSelection
+from tooling.travel.photo import normalize_photo, PhotoError, MAX_BYTES
 from main import app
 
 
@@ -44,7 +44,7 @@ class ImageSafetyTests(unittest.TestCase):
         out = BytesIO(); frames[0].save(out, "PNG", save_all=True, append_images=frames[1:], duration=100)
         for raw in [b"", b"<svg></svg>", b"JPEG pretend", photo()[:20], photo("GIF"), out.getvalue(), b"x" * (MAX_BYTES+1)]:
             with self.subTest(size=len(raw)), self.assertRaises(PhotoError): normalize_photo(raw)
-        with patch("app.services.photo.MAX_PIXELS", 599), self.assertRaises(PhotoError): normalize_photo(photo())
+        with patch("tooling.travel.photo.MAX_PIXELS", 599), self.assertRaises(PhotoError): normalize_photo(photo())
 
     def test_schema_no_executable_fields_or_fake_poi(self):
         for content in [dict(SELECTION, coordinates=[1,2]), {"status":"possible", "clues":[]},
@@ -85,7 +85,7 @@ class VisionTests(unittest.IsolatedAsyncioTestCase):
             self.assertEqual(error.exception.code,expected); self.assertNotIn("sensitive",str(error.exception)); self.assertEqual(len(calls),1)
         async def slow(request): await asyncio.sleep(.1); return httpx.Response(200,json=answer())
         async with httpx.AsyncClient(transport=httpx.MockTransport(slow)) as c:
-            with self.assertRaises(QwenError) as error, patch("app.integrations.qwen_vision.DEADLINE",.01): await QwenVisionClient(self.settings(),c).recognize(normalize_photo(photo()))
+            with self.assertRaises(QwenError) as error, patch("tooling.providers.qwen_vision.DEADLINE",.01): await QwenVisionClient(self.settings(),c).recognize(normalize_photo(photo()))
         self.assertEqual(error.exception.code,"timeout")
 
     async def test_bad_output_refusal_tools_and_oversize(self):
@@ -123,8 +123,8 @@ class PhotoApiTests(unittest.TestCase):
     def test_query_bounds_and_upload_bounds_no_model(self):
         for query in ["destination_id=unknown&request_id=r", "destination_id=shanghai&request_id=r&url=http://bad", "destination_id=shanghai&request_id=r&request_id=s"]:
             self.assertEqual(self.client.post("/media/landmark?"+query,content=photo()).status_code,422)
-        with patch("app.api.photo.MAX_BYTES",10):
+        with patch("api.photo.MAX_BYTES",10):
             self.assertEqual(self.client.post("/media/landmark?destination_id=shanghai&request_id=r",content=photo()).status_code,413)
-        with patch("app.api.photo.busy",True):
+        with patch("api.photo.busy",True):
             self.assertEqual(self.client.post("/media/landmark?destination_id=shanghai&request_id=r",content=photo()).status_code,429)
         self.assertEqual(self.calls,[])

@@ -19,11 +19,11 @@ from typing import Iterator
 import httpx
 from pydantic import ValidationError
 
-from app.config import Settings, get_settings
-from app.integrations.qwen import MODEL, QwenClient, QwenError, configured_endpoint, strict_json
-from app.schemas.knowledge_answer import AnswerResponse, PROMPT_VERSION
-from app.services.knowledge import fingerprint
-from app.services.knowledge_answer import render_answer
+from core.config import Settings, get_settings
+from tooling.providers.qwen import MODEL, QwenClient, QwenError, configured_endpoint, strict_json
+from core.schemas.knowledge_answer import AnswerResponse, PROMPT_VERSION
+from tooling.travel.knowledge import fingerprint
+from tooling.travel.knowledge_answer import render_answer
 from tools.knowledge_acceptance import CountedTransport, Ledger, context
 from tools.knowledge_evidence_trial import EVIDENCE, VERSION, audit, prepare, render_selection, sha
 

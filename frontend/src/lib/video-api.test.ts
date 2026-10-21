@@ -14,7 +14,7 @@ import asyncio,tempfile,sys
 from pathlib import Path
 sys.path.insert(0,"tests")
 from test_video import fixture
-from app.services.video import extract_frames,executables
+from tooling.travel.video import extract_frames,executables
 with tempfile.TemporaryDirectory() as d:
  p=Path(d)/"private-name.mp4"
  fixture(p,duration="2")

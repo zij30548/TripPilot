@@ -14,8 +14,8 @@ from tests.business_client import BusinessTestClient as TestClient
 from PIL import Image
 from starlette.requests import Request
 
-from app.api import video as api
-from app.services import video as service
+from api import video as api
+from tooling.travel import video as service
 from main import app
 from tests.usage_fixture import UsageFixture
 
@@ -110,7 +110,7 @@ class VideoDecodeTests(unittest.IsolatedAsyncioTestCase):
                 with self.assertRaises(service.VideoError): service.validate_container(bad)
 
     def test_missing_dependencies_does_not_prevent_app_start(self):
-        with patch("app.services.video.Path.is_file",return_value=False), TestClient(app) as client:
+        with patch("tooling.travel.video.Path.is_file",return_value=False), TestClient(app) as client:
             self.assertEqual(client.get("/health").status_code,200)
             r=client.post("/media/video-frames?request_id=r",content=b"x")
             self.assertEqual(r.status_code,503); self.assertEqual(r.json()["detail"]["code"],"video_unavailable")

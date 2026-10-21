@@ -13,8 +13,8 @@ describe("chat intent response contract", () => {
     const backend = resolve(process.cwd(), "../backend");
     const exported = JSON.parse(execFileSync(resolve(backend, ".venv/bin/python"), ["-B", "-c", `
 import json
-from app.schemas.chat import Conversation, ConversationList
-from app.destinations import DESTINATIONS
+from core.schemas.chat import Conversation, ConversationList
+from core.destinations import DESTINATIONS
 rows = []
 for destination_id in DESTINATIONS:
     row = Conversation.model_validate({

@@ -12,9 +12,9 @@ from uuid import uuid4
 
 import httpx
 
-from app.api.chat_places import get_chat_places_store
-from app.business_usage import UsageError
-from app.chat_places_storage import ChatPlacesStore
+from api.chat_places import get_chat_places_store
+from core.business_usage import UsageError
+from memory.chat_places_storage import ChatPlacesStore
 from main import app
 from tests import test_chat_api as chat_fixture
 from tests.test_chat_places_tools import envelope
@@ -216,7 +216,7 @@ class ChatPlacesAPITests(unittest.TestCase):
 
     def test_quota_failure_before_send_persists_failure_not_running(self):
         self.set_city()
-        with patch("app.usage_runtime.get_usage_store", return_value=self.usage_store), patch.object(
+        with patch("core.usage_runtime.get_usage_store", return_value=self.usage_store), patch.object(
                 self.usage_store, "reserve", side_effect=UsageError("business_quota_exhausted", service="qwen_text", scope="account")):
             result = self.command("ask", text="搜索博物馆")
         self.assertEqual(result.status_code, 429, result.text)
@@ -229,7 +229,7 @@ class ChatPlacesAPITests(unittest.TestCase):
         self.set_city()
         self.results.append(envelope())
         self.pause_next = True
-        with patch("app.api.chat_places.MAX_OPERATION_SECONDS", 1):
+        with patch("api.chat_places.MAX_OPERATION_SECONDS", 1):
             result = self.command("ask", text="搜索博物馆")
         self.assertEqual(result.status_code, 200, result.text)
         self.assertEqual(self.view["last_operation"]["error_code"], "operation_timeout")

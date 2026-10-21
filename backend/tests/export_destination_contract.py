@@ -2,7 +2,7 @@
 import json
 from tests.test_destinations import DestinationAPIs, modern_snapshot
 from uuid import uuid4
-from app.destinations import DESTINATIONS
+from core.destinations import DESTINATIONS
 
 case = DestinationAPIs()
 case.setUp()

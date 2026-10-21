@@ -10,15 +10,15 @@ from tests.business_client import BusinessTestClient as TestClient
 from pydantic import ValidationError
 from starlette.requests import Request
 
-from app.api.explanation import get_qwen_http_client
-from app.api.knowledge_answer import answer, router as research_router
-from app.config import Settings, get_settings
-from app.integrations.qwen import MODEL, QwenError
-from app.schemas.explanation import ExplanationUsage
-from app.schemas.knowledge import KnowledgeRequest
-from app.schemas.knowledge_answer import AnswerRequest, AnswerResponse, ModelAnswer
-from app.services.knowledge import build_index
-from app.services.knowledge_answer import SYSTEM, answer_payload, render_answer
+from api.explanation import get_qwen_http_client
+from api.knowledge_answer import answer, router as research_router
+from core.config import Settings, get_settings
+from tooling.providers.qwen import MODEL, QwenError
+from core.schemas.explanation import ExplanationUsage
+from core.schemas.knowledge import KnowledgeRequest
+from core.schemas.knowledge_answer import AnswerRequest, AnswerResponse, ModelAnswer
+from tooling.travel.knowledge import build_index
+from tooling.travel.knowledge_answer import SYSTEM, answer_payload, render_answer
 
 # Research contract/lifecycle tests only. Production deliberately does not mount
 # this router; test_knowledge_disabled exercises the actual main application.
@@ -146,7 +146,7 @@ class APITests(unittest.TestCase):
         self.assertEqual(self.calls, [])
 
     def test_corrupt_library_is_failure_not_insufficient(self):
-        with patch("app.api.knowledge_answer.get_index", side_effect=ValueError("private-path")):
+        with patch("api.knowledge_answer.get_index", side_effect=ValueError("private-path")):
             r = self.post()
         self.assertEqual(r.status_code, 503); self.assertNotIn("private-path", r.text); self.assertEqual(self.calls, [])
 
@@ -156,7 +156,7 @@ class APITests(unittest.TestCase):
         self.assertEqual(self.post().status_code, 502)
         self.content = {"bad": "private-data"}; self.assertEqual(self.post().status_code, 502)
         self.assertEqual(len(self.calls), 3)
-        with patch("app.api.knowledge_answer.QwenClient.generate", side_effect=QwenError("timeout")) as generate:
+        with patch("api.knowledge_answer.QwenClient.generate", side_effect=QwenError("timeout")) as generate:
             r = self.post(); self.assertEqual(r.status_code, 504); self.assertEqual(generate.call_count, 1)
         self.assertNotIn("private-data", r.text)
 
@@ -184,7 +184,7 @@ class CancellationTests(unittest.IsolatedAsyncioTestCase):
             finally: cancelled.set()
         raw = Request({"type": "http", "method": "POST", "path": "/knowledge/answer", "headers": []}, receive)
         async with httpx.AsyncClient(transport=httpx.MockTransport(lambda _: httpx.Response(500))) as client:
-            with patch("app.api.knowledge_answer.QwenClient.generate", side_effect=call) as mocked:
+            with patch("api.knowledge_answer.QwenClient.generate", side_effect=call) as mocked:
                 with self.assertRaises(HTTPException) as caught: await answer(raw, Settings(_env_file=None), client)
                 self.assertEqual(caught.exception.status_code, 499); self.assertEqual(mocked.call_count, 1)
                 self.assertTrue(cancelled.is_set())

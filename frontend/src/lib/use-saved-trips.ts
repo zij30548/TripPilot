@@ -6,13 +6,13 @@ import type { CostInputs } from "./schedule-costs";
 import type { useSchedulePreview } from "./use-schedule-preview";
 
 type SaveState = { status:"idle"|"saving"|"uncertain"|"saved"|"invalid"; operation:SaveOperation|null; detail:SavedDetail|null; message:string };
-export function useSaveTrip(schedule:ReturnType<typeof useSchedulePreview>, requirements:TripRequest, getCosts:()=>CostInputs) {
+export function useSaveTrip(schedule:ReturnType<typeof useSchedulePreview>, requirements:TripRequest, getCosts:()=>CostInputs, canOperate?:()=>boolean) {
   const [state,setState]=useState<SaveState>({status:"idle",operation:null,detail:null,message:""});
   const ref=useRef(state), serial=useRef(0), controller=useRef<AbortController|null>(null);
   const alive=useRef(true);
   const publish=(s:SaveState)=>{ref.current=s;setState(s);};
   const run=async (operation:SaveOperation) => {
-    if(!alive.current||ref.current.status==="saving") return;
+    if(!alive.current||canOperate?.()===false||ref.current.status==="saving") return;
     controller.current?.abort(); const abort=new AbortController();controller.current=abort;const version=++serial.current;
     publish({status:"saving",operation,detail:null,message:"正在保存点击时捕获的快照…"});
     try {
@@ -25,7 +25,7 @@ export function useSaveTrip(schedule:ReturnType<typeof useSchedulePreview>, requ
     }
   };
   const save=(name:string)=>{
-    if(!alive.current||ref.current.status==="saving")return;
+    if(!alive.current||canOperate?.()===false||ref.current.status==="saving")return;
     try{
       const capture=schedule.capture();
       if(!capture||!validSaveName(name))throw new Error("请先生成有效正式草案，并填写 1～80 字的存档名称。");

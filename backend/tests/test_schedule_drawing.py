@@ -5,11 +5,11 @@ from unittest.mock import AsyncMock, patch
 
 from tests.business_client import BusinessTestClient as TestClient
 
-from app.api.routes import get_walking_client
-from app.schemas.route import WalkingRoute, WalkingRouteResponse
-from app.services.schedule import build_schedule
-from app.services.schedule_routes import ScheduleRouteCollector, required_edges
-from app.services.schedule_drawing import drawing_for, within_edge_limit, ScheduleDelivery
+from api.routes import get_walking_client
+from core.schemas.route import WalkingRoute, WalkingRouteResponse
+from tooling.travel.schedule import build_schedule
+from tooling.travel.schedule_routes import ScheduleRouteCollector, required_edges
+from tooling.travel.schedule_drawing import drawing_for, within_edge_limit, ScheduleDelivery
 from tests.test_schedule import NOW, request, payload, edges_for
 from main import app
 
@@ -34,7 +34,7 @@ class ScheduleDrawingTests(unittest.IsolatedAsyncioTestCase):
         expected = edges_for(req)
         client = AsyncMock()
         client.walking.side_effect = [WalkingRouteResponse(status="ok", queried_at=NOW, route=route_for(e)) for e in expected]
-        with patch("app.services.schedule_routes.MIN_ROUTE_START_INTERVAL_SECONDS", 0):
+        with patch("tooling.travel.schedule_routes.MIN_ROUTE_START_INTERVAL_SECONDS", 0):
             collector = ScheduleRouteCollector(client)
             edges = await collector.collect(required_edges(req))
         core = build_schedule(req, edges, NOW)
@@ -57,7 +57,7 @@ class ScheduleDrawingTests(unittest.IsolatedAsyncioTestCase):
         try:
             # This route test does not run application DB initialization/lifespan.
             http = TestClient(app)
-            with patch("app.services.schedule_routes.MIN_ROUTE_START_INTERVAL_SECONDS", 0):
+            with patch("tooling.travel.schedule_routes.MIN_ROUTE_START_INTERVAL_SECONDS", 0):
                 legacy = http.post("/trips/schedule-preview", json=payload(1))
                 extended = http.post("/trips/schedule-preview?drawing=walking-v1", json=payload(1))
                 invalid = http.post("/trips/schedule-preview?drawing=anything", json=payload(1))
@@ -99,10 +99,10 @@ class ScheduleDrawingTests(unittest.IsolatedAsyncioTestCase):
         route.segments = [[(121.1 + n / 1_000_000, 31.2) for n in range(6001)]]
         self.assertFalse(within_edge_limit(route))
         valid = {e.id: route_for(e) for e in core.edges}
-        with patch("app.services.schedule_drawing.MAX_BATCH_POINTS", 4):
+        with patch("tooling.travel.schedule_drawing.MAX_BATCH_POINTS", 4):
             bounded = drawing_for(core, valid)
             self.assertEqual([e.status for e in bounded.entries], ["available", "available", "limit_exceeded"])
-        with patch("app.services.schedule_drawing.MAX_DRAWING_BYTES", 1000):
+        with patch("tooling.travel.schedule_drawing.MAX_DRAWING_BYTES", 1000):
             bounded = drawing_for(core, valid)
             self.assertLessEqual(len(bounded.model_dump_json().encode()), 1000)
             self.assertIn("limit_exceeded", [e.status for e in bounded.entries])

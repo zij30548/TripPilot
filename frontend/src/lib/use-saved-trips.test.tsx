@@ -29,6 +29,23 @@ describe("frozen saves and independent history reads",()=>{
     api.save.mockResolvedValueOnce({name:"存档"});await act(async()=>{await v.result.current.saving.retry();});
     expect(api.save.mock.calls[1][0]).toBe(operation);expect(api.save.mock.calls[1][0].snapshot.costs.other).toBe("");
   });
+  it("current capability blocks retained save and frozen retry callbacks without consuming or replacing their operation",async()=>{
+    let allowed=true;const canOperate=()=>allowed,costs=emptyCostInputs();
+    const v=renderHook(()=>{const preview=useSchedulePreview(tripRequest(),undefined,undefined,canOperate);return{preview,saving:useSaveTrip(preview,tripRequest(),()=>costs,canOperate)};});
+    await act(async()=>{await v.result.current.preview.query();});
+    const retainedSave=v.result.current.saving.save,original=v.result.current.preview.state.response;
+    allowed=false;await act(async()=>{await retainedSave("拒绝冻结");});
+    expect(api.save).not.toHaveBeenCalled();expect(v.result.current.saving.state.status).toBe("idle");
+    allowed=true;api.save.mockRejectedValueOnce(new Error("提交未知"));
+    await act(async()=>{await v.result.current.saving.save("冻结内容");});
+    const operation=v.result.current.saving.state.operation,retainedRetry=v.result.current.saving.retry;
+    allowed=false;await act(async()=>{await retainedRetry();await retainedSave("不能覆盖冻结内容");});
+    expect(api.save).toHaveBeenCalledTimes(1);expect(v.result.current.saving.state.operation).toBe(operation);
+    expect(v.result.current.preview.state.response).toBe(original);
+    allowed=true;api.save.mockResolvedValueOnce({name:"冻结内容"});
+    await act(async()=>{await retainedRetry();});
+    expect(api.save.mock.calls[1][0]).toBe(operation);
+  });
   it.each(["resolve","reject"] as const)("cancel then retry isolates old %s and old cancel; unmount aborts",async finish=>{
     const v=await setup(),first=deferred<SavedDetail>(),second=deferred<SavedDetail>();api.save.mockReturnValueOnce(first.promise).mockReturnValueOnce(second.promise);
     let a!:Promise<void>|undefined,b!:Promise<void>|undefined;act(()=>{a=v.result.current.saving.save("保存");});const oldCancel=v.result.current.saving.cancel;

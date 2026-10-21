@@ -53,6 +53,28 @@ describe("chat UI and persisted conversation versions", () => {
     expect(api.send.mock.calls[1][1]).toMatchObject({ expected_revision: 2, text: "改成北京" });
     expect(api.send.mock.calls[1][1].operation_id).not.toBe(request.operation_id);
   });
+  it("an explicit send in the same input event batch captures the latest draft once", async () => {
+    const view = await loaded();
+    const send = view.result.current.send;
+    await act(async () => { view.result.current.editDraft("同一批输入的杭州需求"); await send(); });
+    expect(api.send).toHaveBeenCalledTimes(1);
+    expect(api.send.mock.calls[0][1].text).toBe("同一批输入的杭州需求");
+  });
+  it("reading the latest draft never lets an old send target A→B→A, a reset blank chat or a changed identity", async () => {
+    const view = await selected(), oldA = view.result.current.send;
+    await act(async () => { await view.result.current.selectConversation(OTHER_CHAT_ID); });
+    await act(async () => { await view.result.current.selectConversation(CHAT_ID); });
+    act(() => view.result.current.editDraft("最新A输入"));
+    await act(async () => oldA()); expect(api.send).not.toHaveBeenCalled();
+    act(() => view.result.current.newConversation());
+    const oldBlank = view.result.current.send;
+    act(() => view.result.current.newConversation());
+    act(() => view.result.current.editDraft("新空白会话输入"));
+    await act(async () => oldBlank()); expect(api.send).not.toHaveBeenCalled();
+    const anotherAccount = view.result.current.send;
+    api.epoch += 1;
+    await act(async () => anotherAccount()); expect(api.send).not.toHaveBeenCalled();
+  });
   it("uncertain create can be reconciled only with the same frozen operation and without sending a turn", async () => {
     const view = await loaded(); api.create.mockRejectedValueOnce(new Error("ACK lost"));
     act(() => view.result.current.editDraft("想去杭州"));

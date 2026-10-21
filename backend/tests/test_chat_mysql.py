@@ -7,9 +7,9 @@ from uuid import uuid4
 
 from sqlalchemy import text
 
-from app.chat_storage import ChatError, ChatStore, validate_chat_extension
-from app.mysql_storage import initialize_private_schema, validate_private_schema
-from app.mysql_usage import initialize_usage_schema, validate_usage_schema
+from memory.chat_storage import ChatError, ChatStore, validate_chat_extension
+from memory.mysql_storage import initialize_private_schema, validate_private_schema
+from memory.mysql_usage import initialize_usage_schema, validate_usage_schema
 from tests.archive_owner import OWNER, seed_owner
 from tests.mysql_support import temporary_mysql
 from tests.test_chat_storage import intent

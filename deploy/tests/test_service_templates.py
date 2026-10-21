@@ -28,7 +28,7 @@ class ServiceTemplateTests(unittest.TestCase):
         self.assertEqual(set(api["InaccessiblePaths"].split()), {"/var/backups/trippilot", *expected})
         # A future production trusted-directory expansion must update the deployment
         # denylist too; do not silently leave an unchecked decoder reachable.
-        source = DEPLOY.parent / "backend/app/services/video.py"
+        source = DEPLOY.parent / "backend/tooling/travel/video.py"
         tree = ast.parse(source.read_text(encoding="utf-8"))
         function = next(node for node in tree.body if isinstance(node, ast.FunctionDef) and node.name == "executables")
         loop = next(node for node in function.body if isinstance(node, ast.For))

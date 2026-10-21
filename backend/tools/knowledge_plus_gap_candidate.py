@@ -2,10 +2,10 @@
 from dataclasses import dataclass
 import json
 
-from app.integrations.qwen import MAX_PROMPT_BYTES
-from app.schemas.knowledge import KnowledgeResponse
-from app.schemas.knowledge_answer import AnswerRequest
-from app.services.knowledge import fingerprint
+from tooling.providers.qwen import MAX_PROMPT_BYTES
+from core.schemas.knowledge import KnowledgeResponse
+from core.schemas.knowledge_answer import AnswerRequest
+from tooling.travel.knowledge import fingerprint
 from tools import knowledge_b_candidate as previous
 
 VERSION = "knowledge-evidence-selection-v3-plus-question-gaps"

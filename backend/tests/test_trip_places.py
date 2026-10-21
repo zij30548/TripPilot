@@ -5,8 +5,8 @@ from copy import deepcopy
 from tests.business_client import BusinessTestClient as TestClient
 from pydantic import ValidationError
 
-from app.schemas.place import ConfirmedPlace, Place
-from app.schemas.trip import TripPlan, TripRequest
+from core.schemas.place import ConfirmedPlace, Place
+from core.schemas.trip import TripPlan, TripRequest
 from main import app
 
 

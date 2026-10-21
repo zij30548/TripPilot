@@ -7,9 +7,9 @@ from unittest.mock import patch
 import httpx
 from fastapi import HTTPException, Request
 
-from app.api import photo as api
-from app.config import Settings
-from app.services.photo import PhotoError
+from api import photo as api
+from core.config import Settings
+from tooling.travel.photo import PhotoError
 from test_photo import answer
 from tests.usage_fixture import UsageFixture
 

@@ -7,9 +7,9 @@ import type { TripRequest } from "@/types/trip";
 import type { CostInputs } from "@/lib/schedule-costs";
 import SavedHistory from "./saved-history";
 
-export default function SaveTrip({schedule,requirements,getCosts}:{schedule:ReturnType<typeof useSchedulePreview>;requirements:TripRequest;getCosts:()=>CostInputs}){
+export default function SaveTrip({schedule,requirements,getCosts,canOperate}:{schedule:ReturnType<typeof useSchedulePreview>;requirements:TripRequest;getCosts:()=>CostInputs;canOperate?:()=>boolean}){
   const [name,setName]=useState(`${requirements.destination_id ? destination(requirements.destination_id).name : "上海旧版"} ${requirements.start_date} 行程`);
-  const save=useSaveTrip(schedule,requirements,getCosts), loading=save.state.status==="saving";
+  const save=useSaveTrip(schedule,requirements,getCosts,canOperate), loading=save.state.status==="saving";
   return <section aria-label="保存正式行程" className="mt-6 rounded-2xl border border-[#315f51]/30 bg-white p-5 sm:p-7">
     <h2 className="text-xl font-semibold">保存行程</h2>
     <p className="mt-2 text-sm leading-6 text-[#56605c]">只保存点击时的正式草案、确认需求与相关用户费用输入。未采用的调整预览不会保存；部分或未安排结果会保留原状态和原因。AI 解读、天气、地图和临时状态不存档。</p>

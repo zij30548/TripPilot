@@ -6,7 +6,7 @@ import unittest
 from concurrent.futures import ThreadPoolExecutor
 from unittest.mock import patch
 import httpx
-from app.integrations.qwen import QwenError
+from tooling.providers.qwen import QwenError
 from tools.knowledge_acceptance import CountedTransport, Ledger, RecordedApp, context
 from tools.knowledge_fix_acceptance import FrozenApp, LIMIT, pin_final
 

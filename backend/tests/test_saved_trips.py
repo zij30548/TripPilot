@@ -12,8 +12,8 @@ from sqlalchemy import text
 from sqlalchemy.exc import OperationalError
 from sqlmodel import Session, select
 
-from app.saved_trips import ArchiveError, SavedTripRow, database_path, detail, engine_for, save
-from app.schemas.saved_trip import SaveTrip, SavedSnapshot
+from memory.saved_trips import ArchiveError, SavedTripRow, database_path, detail, engine_for, save
+from core.schemas.saved_trip import SaveTrip, SavedSnapshot
 from main import app
 from tests.explanation_samples import business_samples
 from tests.archive_owner import OWNER, seed_owner
@@ -123,7 +123,7 @@ class ArchivePersistence(unittest.TestCase):
                 row=session.get(SavedTripRow,row_id); row.snapshot_json=content; session.add(row); session.commit()
             response=self.client.get("/saved-trips/"+row_id)
             self.assertEqual(response.status_code,422); self.assertEqual(response.json()["detail"]["code"],"invalid_record")
-        with patch("app.saved_trips.engine_for",side_effect=OSError("private path")):
+        with patch("memory.saved_trips.engine_for",side_effect=OSError("private path")):
             response=self.client.get("/saved-trips")
         self.assertEqual(response.status_code,503); self.assertNotIn(str(self.path),response.text)
 

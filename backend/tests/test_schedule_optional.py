@@ -7,12 +7,12 @@ from unittest.mock import AsyncMock, patch
 
 import httpx
 
-from app.api.places import get_http_client
-from app.integrations.amap_walking import AmapWalkingClient
-from app.schemas.route import WalkingRoute, WalkingRouteResponse
-from app.schemas.schedule import ScheduleEdge, ScheduleRequest
-from app.services.schedule import add_optional_schedule, build_required_schedule, build_schedule
-from app.services.schedule_routes import (
+from api.places import get_http_client
+from tooling.providers.amap_walking import AmapWalkingClient
+from core.schemas.route import WalkingRoute, WalkingRouteResponse
+from core.schemas.schedule import ScheduleEdge, ScheduleRequest
+from tooling.travel.schedule import add_optional_schedule, build_required_schedule, build_schedule
+from tooling.travel.schedule_routes import (
     MAX_LOGICAL_EDGES, ScheduleRouteCollector, optional_edges, required_edges, unique_pairs,
 )
 from main import app
@@ -217,7 +217,7 @@ class OptionalApiTests(unittest.TestCase):
         self.assertEqual(result["status"], "complete")
 
     def test_optional_only_skips_required_collection_and_does_not_wait_on_empty_tasks(self) -> None:
-        with patch("app.api.schedule.required_edges", side_effect=AssertionError("must phase should be skipped")):
+        with patch("api.schedule.required_edges", side_effect=AssertionError("must phase should be skipped")):
             response = self.fixture.post(payload(0, 1))
         self.assertEqual(response.status_code, 200)
         self.assertEqual(response.json()["status"], "complete")
@@ -225,7 +225,7 @@ class OptionalApiTests(unittest.TestCase):
 
     def test_incomplete_required_never_collects_optional_edges(self) -> None:
         self.fixture.responses[("stay", "p1")] = {"status": "1", "route": {"paths": []}}
-        with patch("app.api.schedule.optional_edges", side_effect=AssertionError("optional phase should be skipped")):
+        with patch("api.schedule.optional_edges", side_effect=AssertionError("optional phase should be skipped")):
             response = self.fixture.post(payload(1, 3))
         self.assertEqual(response.status_code, 200)
         self.assertEqual(len(self.fixture.requests), 2)
@@ -273,7 +273,7 @@ class OptionalApiTests(unittest.TestCase):
                 yield client
 
         with patch.dict(app.dependency_overrides, {get_http_client: client_dependency}), \
-                self.assertLogs("app.integrations.amap_walking", level="WARNING"):
+                self.assertLogs("tooling.providers.amap_walking", level="WARNING"):
             result = self.fixture.post(data).json()
         self.assertEqual(result["status"], "complete")
         self.assertEqual(len(result["edges"]), 29)
@@ -290,11 +290,11 @@ class OptionalApiTests(unittest.TestCase):
 
 class SharedRouteBudgetTests(unittest.IsolatedAsyncioTestCase):
     async def asyncSetUp(self) -> None:
-        self.enterContext(patch("app.services.schedule_routes.MIN_ROUTE_START_INTERVAL_SECONDS", 0))
+        self.enterContext(patch("tooling.travel.schedule_routes.MIN_ROUTE_START_INTERVAL_SECONDS", 0))
 
     async def test_empty_collection_returns_without_asyncio_wait(self) -> None:
         collector = ScheduleRouteCollector(AsyncMock(spec=AmapWalkingClient))
-        with patch("app.services.schedule_routes.asyncio.wait", side_effect=AssertionError("empty wait")):
+        with patch("tooling.travel.schedule_routes.asyncio.wait", side_effect=AssertionError("empty wait")):
             self.assertEqual(await collector.collect([]), [])
 
     async def test_second_phase_reuses_memo_even_when_first_failed(self) -> None:
@@ -317,7 +317,7 @@ class SharedRouteBudgetTests(unittest.IsolatedAsyncioTestCase):
         amap = AsyncMock(spec=AmapWalkingClient)
         amap.walking.side_effect = walking
         req = request(1, 1)
-        with patch("app.services.schedule_routes.ROUTE_BATCH_TIMEOUT_SECONDS", 0.02):
+        with patch("tooling.travel.schedule_routes.ROUTE_BATCH_TIMEOUT_SECONDS", 0.02):
             collector = ScheduleRouteCollector(amap)
         first = await collector.collect(required_edges(req))
         deadline = collector.deadline
@@ -340,7 +340,7 @@ class SharedRouteBudgetTests(unittest.IsolatedAsyncioTestCase):
         amap = AsyncMock(spec=AmapWalkingClient)
         amap.walking.side_effect = walking
         pairs = required_edges(request(1, 0))
-        with patch("app.services.schedule_routes.MIN_ROUTE_START_INTERVAL_SECONDS", 0.012):
+        with patch("tooling.travel.schedule_routes.MIN_ROUTE_START_INTERVAL_SECONDS", 0.012):
             collector = ScheduleRouteCollector(amap)
             await collector.collect(pairs[:1])
             await collector.collect(pairs[1:])
@@ -364,7 +364,7 @@ class SharedRouteBudgetTests(unittest.IsolatedAsyncioTestCase):
         amap = AsyncMock(spec=AmapWalkingClient)
         amap.walking.side_effect = walking
         req = request(1, 3)
-        with patch("app.services.schedule_routes.ROUTE_BATCH_TIMEOUT_SECONDS", 0.04):
+        with patch("tooling.travel.schedule_routes.ROUTE_BATCH_TIMEOUT_SECONDS", 0.04):
             collector = ScheduleRouteCollector(amap)
         first = await collector.collect(required_edges(req))
         baseline = build_required_schedule(req, first, NOW)

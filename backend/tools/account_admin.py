@@ -12,8 +12,8 @@ import sys
 from argon2.exceptions import HashingError
 from sqlalchemy.exc import SQLAlchemyError
 
-from app.auth import USERNAME_PATTERN, create_account, revoke_account
-from app.storage import StorageError
+from core.auth import USERNAME_PATTERN, create_account, revoke_account
+from memory.storage import StorageError
 
 
 def main() -> int:

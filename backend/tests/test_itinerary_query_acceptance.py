@@ -7,8 +7,8 @@ from unittest.mock import patch
 
 import httpx
 
-from app.integrations.qwen import QwenError
-from app.integrations.qwen_tools import QwenToolClient, tool_payload
+from tooling.providers.qwen import QwenError
+from tooling.providers.qwen_tools import QwenToolClient, tool_payload
 from main import app
 from tests.test_explanation import settings
 from tests.test_itinerary_query import envelope

@@ -8,14 +8,14 @@ import httpx
 from fastapi import HTTPException, Request
 from tests.business_client import BusinessTestClient as TestClient
 
-from app.api.adjustment_intent import adjustment_intent
-from app.api.explanation import get_qwen_http_client
-from app.config import get_settings
-from app.integrations.qwen import QwenError
-from app.schemas.adjustment_intent import AdjustmentIntentRequest, AdjustmentIntentResponse
-from app.services.adjustment_intent import entities, intent_payload, validate_intent
-from app.services.explanation import compact_schedule
-from app.services.schedule import build_schedule
+from api.adjustment_intent import adjustment_intent
+from api.explanation import get_qwen_http_client
+from core.config import get_settings
+from tooling.providers.qwen import QwenError
+from core.schemas.adjustment_intent import AdjustmentIntentRequest, AdjustmentIntentResponse
+from tooling.travel.adjustment_intent import entities, intent_payload, validate_intent
+from tooling.travel.explanation import compact_schedule
+from tooling.travel.schedule import build_schedule
 from main import app
 from tests.test_explanation import envelope, settings
 from tests.test_schedule_optional import request, complete_edges, NOW
@@ -157,6 +157,6 @@ class IntentCancellation(unittest.IsolatedAsyncioTestCase):
         raw=Request({"type":"http","method":"POST","path":"/trips/adjustment-intent","headers":[]},receive=connected)
         raw._body=json.dumps(body()).encode()
         async with httpx.AsyncClient(transport=httpx.MockTransport(handler)) as client:
-            with patch("app.integrations.qwen.DEADLINE_SECONDS",0.01), self.assertRaises(HTTPException) as caught:
+            with patch("tooling.providers.qwen.DEADLINE_SECONDS",0.01), self.assertRaises(HTTPException) as caught:
                 await adjustment_intent(raw,settings(),client)
         self.assertEqual(caught.exception.status_code,504); self.assertTrue(cancelled.is_set()); self.assertEqual(len(calls),1)

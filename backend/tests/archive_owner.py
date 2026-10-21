@@ -2,7 +2,7 @@
 from sqlalchemy.engine import Engine
 from sqlmodel import Session
 
-from app.identity_models import AccountRow
+from memory.identity_models import AccountRow
 
 OWNER = "a" * 32
 

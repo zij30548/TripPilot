@@ -15,21 +15,24 @@
 
 | 文档 | 什么时候读 |
 | --- | --- |
-| [CHAT_REBUILD_PLAN](CHAT_REBUILD_PLAN.md) | 唯一chat-1～chat-9阶段细则：范围、依赖、验收、教学与停止点 |
-| [CHAT_1](CHAT_1.md) | 当前实现、存储与版本、受控证据、真实语义待验，以及本机普通账号自动登录 |
-| [CHAT_2](CHAT_2.md)／[城市目录](CHAT_CITY_CATALOG.md) | 通俗地点流程、有限工具／Skill、服务端确认、独立迁移与离线检查；真实语义／上游待验 |
-| [CHAT_ACCEPTANCE](CHAT_ACCEPTANCE.md) | 原版1次与修复版8次分别保留，累计9/12仍暂停；第11节为新有界输出补修候选的离线结果，真实改善未验 |
+| [ECHOMIND_MIGRATION](ECHOMIND_MIGRATION.md) | 当前后端分层、有界原生工具回路、任务收据／明确偏好、聊天内规划面板、独立空目标迁移、实际检查及限制 |
+| [CHAT_REBUILD_PLAN](CHAT_REBUILD_PLAN.md) | 迁移前chat-1～chat-9阶段细则；保留设计来源，不再用旧阶段停止点覆盖本次迁移授权 |
+| [CHAT_1](CHAT_1.md) | 原需求卡、聊天持久化／版本、本机旧试用环境，以及当轮语义待验记录 |
+| [CHAT_2](CHAT_2.md)／[城市目录](CHAT_CITY_CATALOG.md) | 已复用的明确搜索／POI确认与城市目录边界，及原开发轮检查；不是全国排程准入 |
+| [CHAT_ACCEPTANCE](CHAT_ACCEPTANCE.md) | 历史原版1次与修复版8次分别保留，累计9/12仍暂停；截断补修未真实复验，不用新受控结果改判 |
 | [HARNESS_ENGINEERING](HARNESS_ENGINEERING.md) | H01～H12原则、当前缺口和交付卡；Agent／架构／评测工作必查 |
 | [AGENT_EVOLUTION](AGENT_EVOLUTION.md) | 任务分流、权威状态、恢复、工具／Skill及专业协作的架构决策 |
 
-`/`已实现需求意向与地点准备；真实原生工具及一次候选搜索有有限证据，意向／Chrome完整确认未通过，不能进入chat-3。正式排程／费用／采用／存档未迁入聊天。下一阶段、额外真实模型额度与生产切换均需单独授权。
+`/`现在以聊天为主，按需展示需求、真实地点、行程工具、执行记录和明确保存的偏好。行程工具复用已有 `EditablePlanningSession`／`PlanningWorkspace`，包括原排程、地图、费用、预览采用和保存；它仍是前端临时工作副本，尚无完整服务端行程恢复。日期／费用查询工具会引导查看程序面板，不以模型文字冒充已读取的正式事实。
+
+本次迁移授权取代旧chat-2停止安排；实现、受控机制与固定真实复验分开记述。新增模型5/8、高德4物理，首版1失败保留、修复后3个剩余请求通过及一份上海步行存档链；不是所有题同版通过，不改旧9/12。原3104仍为旧schema，用户数据／生产切换未完成。当前入口、实际结果和停止点看PROGRESS，不承诺所有EchoMind模块均已搬入。
 
 ## 开发与运维（仍是操作参考，不归档失效）
 
 | 文档 | 内容 |
 | --- | --- |
 | [LOCAL_DEVELOPMENT](LOCAL_DEVELOPMENT.md) | 本机配置、启动、检查命令及隔离测试边界 |
-| [MYSQL_REGISTRATION](MYSQL_REGISTRATION.md) | 注册、私有MySQL、额度、显式迁移与旧备份边界；聊天增量另看CHAT_1 |
+| [MYSQL_REGISTRATION](MYSQL_REGISTRATION.md) | 注册、私有MySQL、额度、原迁移与备份边界；新增assistant扩展／空目标复制另看ECHOMIND_MIGRATION |
 | [QWEN_SETUP](QWEN_SETUP.md) | 既有千问服务端配置；不是新的调用授权 |
 | [RELEASE_1C](RELEASE_1C.md) | 同源转发、上传／取消及可信后端origin |
 | [RELEASE_1D](RELEASE_1D.md)／[1E](RELEASE_1E.md) | 身份隔离和实际发送前的持久额度 |
@@ -39,7 +42,7 @@
 
 ## 旧版旅行能力：按影响面查
 
-`/legacy`保留这些能力，不代表聊天已会执行。每份报告仍保留其历史样本、失败和未验范围：
+这些能力的确定性实现已由聊天内按需规划面板复用；`/legacy`只保留兼容入口，不再出现在聊天主界面。模型并未获得自动采用、保存或任意修改权限。每份报告仍保留其历史样本、失败和未验范围：
 
 - 城市／日期／快照：[DESTINATION_1](DESTINATION_1.md)、[DESTINATION_2](DESTINATION_2.md)、[DURATION_1](DURATION_1.md)。
 - 照片／视频：[MEDIA_1](MEDIA_1.md)、[MEDIA_2A](MEDIA_2A.md)、[MEDIA_2B](MEDIA_2B.md)。照片及选中单帧是线索辅助，不是身份认证或批量识别。

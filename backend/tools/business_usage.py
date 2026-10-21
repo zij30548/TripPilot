@@ -1,7 +1,7 @@
 """Explicit initialization/verification only: no reset, refund or network call."""
 import argparse
 
-from app.business_usage import UsageError, UsageSettings, UsageStore
+from core.business_usage import UsageError, UsageSettings, UsageStore
 
 
 def main() -> int:
@@ -13,8 +13,8 @@ def main() -> int:
     arguments = parser.parse_args()
     try:
         if arguments.mysql:
-            from app.mysql_storage import mysql_configured
-            from app.mysql_usage import MySQLUsageStore
+            from memory.mysql_storage import mysql_configured
+            from memory.mysql_usage import MySQLUsageStore
             if not mysql_configured() or arguments.command != "verify":
                 raise UsageError()
             store = MySQLUsageStore()

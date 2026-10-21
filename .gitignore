@@ -11,6 +11,8 @@ frontend/node_modules/
 frontend/.next/
 
 # Backend
+# Uploaded reference repository (contains its own env, data and nested Git).
+/EchoMind/
 backend/.venv/
 backend/__pycache__/
 backend/*.db

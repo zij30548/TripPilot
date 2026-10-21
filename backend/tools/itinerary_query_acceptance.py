@@ -17,10 +17,10 @@ import time
 import httpx
 import uvicorn
 
-from app.api.explanation import get_qwen_http_client
-from app.integrations.qwen import MODEL, QwenError, strict_json
-from app.integrations.qwen_tools import PROMPT_VERSION, QwenToolClient, tool_payload
-from app.schemas.itinerary_query import ItineraryQueryRequest
+from api.explanation import get_qwen_http_client
+from tooling.providers.qwen import MODEL, QwenError, strict_json
+from tooling.providers.qwen_tools import PROMPT_VERSION, QwenToolClient, tool_payload
+from core.schemas.itinerary_query import ItineraryQueryRequest
 from main import app
 
 ROOT = Path(__file__).resolve().parents[2]

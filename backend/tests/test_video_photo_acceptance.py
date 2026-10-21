@@ -11,7 +11,7 @@ from unittest.mock import patch
 import base64
 
 from PIL import Image
-from app.integrations.qwen import QwenError
+from tooling.providers.qwen import QwenError
 from tools import video_photo_acceptance as trial
 
 

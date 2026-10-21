@@ -15,7 +15,7 @@ import time
 def prepare(database: Path, credentials: Path) -> None:
     if database.exists() or credentials.exists():
         raise ValueError("acceptance_targets_must_be_new")
-    from app.auth import create_account
+    from core.auth import create_account
     values = {name: secrets.token_urlsafe(24) for name in ("invited-a", "invited-b")}
     for name, password in values.items():
         create_account(name, password)
@@ -28,9 +28,9 @@ def prepare(database: Path, credentials: Path) -> None:
 
 def controlled_app():
     import httpx
-    from app.api.places import get_http_client
-    from app.api.explanation import get_qwen_http_client
-    from app.config import Settings, get_settings
+    from api.places import get_http_client
+    from api.explanation import get_qwen_http_client
+    from core.config import Settings, get_settings
     from main import app
 
     def handle(request: httpx.Request) -> httpx.Response:
@@ -72,7 +72,7 @@ def main() -> None:
     args = parser.parse_args()
     if not args.database.is_absolute():
         raise ValueError("absolute_test_database_required")
-    from app.storage import LEGACY_PATH
+    from memory.storage import LEGACY_PATH
     if args.database.resolve() == LEGACY_PATH.resolve() or args.database.parent == LEGACY_PATH.parent:
         raise ValueError("user_database_not_allowed")
     os.environ["TRIPPILOT_DATABASE_PATH"] = str(args.database)
@@ -82,8 +82,8 @@ def main() -> None:
             raise ValueError("private_credentials_file_required")
         prepare(args.database, args.credentials)
     elif args.action == "expire":
-        from app.identity_models import SessionRow
-        from app.storage import engine_for
+        from memory.identity_models import SessionRow
+        from memory.storage import engine_for
         from sqlmodel import Session, select
         with Session(engine_for(str(args.database))) as session:
             rows = session.exec(select(SessionRow)).all()

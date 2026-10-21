@@ -11,10 +11,10 @@ from unittest.mock import patch
 import httpx
 from pydantic import ValidationError
 
-from app.integrations.qwen import MODEL, QwenClient, QwenError
-from app.schemas.knowledge import KnowledgeRequest, KnowledgeResponse
-from app.services.knowledge import DATA, build_index
-from app.services.knowledge_answer import answer_payload
+from tooling.providers.qwen import MODEL, QwenClient, QwenError
+from core.schemas.knowledge import KnowledgeRequest, KnowledgeResponse
+from tooling.travel.knowledge import DATA, build_index
+from tooling.travel.knowledge_answer import answer_payload
 from tools.knowledge_evidence_trial import SYSTEM_SELECTION, main, prepare, read_json, render_selection, selection_payload
 
 

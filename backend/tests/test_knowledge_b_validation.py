@@ -11,10 +11,10 @@ from unittest.mock import patch
 
 import httpx
 
-from app.integrations.qwen import QwenError, configured_endpoint
-from app.schemas.knowledge import KnowledgeRequest
-from app.schemas.knowledge_answer import AnswerRequest
-from app.services.knowledge import build_index, fingerprint, DATA
+from tooling.providers.qwen import QwenError, configured_endpoint
+from core.schemas.knowledge import KnowledgeRequest
+from core.schemas.knowledge_answer import AnswerRequest
+from tooling.travel.knowledge import build_index, fingerprint, DATA
 from tests.test_knowledge_ab_trial import settings
 from tools.knowledge_ab_trial import TrialStopped, pending, wire_hash
 from tools.knowledge_b_candidate import VERSION, SYSTEM, bind, payload_for, render

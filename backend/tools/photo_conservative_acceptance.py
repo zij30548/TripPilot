@@ -13,10 +13,10 @@ import subprocess
 
 import httpx
 import uvicorn
-from app.config import get_settings
-from app.integrations.qwen import QwenError, strict_json
-from app.integrations.qwen_vision import MODEL, PROMPT_VERSION, vision_payload
-from app.services.photo import normalize_photo
+from core.config import get_settings
+from tooling.providers.qwen import QwenError, strict_json
+from tooling.providers.qwen_vision import MODEL, PROMPT_VERSION, vision_payload
+from tooling.travel.photo import normalize_photo
 from tools import photo_acceptance as old
 from tools.itinerary_query_acceptance import Ledger, ROOT, canonical, digest
 

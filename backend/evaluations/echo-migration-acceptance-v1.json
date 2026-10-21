@@ -1,0 +1,44 @@
+{
+  "schema_version": "echo-migration-acceptance-rubric-v1",
+  "batch": "echo-migration-live-20261022-v1",
+  "authorization": {"model_send_limit": 8, "amap_physical_limit": 8, "automatic_retry": false},
+  "model": "qwen3.7-flash-2026-07-15",
+  "runtime": "trippilot-echo-runtime-v1",
+  "cases": [
+    {
+      "id": "api01", "channel": "api", "max_model_calls": 3,
+      "text": "我计划2026-11-01到2026-11-02去杭州，2人，全程预算3000元，住宿参考杭州凯悦酒店，必去浙江省博物馆孤山馆区，交通以步行为主。请先整理这些需求，不要自动搜索或生成行程。",
+      "expected": {"destination_id": "hangzhou", "start_date": "2026-11-01", "end_date": "2026-11-02", "travelers": 2, "budget_cny": "3000", "accommodation_hint": "杭州凯悦酒店", "required_place_hints": ["浙江省博物馆孤山馆区"], "transport_mode": "walking"},
+      "checks": ["原生update_trip_requirements及真实工具反馈", "改动引用本次原话", "需求完整且无伪造POI", "没有高德、排程、采用或保存", "公开文字不声称地点已确认"]
+    },
+    {
+      "id": "api02", "channel": "api", "max_model_calls": 1,
+      "text": "帮我规划旅行，目的地和时间还没决定，请先问我需要补充什么，不要搜索或编造地点。",
+      "checks": ["原生request_clarification，missing_information", "程序澄清，不猜城市或日期", "需求仍为空，不发高德或排程"]
+    },
+    {
+      "id": "chrome01", "channel": "chrome", "max_model_calls": 3,
+      "text": "我计划2026-11-01到2026-11-02去上海，2人，全程预算3000元，住宿参考南京东路地铁站，必去外滩，交通以步行为主。请先整理这些需求，不要自动搜索或生成行程。",
+      "expected": {"destination_id": "shanghai", "start_date": "2026-11-01", "end_date": "2026-11-02", "travelers": 2, "budget_cny": "3000", "accommodation_hint": "南京东路地铁站", "required_place_hints": ["外滩"], "transport_mode": "walking"},
+      "checks": ["真实浏览器主动提交及完整需求卡", "原生工具选择、程序执行和持久任务回执对应", "未经确认不生成Place或行程", "确认城市不产生外部调用"]
+    },
+    {
+      "id": "chrome02", "channel": "chrome", "max_model_calls": 1,
+      "text": "请搜索上海的南京东路地铁站，作为住宿参考候选；只搜索，不确认、不生成行程。",
+      "checks": ["原生search_places，city_id=310000，accommodation", "最多一次逻辑高德搜索，最多两次连接尝试", "实际候选预览后明确确认，模型不确认POI", "随后仅主动搜索外滩一次，再明确确认", "主动生成一份步行草案，住宿往返最多两条不同查询", "核对费用未知与明确零，折叠/普通展示不丢输入", "保存一份明确命名的验收快照并读取，400px无水平溢出"]
+    }
+  ],
+  "amap_plan": {
+    "city_id": "310000",
+    "poi": [{"keyword": "南京东路地铁站", "role": "accommodation"}, {"keyword": "外滩", "role": "required"}],
+    "walking": "仅上述用户确认的两个POI之间正反方向，各最多两次物理连接尝试；冻结确定性匹配规则，实际ID/坐标来自真实响应并在发送前记录",
+    "other_services_allowed": false
+  },
+  "grading": {
+    "equivalence": "destination_id按现有chatCity/legacy_city_id判同一身份（杭州/330100、上海/310000）；预算按现有合法整数分数值判等；地点线索允许中文标点等价但不得改成其他馆区或碎片。不是事后字符串修补，原始输出保留。",
+    "blocking": ["虚构或错误地点/日期/人数/预算", "未经明确确认修改Place或采用/保存", "跨账号/过期状态回写", "重复或超额发送", "上游执行故障"],
+    "ordinary_failure": ["漏选工具", "需求漏项", "结构不合规", "不必要澄清", "未覆盖合法请求"],
+    "stop": "版本/台账/鉴权/额度/限流/网络/取消或共性接线故障立即暂停；普通语义/结构失败原样保留，可继续独立预定题；依赖失败则跳过依赖场景，不换题、不补发",
+    "limits": "四个已知场景小样本、每请求一次，不证明稳定性/泛化；真实工具选择、文本保真、业务流程分别评价，不与历史9/12或受控结果拼分"
+  }
+}

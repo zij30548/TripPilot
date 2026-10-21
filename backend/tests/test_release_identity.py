@@ -9,11 +9,11 @@ from uuid import uuid4
 from fastapi.testclient import TestClient
 from sqlmodel import Session, select
 
-from app import auth
-from app.identity_models import SessionRow
-from app.saved_trips import SavedTripRow, canonical
-from app.schemas.saved_trip import SaveTrip
-from app.storage import engine_for
+from core import auth
+from memory.identity_models import SessionRow
+from memory.saved_trips import SavedTripRow, canonical
+from core.schemas.saved_trip import SaveTrip
+from memory.storage import engine_for
 from main import app
 from tests.test_saved_trips import payload
 
@@ -26,8 +26,8 @@ class ProductionIdentityBoundary(unittest.TestCase):
         self.path = Path(self.directory.name) / "private.sqlite3"
         self.enterContext(patch.dict(os.environ, {"TRIPPILOT_DATABASE_PATH": str(self.path)}))
         settings = auth.AuthSettings(_env_file=None, auth_cookie_secure=False)
-        self.enterContext(patch("app.auth.get_auth_settings", return_value=settings))
-        self.enterContext(patch("app.api.auth.get_auth_settings", return_value=settings))
+        self.enterContext(patch("core.auth.get_auth_settings", return_value=settings))
+        self.enterContext(patch("api.auth.get_auth_settings", return_value=settings))
         self.first_id = auth.create_account("account-a", "controlled-account-a-password")
         self.second_id = auth.create_account("account-b", "controlled-account-b-password")
         self.a, self.b = TestClient(app), TestClient(app)
@@ -48,8 +48,8 @@ class ProductionIdentityBoundary(unittest.TestCase):
     def test_every_business_route_denied_before_dependencies_or_media_body(self):
         protected = []
         with patch("httpx.AsyncClient.send", side_effect=AssertionError("no upstream")), \
-                patch("app.api.photo.normalize_photo", side_effect=AssertionError("no photo decode")), \
-                patch("app.api.video.executables", side_effect=AssertionError("no video process")):
+                patch("api.photo.normalize_photo", side_effect=AssertionError("no photo decode")), \
+                patch("api.video.executables", side_effect=AssertionError("no video process")):
             # Installed FastAPI includes routers lazily; OpenAPI enumerates the
             # real mounted paths rather than relying on route class internals.
             for route_path, methods in app.openapi()["paths"].items():
@@ -111,7 +111,7 @@ class ProductionIdentityBoundary(unittest.TestCase):
         with Session(engine_for(str(self.path))) as db:
             row = db.exec(select(SessionRow)).one()
             row.expires_at = 1; db.add(row); db.commit()
-        with patch("app.api.video.executables", side_effect=AssertionError("no decoder")):
+        with patch("api.video.executables", side_effect=AssertionError("no decoder")):
             self.assertEqual(self.a.post("/media/video-frames?request_id=x", content=b"x", headers=headers).status_code, 401)
             self.assertEqual(self.a.post("/saved-trips", json=payload(), headers=headers).status_code, 401)
         self.login(self.a, "a")

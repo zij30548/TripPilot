@@ -10,17 +10,33 @@ type View = { workspace: PlacesWorkspace | null; pending: boolean; error: string
 const initial: View = { workspace: null, pending: false, error: null, notice: null, needsRead: false, dirty: false, previewId: null };
 type Context = { conversationId: string; intentRevision: number; open: boolean; blocked: boolean };
 type Active = { controller: AbortController; generation: number; epoch: number; context: Context; command?: PlacesRequest };
+export type PlacesPlanningAvailability = {
+  conversationId: string; workspace: PlacesWorkspace | null; pending: boolean; needsRead: boolean; available: boolean;
+  /** Operation-time check: React rendering is not the authority for this gate. */
+  canUse: () => boolean;
+};
 
-export function useChatPlaces(conversation: ChatConversation, open: boolean, blocked: boolean) {
+export function useChatPlaces(conversation: ChatConversation, open: boolean, blocked: boolean, onAvailability?: (value: PlacesPlanningAvailability) => void) {
   const [state, setState] = useState<View>(initial);
   const rendered = useMemo<Context>(() => ({ conversationId: conversation.id, intentRevision: conversation.revision, open, blocked }),
     [conversation.id, conversation.revision, open, blocked]);
   const current = useRef(state), context = useRef<Context>(rendered);
   const alive = useRef(true), generation = useRef(0), active = useRef<Active | null>(null);
+  const ownerEpoch = useRef(authSnapshot().epoch), notify = useRef(onAvailability);
+  const canUseForPlanning = useCallback(() => alive.current && ownerEpoch.current === authSnapshot().epoch && !active.current &&
+    !current.current.pending && !current.current.needsRead && current.current.workspace !== null &&
+    current.current.workspace.conversation_id === context.current.conversationId &&
+    !["running", "uncertain"].includes(current.current.workspace.last_operation?.state ?? ""), []);
+  const publishAvailability = useCallback(() => {
+    const value = current.current;
+    notify.current?.({ conversationId: context.current.conversationId, workspace: value.workspace, pending: value.pending,
+      needsRead: value.needsRead, available: canUseForPlanning(), canUse: canUseForPlanning });
+  }, [canUseForPlanning]);
   const update = useCallback((patch: Partial<View>) => {
     if (!alive.current) return;
-    current.current = { ...current.current, ...patch }; setState(current.current);
-  }, []);
+    current.current = { ...current.current, ...patch }; publishAvailability(); setState(current.current);
+  }, [publishAvailability]);
+  useLayoutEffect(() => { notify.current = onAvailability; publishAvailability(); }, [onAvailability, publishAvailability]);
   const detachCancel = useCallback((work: Active | null) => {
     if (!work?.command || !["ask", "search"].includes(work.command.action) || work.epoch !== authSnapshot().epoch) return;
     const controller = new AbortController(), timer = setTimeout(() => controller.abort(), 5000);
@@ -30,8 +46,10 @@ export function useChatPlaces(conversation: ChatConversation, open: boolean, blo
   }, []);
   const stop = useCallback((notify = true) => {
     const old = active.current; generation.current += 1; active.current = null; old?.controller.abort();
+    if (old?.command && old.command.action !== "cancel") update({ pending: false, needsRead: true, previewId: null,
+      notice: "地点操作结果尚未核对。已发送操作可能已提交；请主动重新读取地点准备，不会自动重发。" });
     if (notify) detachCancel(old);
-  }, [detachCancel]);
+  }, [detachCancel, update]);
   const valid = useCallback((work: Active) => alive.current && active.current === work && work.generation === generation.current &&
     !work.controller.signal.aborted && work.context === context.current && work.epoch === authSnapshot().epoch, []);
   useLayoutEffect(() => {
@@ -56,7 +74,9 @@ export function useChatPlaces(conversation: ChatConversation, open: boolean, blo
   useEffect(() => {
     alive.current = true;
     stop(true); update({ pending: false, previewId: null, dirty: true });
-    if (open && !blocked) void load();
+    // Reopening must not automatically reconcile an interrupted write: the
+    // user first reads its durable receipt, without resubmitting the command.
+    if (open && !blocked && !current.current.needsRead) void load();
     return () => { stop(true); };
   }, [conversation.id, conversation.revision, open, blocked, load, stop, update]);
   useEffect(() => () => { alive.current = false; stop(true); }, [stop]);

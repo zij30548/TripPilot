@@ -10,18 +10,18 @@ from uuid import uuid4
 import httpx
 from tests.business_client import BusinessTestClient as TestClient
 
-from app.api.places import get_http_client
-from app.api.amap_proxy import get_proxy_http_client
-from app.config import Settings, get_settings
-from app.destinations import DESTINATIONS, PlaceRegion, load_destinations
-from app.integrations.amap import AmapClient, AmapError
-from app.integrations.amap_weather import convert_forecast
-from app.schemas.destination import CityScheduleRequest, CityScheduleResponse, CityCandidateRequest
-from app.schemas.explanation import ScheduleSnapshot
-from app.schemas.saved_trip import SavedSnapshot, snapshot_adapter
-from app.schemas.weather import CityWeatherRequest
-from app.services.explanation import compact_schedule, validate_snapshot
-from app.saved_trips import database_path, engine_for
+from api.places import get_http_client
+from api.amap_proxy import get_proxy_http_client
+from core.config import Settings, get_settings
+from core.destinations import DESTINATIONS, PlaceRegion, load_destinations
+from tooling.providers.amap import AmapClient, AmapError
+from tooling.providers.amap_weather import convert_forecast
+from core.schemas.destination import CityScheduleRequest, CityScheduleResponse, CityCandidateRequest
+from core.schemas.explanation import ScheduleSnapshot
+from core.schemas.saved_trip import SavedSnapshot, snapshot_adapter
+from core.schemas.weather import CityWeatherRequest
+from tooling.travel.explanation import compact_schedule, validate_snapshot
+from memory.saved_trips import database_path, engine_for
 from tests.archive_owner import seed_owner
 from tests.test_saved_trips import snapshot
 from tests.test_weather import sample_upstream as weather_data, sample_request, QUERY_TIME
@@ -122,7 +122,7 @@ class DestinationAPIs(unittest.TestCase):
         settings = Settings(_env_file=None, amap_web_key="fixture-web", amap_js_key="fixture-js", amap_js_security_code="fixture-security")
         self.enterContext(patch.dict(app.dependency_overrides, {get_http_client: client, get_proxy_http_client: client, get_settings: lambda: settings, database_path: lambda: self.path}))
         self.client = self.enterContext(TestClient(app))
-        self.enterContext(patch("app.services.schedule_routes.MIN_ROUTE_START_INTERVAL_SECONDS", 0))
+        self.enterContext(patch("tooling.travel.schedule_routes.MIN_ROUTE_START_INTERVAL_SECONDS", 0))
 
     def tearDown(self):
         engine_for(str(self.path)).dispose(); engine_for.cache_clear(); self.directory.cleanup()

@@ -10,9 +10,9 @@ from sqlalchemy import inspect, text
 from sqlalchemy.engine import Connection
 from sqlalchemy.exc import OperationalError
 
-from app.chat_places_storage import ChatPlacesError, ChatPlacesStore, validate_chat_places_extension
-from app.chat_storage import ChatError, ChatStore
-from app.storage import engine_for
+from memory.chat_places_storage import ChatPlacesError, ChatPlacesStore, validate_chat_places_extension
+from memory.chat_storage import ChatError, ChatStore
+from memory.storage import engine_for
 from tests.archive_owner import OWNER, seed_owner
 from tests.test_chat_storage import intent
 from tools.chat_places_storage import provision_chat_places_extension
@@ -26,7 +26,7 @@ def op() -> str:
 
 
 def place(identifier: str = "poi-one", *, city_id: str = "330100", name: str = "同名地点") -> dict:
-    from app.chat_cities import city_for
+    from core.chat_cities import city_for
     city = city_for(city_id)
     return {"id": identifier, "name": name, "address": "受控测试地址", "latitude": 30.25, "longitude": 120.15,
             "category": None, "source": "amap", "region": {"citycode": city.citycode, "cityname": city.official_name,
@@ -199,7 +199,7 @@ class PlacesDiskStorage(unittest.TestCase):
         with ThreadPoolExecutor(max_workers=3) as pool:
             results = list(pool.map(reserve, range(3)))
         self.assertEqual(sum(isinstance(item, dict) for item in results), 1)
-        with patch("app.chat_places_storage.MAX_OPERATIONS", 2), self.assertRaisesRegex(ChatPlacesError, "chat_places_operation_limit"):
+        with patch("memory.chat_places_storage.MAX_OPERATIONS", 2), self.assertRaisesRegex(ChatPlacesError, "chat_places_operation_limit"):
             pending = next(item for item in results if isinstance(item, dict))
             cancelled = self.store.cancel(OWNER, view["conversation_id"], pending["operation_id"], pending["revision"])
             self.store.set_city(OWNER, view["conversation_id"], op(), 0, cancelled["revision"], "310000")

@@ -8,13 +8,13 @@ from unittest.mock import patch
 import httpx
 from pydantic import ValidationError
 
-from app.config import Settings
-from app.integrations.qwen import MAX_OUTPUT_TOKENS, QwenClient, QwenError, parse_content
-from app.integrations.qwen_chat import (
+from core.config import Settings
+from tooling.providers.qwen import MAX_OUTPUT_TOKENS, QwenClient, QwenError, parse_content
+from tooling.providers.qwen_chat import (
     MAX_INTENT_CONTENT_BYTES, MAX_INTENT_TOKENS, QwenIntentClient,
     response_diagnostic, validation_diagnostic,
 )
-from app.schemas.chat import Intent, Selection
+from core.schemas.chat import Intent, Selection
 
 
 def envelope(*, tokens: int = 1500, finish: str = "stop", content: str | None = None) -> dict:
@@ -102,7 +102,7 @@ class ChatOutputTests(unittest.IsolatedAsyncioTestCase):
             return httpx.Response(200, stream=Slow())
         async with httpx.AsyncClient(transport=httpx.MockTransport(handler)) as transport:
             client = QwenIntentClient(settings(), transport)
-            with patch("app.integrations.qwen.DEADLINE_SECONDS", .02), self.assertRaises(QwenError) as caught:
+            with patch("tooling.providers.qwen.DEADLINE_SECONDS", .02), self.assertRaises(QwenError) as caught:
                 await client.generate({"max_tokens": 2048})
             self.assertEqual(caught.exception.code, "timeout")
             self.assertTrue(closed.is_set())

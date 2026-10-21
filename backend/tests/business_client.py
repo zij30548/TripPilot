@@ -13,7 +13,7 @@ from tests.usage_fixture import UsageFixture
 
 class BusinessTestClient(TestClient):
     def __init__(self, app, *args, **kwargs):
-        from app.identity_models import AccountRow
+        from memory.identity_models import AccountRow
 
         isolated = copy(app)
         isolated.user_middleware = [m for m in app.user_middleware if m.cls.__name__ != "AuthenticationMiddleware"]

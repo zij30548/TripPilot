@@ -18,11 +18,11 @@ from uuid import uuid4
 
 import httpx
 
-from app.config import Settings
-from app.integrations.qwen import QwenClient, QwenError
-from app.schemas.chat import Intent
-from app.services.chat import model_payload
-from app.usage_runtime import MeteredAsyncClient
+from core.config import Settings
+from tooling.providers.qwen import QwenClient, QwenError
+from core.schemas.chat import Intent
+from tooling.travel.chat import model_payload
+from core.usage_runtime import MeteredAsyncClient
 from tests import test_chat_api as chat_fixture
 from tests.test_chat_places_tools import envelope as tool_envelope
 from tools import chat_acceptance_runtime as runtime
@@ -317,7 +317,7 @@ class RuntimeAMapStreamingTests(unittest.IsolatedAsyncioTestCase):
             self.gate.verify()
 
     async def test_existing_one_connect_retry_consumes_two_physical_attempts_only(self):
-        from app.integrations.chat_places import ChatPlacesClient
+        from tooling.providers.chat_places import ChatPlacesClient
         calls = []
         def upstream(request):
             calls.append(request)
@@ -449,8 +449,8 @@ class RuntimeRunnerSessionTests(unittest.IsolatedAsyncioTestCase):
         private, evidence = root / "private", root / "evidence"
         private.mkdir(mode=0o700); evidence.mkdir(mode=0o700)
         _new(private / "account-a.json", canonical({"username": "controlled-user", "password": "controlled-not-real-password"}))
-        from app.auth import anonymous_view, user_view
-        from app.identity_models import AccountRow, SessionRow
+        from core.auth import anonymous_view, user_view
+        from memory.identity_models import AccountRow, SessionRow
         account = AccountRow(id="a" * 32, username="controlled-user", password_hash="never-returned", created_at=1)
         session = SessionRow(id="b" * 32, token_hash="c" * 64, user_id=account.id,
             csrf_token="d" * 43, created_at=1, expires_at=2_000_000_000)

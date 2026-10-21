@@ -15,13 +15,13 @@ import time
 
 import httpx
 import uvicorn
-from app.config import get_settings
-from app.integrations.qwen import QwenError, strict_json, parse_content
-from app.integrations.qwen_vision import MODEL, PROMPT_VERSION, QwenVisionClient, vision_payload
-from app.schemas.photo import PhotoSelection
-from app.services.photo import normalize_photo
+from core.config import get_settings
+from tooling.providers.qwen import QwenError, strict_json, parse_content
+from tooling.providers.qwen_vision import MODEL, PROMPT_VERSION, QwenVisionClient, vision_payload
+from core.schemas.photo import PhotoSelection
+from tooling.travel.photo import normalize_photo
 from tools.itinerary_query_acceptance import Ledger, digest, canonical, ROOT
-from app.api.explanation import get_qwen_http_client
+from api.explanation import get_qwen_http_client
 from main import app
 
 STAGE = ROOT.parent / "trippilot-evidence/media-1"

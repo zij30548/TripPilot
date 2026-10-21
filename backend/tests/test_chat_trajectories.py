@@ -13,8 +13,8 @@ from pathlib import Path
 import unittest
 from unittest.mock import patch
 
-from app.schemas.chat import Intent, Selection, Source
-from app.services.chat import (
+from core.schemas.chat import Intent, Selection, Source
+from tooling.travel.chat import (
     FIXED_LIMITATION, apply_selection, missing_fields, model_payload,
     ready_to_confirm, render_reply,
 )

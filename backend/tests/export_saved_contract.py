@@ -3,8 +3,8 @@ import json
 import tempfile
 from pathlib import Path
 from sqlmodel import Session
-from app.saved_trips import engine_for, save
-from app.schemas.saved_trip import SaveTrip
+from memory.saved_trips import engine_for, save
+from core.schemas.saved_trip import SaveTrip
 from tests.test_saved_trips import payload
 from tests.explanation_samples import business_samples
 from tests.archive_owner import OWNER, seed_owner

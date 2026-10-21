@@ -18,10 +18,10 @@ from sqlalchemy import text
 from sqlalchemy.engine import Connection
 from sqlalchemy.exc import OperationalError
 
-from app.business_usage import SERVICES, UsageError, UsageSettings, UsageStore, get_usage_store
-from app.mysql_usage import (MYSQL_USAGE_VERSION, MySQLUsageStore,
+from core.business_usage import SERVICES, UsageError, UsageSettings, UsageStore, get_usage_store
+from memory.mysql_usage import (MYSQL_USAGE_VERSION, MySQLUsageStore,
                              import_usage_rows, initialize_usage_schema)
-from app.usage_runtime import MeteredTransport, bind_usage_context, reset_usage_context
+from core.usage_runtime import MeteredTransport, bind_usage_context, reset_usage_context
 from tests.mysql_support import temporary_mysql
 
 OWNER_A, OWNER_B = "a" * 32, "b" * 32
@@ -106,8 +106,8 @@ class MySQLUsageTests(unittest.TestCase):
         script = """
 import os
 from sqlalchemy import create_engine
-from app.business_usage import SERVICES, UsageError, UsageSettings
-from app.mysql_usage import MySQLUsageStore
+from core.business_usage import SERVICES, UsageError, UsageSettings
+from memory.mysql_usage import MySQLUsageStore
 settings=UsageSettings(_env_file=None,business_usage_identity_path=os.environ['TEST_USAGE_ANCHOR'],
  business_rate_account_limit=100,business_rate_global_limit=100,
  business_daily_limits={service:{'account':100,'global':7} for service in SERVICES})
@@ -238,7 +238,7 @@ print(success)
         backwards = MySQLUsageStore(self.settings, clock=lambda: NOW - 1, engine=self.engine)
         with self.assertRaises(UsageError):
             backwards.reserve(OWNER_A, "amap_weather")
-        with patch("app.mysql_storage.mysql_configured", return_value=True), patch("app.mysql_usage.MySQLUsageStore", side_effect=UsageError()):
+        with patch("memory.mysql_storage.mysql_configured", return_value=True), patch("memory.mysql_usage.MySQLUsageStore", side_effect=UsageError()):
             with self.assertRaises(UsageError):
                 get_usage_store()
         self.assertEqual(self.count(), 1)

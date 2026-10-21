@@ -112,7 +112,7 @@ async def check(action: str) -> dict[str, Any]:
     backend = Path(__file__).resolve().parent.parent / "backend"
     sys.path.insert(0, str(backend))
     # This module imports no Settings/.env and does not initialize business data.
-    from app.services import video as service
+    from tooling.travel import video as service
 
     with tempfile.TemporaryDirectory(prefix="trippilot-video-check-") as folder:
         root = Path(folder)

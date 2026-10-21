@@ -25,7 +25,7 @@ const emptyState = (): CandidatePoolState => ({ status: "idle", response: null, 
 
 // Owned by the whole result, not the keyed daily explorer. Editing invalidates synchronously;
 // result unmount also aborts. No global store, browser storage or automatic request.
-export function useCandidatePool(request: TripRequest, onInputsChange?: (snapshot: CandidatePoolSnapshot) => void, initial?: CandidatePoolSnapshot) {
+export function useCandidatePool(request: TripRequest, onInputsChange?: (snapshot: CandidatePoolSnapshot) => void, initial?: CandidatePoolSnapshot, canOperate?:()=>boolean) {
   const [seed] = useState(() => structuredClone(initial ?? emptyCandidateSnapshot()));
   const [state, setState] = useState<CandidatePoolState>(() => ({ ...emptyState(), ...seed, status: seed.showingPrevious && seed.message ? "failed" : seed.response?.status ?? "idle" }));
   const [excludedIds, setExcludedIds] = useState<ReadonlySet<string>>(() => new Set(seed.excludedIds));
@@ -65,7 +65,7 @@ export function useCandidatePool(request: TripRequest, onInputsChange?: (snapsho
   };
   const canQuery = isCandidateRequest(candidateRequest);
   const query = async (): Promise<boolean> => {
-    if (!alive.current || pending.current) return false;
+    if (!alive.current || canOperate?.() === false || pending.current) return false;
     if (!isCandidateRequest(candidateRequest)) {
       setState((previous) => ({ ...previous, status: "failed", message: "请先返回修改需求，确认住宿参考点及支持的兴趣。", showingPrevious: previous.response !== null }));
       return false;
@@ -81,7 +81,7 @@ export function useCandidatePool(request: TripRequest, onInputsChange?: (snapsho
     setState((state) => ({ ...state, status: "loading", message: null, showingPrevious: previous }));
     try {
       const response = await queryCandidates(candidateRequest, requestController.signal);
-      if (requestVersion !== version.current || requestController.signal.aborted) return false;
+      if (requestVersion !== version.current || requestController.signal.aborted || canOperate?.() === false) return false;
       if (response.status === "failed") {
         const message = previous ? `更新失败，${previousText}` : "未能获取可选地点，必去要求仍保留，请主动重试。";
         publish({ response: lastValid.current, lastAttempt: response, loading: false, showingPrevious: previous, message });
@@ -101,18 +101,25 @@ export function useCandidatePool(request: TripRequest, onInputsChange?: (snapsho
       setState({ status: "failed", response: lastValid.current, history: snapshot.current.history, lastAttempt: null, showingPrevious: previous, message });
       return false;
     } finally {
-      if (requestVersion === version.current) { controller.current = null; pending.current = false; }
+      if (requestVersion === version.current) {
+        controller.current = null; pending.current = false;
+        if (canOperate?.() === false && snapshot.current.loading) {
+          const message = "地点准备尚待核对，未应用本次候选；请核对后主动查询。";
+          publish({ loading: false, showingPrevious: previous, message });
+          setState(previousState => ({ ...previousState, status: "failed", showingPrevious: previous, message }));
+        }
+      }
     }
   };
   const candidates: Candidate[] = candidateItems(state, request.must_visit_places ?? []);
   const exclude = (id: string) => {
-    if (!alive.current || !candidateItems(snapshot.current).some((candidate) => candidate.role === "optional" && candidate.place.id === id)) return;
+    if (!alive.current || canOperate?.() === false || !candidateItems(snapshot.current).some((candidate) => candidate.role === "optional" && candidate.place.id === id)) return;
     const next = new Set([...snapshot.current.excludedIds, id]);
     publish({ excludedIds: next });
     setExcludedIds(next);
   };
   const restore = (id: string) => {
-    if (!alive.current || !snapshot.current.excludedIds.has(id)) return;
+    if (!alive.current || canOperate?.() === false || !snapshot.current.excludedIds.has(id)) return;
     const next = new Set(snapshot.current.excludedIds);
     next.delete(id);
     publish({ excludedIds: next });
@@ -123,10 +130,10 @@ export function useCandidatePool(request: TripRequest, onInputsChange?: (snapsho
   // pool publish invalidates it even if the final values are identical (ABA).
   const prepareExclusion = (id: string): CandidateExclusion | null => {
     const before = snapshot.current;
-    if (!alive.current || before.loading || before.excludedIds.has(id) || !candidateItems(before).some((c) => c.role === "optional" && c.place.id === id)) return null;
+    if (!alive.current || canOperate?.() === false || before.loading || before.excludedIds.has(id) || !candidateItems(before).some((c) => c.role === "optional" && c.place.id === id)) return null;
     const after = structuredClone({ ...before, excludedIds: new Set([...before.excludedIds, id]) });
     let consumed = false;
-    const isCurrent = () => alive.current && !consumed && snapshot.current === before && !pending.current;
+    const isCurrent = () => alive.current && canOperate?.() !== false && !consumed && snapshot.current === before && !pending.current;
     return { snapshot: after, isCurrent, commit: () => {
       if (!isCurrent()) return false;
       consumed = true;

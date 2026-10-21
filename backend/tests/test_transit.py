@@ -9,9 +9,9 @@ import httpx
 from tests.business_client import BusinessTestClient as TestClient
 from pydantic import ValidationError
 
-from app.api.places import get_http_client
-from app.config import Settings, get_settings
-from app.schemas.transit import TransitRouteRequest, TransitRouteResponse
+from api.places import get_http_client
+from core.config import Settings, get_settings
+from core.schemas.transit import TransitRouteRequest, TransitRouteResponse
 from main import app
 
 
@@ -582,7 +582,7 @@ class TransitRouteApiTests(unittest.TestCase):
             with self.subTest(status=status):
                 self.requests.clear()
                 self.response = httpx.Response(status, text=TEST_KEY, headers={"Location": "https://example.com"})
-                with self.assertLogs("app.integrations.amap_transit", level="WARNING"):
+                with self.assertLogs("tooling.providers.amap_transit", level="WARNING"):
                     response = self.transit()
                 self.assertEqual(response.status_code, 502)
                 self.assertEqual(len(self.requests), 1)
@@ -597,7 +597,7 @@ class TransitRouteApiTests(unittest.TestCase):
             with self.subTest(failure=failure):
                 self.requests.clear()
                 self.failure = failure
-                with self.assertLogs("app.integrations.amap_transit", level="WARNING") as logs:
+                with self.assertLogs("tooling.providers.amap_transit", level="WARNING") as logs:
                     response = self.transit()
                 self.assertEqual(response.status_code, status)
                 self.assertEqual(len(self.requests), attempts)
@@ -612,7 +612,7 @@ class TransitRouteApiTests(unittest.TestCase):
             with self.subTest(failure=failure):
                 self.requests.clear()
                 self.failures = [failure, None]
-                with self.assertLogs("app.integrations.amap_transit", level="WARNING"):
+                with self.assertLogs("tooling.providers.amap_transit", level="WARNING"):
                     self.assertEqual(self.transit().status_code, 200)
                 self.assertEqual(len(self.requests), 2)
                 self.assertEqual(self.requests[0].url, self.requests[1].url)

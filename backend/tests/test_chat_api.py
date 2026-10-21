@@ -20,15 +20,15 @@ import httpx
 from fastapi import HTTPException, Request
 from fastapi.testclient import TestClient
 
-from app import auth
-from app.api.chat import _ACTIVE, connected, get_chat_store
-from app.api.explanation import get_qwen_http_client
-from app.business_usage import SERVICES, UsageError, UsageSettings, UsageStore
-from app.chat_storage import ChatStore
-from app.config import Settings, get_settings
-from app.schemas.chat import Conversation, Intent
-from app.storage import engine_for
-from app.usage_runtime import MeteredAsyncClient
+from core import auth
+from api.chat import _ACTIVE, connected, get_chat_store
+from api.explanation import get_qwen_http_client
+from core.business_usage import SERVICES, UsageError, UsageSettings, UsageStore
+from memory.chat_storage import ChatStore
+from core.config import Settings, get_settings
+from core.schemas.chat import Conversation, Intent
+from memory.storage import engine_for
+from core.usage_runtime import MeteredAsyncClient
 from main import app
 from tools.chat_storage import provision_chat_extension
 
@@ -48,10 +48,10 @@ def envelope(selection: dict) -> dict:
 
 class ChatAPIBoundaryTests(unittest.TestCase):
     def test_missing_configuration_and_context_limit_do_not_dispatch_or_stay_busy(self) -> None:
-        from app.services.chat import ChatContextLimit
+        from tooling.travel.chat import ChatContextLimit
         headers = self.login(self.a)
         view = self.create(headers)
-        with patch("app.api.chat.model_payload", side_effect=ChatContextLimit("chat_context_limit")):
+        with patch("api.chat.model_payload", side_effect=ChatContextLimit("chat_context_limit")):
             result = self.turn(view, "杭州", headers)
         self.assertEqual(result.status_code, 409)
         self.assertEqual(result.json()["detail"]["code"], "chat_context_limit")
@@ -86,8 +86,8 @@ class ChatAPIBoundaryTests(unittest.TestCase):
         self.enterContext(patch.dict(os.environ, {"TRIPPILOT_DATABASE_PATH": str(self.path),
                                                 "TRIPPILOT_MYSQL_URL": ""}))
         auth_settings = auth.AuthSettings(_env_file=None, auth_cookie_secure=False)
-        self.enterContext(patch("app.auth.get_auth_settings", return_value=auth_settings))
-        self.enterContext(patch("app.api.auth.get_auth_settings", return_value=auth_settings))
+        self.enterContext(patch("core.auth.get_auth_settings", return_value=auth_settings))
+        self.enterContext(patch("api.auth.get_auth_settings", return_value=auth_settings))
         self.first_id = auth.create_account("chat-a", "controlled-chat-a-password")
         self.second_id = auth.create_account("chat-b", "controlled-chat-b-password")
         self.engine = engine_for(str(self.path))
@@ -96,7 +96,7 @@ class ChatAPIBoundaryTests(unittest.TestCase):
         self.usage_settings = UsageSettings(_env_file=None, business_usage_path=str(self.usage_path),
             business_rate_account_limit=100, business_rate_global_limit=200,
             business_daily_limits={service: {"account": 20, "global": 100} for service in SERVICES})
-        self.enterContext(patch("app.business_usage.get_usage_settings", return_value=self.usage_settings))
+        self.enterContext(patch("core.business_usage.get_usage_settings", return_value=self.usage_settings))
         self.usage_store = UsageStore(self.usage_settings)
         self.usage_store.initialize()
         self.a = self.enterContext(TestClient(app))
@@ -273,7 +273,7 @@ class ChatAPIBoundaryTests(unittest.TestCase):
         self.assertEqual(self.usage_rows(), [(self.first_id, "qwen_text", "received")])
 
     def test_chat_specific_capacity_accepts_complete_large_selection_once_without_changing_old_parser(self) -> None:
-        from app.integrations.qwen import QwenError, parse_content
+        from tooling.providers.qwen import QwenError, parse_content
         headers = self.login(self.a)
         view = self.create(headers)
         user = "受控长引用" * 60
@@ -359,7 +359,7 @@ class ChatAPIBoundaryTests(unittest.TestCase):
         latest = self.store.get(self.first_id, view["id"])
         self.assertEqual(latest["last_turn"]["state"], "failed")
         self.assertEqual(self.turn(view, "杭州", headers, op=op).status_code, 409)
-        with patch("app.business_usage.UsageStore.reserve", side_effect=UsageError(
+        with patch("core.business_usage.UsageStore.reserve", side_effect=UsageError(
                 "business_quota_exhausted", service="qwen_text", scope="account")):
             denied = self.turn(latest, "杭州", headers)
         self.assertEqual(denied.status_code, 429, denied.text)

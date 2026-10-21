@@ -20,7 +20,7 @@ import json
 import os
 from pathlib import Path
 from tempfile import TemporaryDirectory
-from app.business_usage import SERVICES, UsageSettings, UsageStore
+from core.business_usage import SERVICES, UsageSettings, UsageStore
 with TemporaryDirectory(prefix="trippilot-usage-contract-") as directory:
     os.environ["TRIPPILOT_DATABASE_PATH"] = str(Path(directory) / "unused-identity.sqlite3")
     settings = UsageSettings(_env_file=None, business_usage_path=str(Path(directory) / "usage.sqlite3"),

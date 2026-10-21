@@ -10,15 +10,15 @@ from uuid import uuid4
 from sqlalchemy import inspect, select, text
 from sqlmodel import Session
 
-from app.auth import PASSWORD_HASHER
-from app.chat_models import ConversationRow
-from app.chat_places_storage import ChatPlacesStore, validate_chat_places_extension
-from app.chat_storage import ChatError, ChatStore
-from app.mysql_storage import initialize_private_schema, validate_private_schema
-from app.mysql_usage import initialize_usage_schema, usage_attempts, validate_usage_schema
-from app.identity_models import AccountRow, InvitationRow, LoginBucketRow, SessionRow
-from app.saved_trips import SavedTripRow, save
-from app.schemas.saved_trip import SaveTrip
+from core.auth import PASSWORD_HASHER
+from memory.chat_models import ConversationRow
+from memory.chat_places_storage import ChatPlacesStore, validate_chat_places_extension
+from memory.chat_storage import ChatError, ChatStore
+from memory.mysql_storage import initialize_private_schema, validate_private_schema
+from memory.mysql_usage import initialize_usage_schema, usage_attempts, validate_usage_schema
+from memory.identity_models import AccountRow, InvitationRow, LoginBucketRow, SessionRow
+from memory.saved_trips import SavedTripRow, save
+from core.schemas.saved_trip import SaveTrip
 from tests.archive_owner import OWNER, seed_owner
 from tests.mysql_support import temporary_mysql
 from tests.test_chat_places_storage import batch, op
@@ -80,7 +80,7 @@ class PlacesMySQL(unittest.TestCase):
             validate_usage_schema(db, "1" * 32)
             self.assertEqual(sorted(db.execute(select(usage_attempts.c.state)).scalars()), sorted(states))
             self.assertEqual(sorted(db.execute(select(SavedTripRow.schema_version)).scalars()), ["saved-trip-v1", "saved-trip-v2", "saved-trip-v3"])
-        from app.saved_trips import get_record
+        from memory.saved_trips import get_record
         with Session(target) as db:
             self.assertEqual([get_record(db, row["id"], OWNER).model_dump(mode="json") for row in archived], archived)
         with self.engine.connect() as db:

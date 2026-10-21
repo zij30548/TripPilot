@@ -12,8 +12,8 @@ from unittest.mock import patch
 
 from fastapi.testclient import TestClient
 
-from app.business_usage import UsageStore
-from app.storage import engine_for
+from core.business_usage import UsageStore
+from memory.storage import engine_for
 from tools.usage_acceptance import controlled_app, environment, prepare
 
 ORIGIN = "http://127.0.0.1:3000"
