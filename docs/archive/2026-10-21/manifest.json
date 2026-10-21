@@ -1,0 +1,57 @@
+{
+  "schema_version": "documentation-archive-v1",
+  "source_commit": "edd32d442900306037ea966c0e488d6b2c6c25c4",
+  "change": "relative Markdown link destinations and explicit historical banner only",
+  "entries": [
+    {
+      "source": "docs/PROGRESS.md",
+      "archived_path": "docs/archive/2026-10-21/PROGRESS.md",
+      "source_sha256": "c8bbbe1a057f69357fb7ec1080fd8d5526f18fbae6f5839d8379924bf5c770e5",
+      "archive_body_sha256": "860c794091524a03fb1f006a9e5b6670064372b15674ce3b1ee698bcaa867655",
+      "archive_sha256": "48eca17906974b5a142e22788d74e29cf8c7c380bb049b8062817d33bfb2f736",
+      "original_bytes": 561257,
+      "relative_links_adjusted": 203,
+      "prose_and_scores_unchanged": true
+    },
+    {
+      "source": "docs/AGENT_EVOLUTION.md",
+      "archived_path": "docs/archive/2026-10-21/AGENT_EVOLUTION.md",
+      "source_sha256": "13448356d18118a5b86ee7f5968976a733cf911f227e53439acb881309bf3284",
+      "archive_body_sha256": "12c8c0e595eb5b3f3fd47895d0625a0a5811cc45e0514362dd0fa01d67c26dba",
+      "archive_sha256": "fd60b9d6e697333b93c6dae06f058167aa7bdc3ac1590f9fab5f45eecd173fd8",
+      "original_bytes": 45054,
+      "relative_links_adjusted": 18,
+      "prose_and_scores_unchanged": true
+    },
+    {
+      "source": "docs/DEMO_6C1.md",
+      "archived_path": "docs/archive/legacy/DEMO_6C1.md",
+      "source_sha256": "1afb9e67d9aabea1c2595488a5b39e0516b1c88a5a2000054d1f4ffbd7d4f5b1",
+      "archive_body_sha256": "1afb9e67d9aabea1c2595488a5b39e0516b1c88a5a2000054d1f4ffbd7d4f5b1",
+      "archive_sha256": "ec44b072796a59a3b6cc83c639540742038c344636b6ec53baa63b74baa385ea",
+      "original_bytes": 6397,
+      "relative_links_adjusted": 0,
+      "prose_and_scores_unchanged": true
+    },
+    {
+      "source": "docs/DEMO_6D2.md",
+      "archived_path": "docs/archive/legacy/DEMO_6D2.md",
+      "source_sha256": "50e2ff4b27889543efebc7b3431d96ad8cd1ad83ba1f1c2b059e5e8b7694a617",
+      "archive_body_sha256": "6332e7f5cce0838d601262a9cfc0727d94f3efded0a1917b20a4c8bfe7a33fec",
+      "archive_sha256": "10138d48fe872f58390eb99e7043e7ed87a697bce29e4a69e906eb44c90eb557",
+      "original_bytes": 5237,
+      "relative_links_adjusted": 1,
+      "prose_and_scores_unchanged": true
+    },
+    {
+      "source": "docs/DELIVERY_6D2.md",
+      "archived_path": "docs/archive/legacy/DELIVERY_6D2.md",
+      "source_sha256": "d5bbaf9b6141dafd7b9f7606a2ce7f381c3ab1b427f4bc786e9ac9366ff3046c",
+      "archive_body_sha256": "5146531920eb7fd5f871aa821bcd79a9584d551958ed1be369d017a4574dd9b9",
+      "archive_sha256": "e19e3d297d9ded4006c8f68f503684a73f1ecff898fbc473c610808232dd5eae",
+      "original_bytes": 4696,
+      "relative_links_adjusted": 25,
+      "prose_and_scores_unchanged": true
+    }
+  ]
+}
