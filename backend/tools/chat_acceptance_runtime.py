@@ -22,7 +22,8 @@ from uuid import uuid4
 import httpx
 
 from tools.chat_acceptance import (AcceptanceStopped, BATCH, ChatAcceptanceLedger, IDS, MODEL, ROOT,
-                                   STAGE_ROOT, _new, _read, canonical, digest, freeze, safe_upstream_metadata)
+                                   STAGE_ROOT, _new, _read, canonical, create_continuation, digest,
+                                   freeze, safe_upstream_metadata)
 
 MANIFEST = ROOT / "backend/evaluations/chat12-acceptance-v1.json"
 ORIGIN = "http://chat-accept.localhost:3106"
@@ -167,13 +168,89 @@ def prepare_freeze(directory: Path, private_directory: Path) -> None:
     print(json.dumps({"frozen": True, "planned_model_operations": 12, "actual_calls": 0, "amap_logical_limit": 6, "amap_physical_limit": 12}))
 
 
+def prepare_continuation(directory: Path) -> None:
+    """Freeze only the eleven unsent operations; retain the original budget."""
+    from app.services.chat import PROVIDER_SCHEMA_VERSION
+    protocol = _read_json(directory / "protocol.json")
+    original = _read_json(directory / "requests.json")
+    evaluation = _read_json(directory / "rubric.json")
+    bindings = _read_json(directory / "bindings.json")
+    stop_path = directory.parent / ".runtime-20261021-12" / "stop.json"
+    if _read_json(stop_path).get("code") != "test_session_expired_or_changed":
+        raise AcceptanceStopped("unsupported_prior_runtime_stop")
+    today = json.loads(original["api02"]["payload"]["messages"][1]["content"])["today"]
+    from zoneinfo import ZoneInfo
+    if datetime.now(ZoneInfo("Asia/Shanghai")).date().isoformat() != today:
+        raise AcceptanceStopped("frozen_calendar_changed")
+    cases, requests = frozen_payloads(bindings, evaluation,
+                                     now=datetime.fromisoformat(today).replace(tzinfo=timezone.utc))
+    # Only the declared provider projection can differ. All original operation
+    # bodies, questions, expectations, date contexts and native tools stay fixed.
+    paths = (("accommodation_hint", "anyOf", 0), ("required_place_hints", "items"),
+             ("preferences", "items"))
+    for current, old_case in zip(cases, protocol["cases"], strict=True):
+        identifier = current["id"]
+        request = requests[identifier]
+        restored = deepcopy(request["payload"])
+        if current["feature"] == "intent":
+            properties = restored["response_format"]["json_schema"]["schema"]["$defs"]["Intent"]["properties"]
+            for path in paths:
+                node = properties
+                for key in path:
+                    node = node[key]
+                if node["pattern"] != r"^[\s\S]*\S[\s\S]*$":
+                    raise AcceptanceStopped("unexpected_provider_projection")
+                node["pattern"] = r"\S"
+        if (digest(wire(restored)) != old_case["payload_sha256"]
+                or canonical(restored) != canonical(original[identifier]["payload"])
+                or request["path"] != original[identifier]["path"]):
+            raise AcceptanceStopped("unexpected_continuation_payload_change")
+        request["body"] = original[identifier]["body"]
+    # Never make a candidate payload or new operation for the consumed api01.
+    requests = {identifier: requests[identifier] for identifier in IDS[1:]}
+    files = frozen_files()
+    journal = _read(directory / "calls.jsonl", 256 * 1024)
+    output = directory / "continuation-v1"
+    output.mkdir(mode=0o700)
+    _new(output / "requests.json", canonical(requests))
+    artifacts = {str((directory / name).resolve()): digest(_read(directory / name, 2 * 1024 * 1024))
+                 for name in ("requests.json", "rubric.json", "bindings.json", "protected-before.json")}
+    artifacts[str((output / "requests.json").resolve())] = digest(_read(output / "requests.json", 2 * 1024 * 1024))
+    # Byte snapshots, not just hashes, make this repaired execution reproducible.
+    for relative, sha in files.items():
+        target = output / "sources" / relative
+        target.parent.mkdir(mode=0o700, parents=True, exist_ok=True)
+        raw = (ROOT / relative).read_bytes()
+        if digest(raw) != sha:
+            raise AcceptanceStopped("frozen_file_changed")
+        _new(target, raw)
+        artifacts[str(target.resolve())] = sha
+    manifest = {
+        "schema_version": "chat-acceptance-continuation-v1", "batch": BATCH, "limit": 12, "model": MODEL,
+        "original_protocol_sha256": digest(_read(directory / "protocol.json", 512 * 1024)),
+        "journal_prefix_sha256": digest(journal), "journal_prefix_bytes": len(journal), "consumed": 1,
+        "source_commit": subprocess.check_output(["git", "rev-parse", "HEAD"], cwd=ROOT, text=True).strip(),
+        "files": files, "cases": cases[1:], "artifacts": artifacts,
+        "prior_runtime_stop_sha256": digest(_read(stop_path, 4096)),
+        "change_description": "Resume only api02-chrome04 under the original total 12. Offline repair: "
+                              "actual authenticated session contract; " + PROVIDER_SCHEMA_VERSION +
+                              "; exact continuation counting and byte snapshots. No prompt/model/parameter/label change.",
+    }
+    create_continuation(directory, manifest, continuation=directory / "continuation-v1.json")
+    print(json.dumps({"continuation_frozen": True, "consumed": 1, "remaining": 11,
+                      "total_limit": 12, "api01_repeated": False, "new_allowance": False}))
+
+
 class LiveGate:
-    def __init__(self, directory: Path):
+    continuation: Path | None = None
+
+    def __init__(self, directory: Path, *, continuation: Path | None = None):
         self.directory = directory
-        self.ledger = ChatAcceptanceLedger(directory)
+        self.continuation = continuation
+        self.ledger = ChatAcceptanceLedger(directory, continuation=continuation)
         self.runtime = directory.parent / ".runtime-20261021-12"
         self.identity = _read_json(self.runtime / "identity.json")
-        self.requests = _read_json(directory / "requests.json")
+        self.requests = _read_json(directory / ("continuation-v1/requests.json" if continuation else "requests.json"))
         self.active: dict[str, dict] = {}
         self.verify()
 
@@ -184,7 +261,13 @@ class LiveGate:
         for name, h in self.identity["artifacts"].items():
             if digest(_read(self.directory / name, 2 * 1024 * 1024)) != h:
                 raise AcceptanceStopped("frozen_artifact_changed")
-        if (self.runtime / "stop.json").exists() or status["paused"]:
+        if self.continuation:
+            from zoneinfo import ZoneInfo
+            frozen_day = json.loads(self.requests["api02"]["payload"]["messages"][1]["content"])["today"]
+            if datetime.now(ZoneInfo("Asia/Shanghai")).date().isoformat() != frozen_day:
+                self.stop("frozen_calendar_changed")
+                raise AcceptanceStopped("frozen_calendar_changed")
+        if self.stop_path.exists() or status["paused"]:
             raise AcceptanceStopped("acceptance_paused_or_exhausted")
         self.amap_rows()
         return status
@@ -214,13 +297,17 @@ class LiveGate:
         return rows
 
     def stop(self, code: str) -> None:
-        if not (self.runtime / "stop.json").exists():
-            _new(self.runtime / "stop.json", canonical({"code": code, "at": datetime.now(timezone.utc).isoformat()}))
+        if not self.stop_path.exists():
+            _new(self.stop_path, canonical({"code": code, "at": datetime.now(timezone.utc).isoformat()}))
+
+    @property
+    def stop_path(self) -> Path:
+        return self.runtime / ("continuation-stop-v1.json" if self.continuation else "stop.json")
 
     def model_case(self, request: httpx.Request) -> str:
         self.verify()
         h = digest(request.content)
-        matched = [p for p in self.ledger.protocol["cases"] if p["payload_sha256"] == h]
+        matched = [p for p in self.ledger.cases if p["payload_sha256"] == h]
         if len(matched) != 1:
             self.stop("payload_mismatch")
             raise AcceptanceStopped("payload_mismatch")
@@ -258,6 +345,8 @@ class LiveGate:
             ordinal = len(attempts) + 1
             row = {"event": "attempt", "operation": operation, "ordinal": ordinal, "query": safe,
                    "previous_sha256": digest(canonical(rows[-1])), "at": datetime.now(timezone.utc).isoformat()}
+            if self.continuation:
+                row["continuation_sha256"] = self.ledger.continuation_hash
             _new(self.runtime / f"amap-{ordinal:02}.json", canonical(row))
             with path.open("ab") as stream:
                 stream.write(canonical(row) + b"\n"); stream.flush(); os.fsync(stream.fileno())
@@ -392,25 +481,25 @@ def configure(private_directory: Path) -> None:
     os.environ["AUTH_ALLOWED_ORIGINS"] = json.dumps([ORIGIN])
 
 
-def serve(directory: Path, private_directory: Path) -> None:
+def serve(directory: Path, private_directory: Path, *, continuation: Path | None = None) -> None:
     configure(private_directory)
     import uvicorn
     from main import app
-    gate = LiveGate(directory)
+    gate = LiveGate(directory, continuation=continuation) if continuation else LiveGate(directory)
     install_live_gate(gate)
     uvicorn.run(app, host="127.0.0.1", port=8803, access_log=False, log_level="warning")
 
 
-async def api_run(directory: Path, private_directory: Path, case_id: str) -> None:
+async def api_run(directory: Path, private_directory: Path, case_id: str, *, continuation: Path | None = None) -> None:
     """One named HTTP operation per invocation; never loops over failures."""
     if case_id not in IDS[:8]:
         raise AcceptanceStopped("api_case_required")
-    gate = LiveGate(directory)
+    gate = LiveGate(directory, continuation=continuation) if continuation else LiveGate(directory)
     if gate.verify()["consumed"] != IDS.index(case_id):
         raise AcceptanceStopped("operation_not_next_or_already_used")
     account = _read_json(private_directory / "account-a.json")
     async with httpx.AsyncClient(base_url=API, follow_redirects=False, timeout=55) as client:
-        session_path = private_directory / "api-session.json"
+        session_path = private_directory / ("api-session-continuation-v1.json" if continuation else "api-session.json")
         if session_path.exists():
             session = _read_json(session_path)
             client.cookies.update(session["cookies"])
@@ -454,22 +543,25 @@ async def api_run(directory: Path, private_directory: Path, case_id: str) -> Non
 
 def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("command", choices=("freeze", "verify", "serve", "api"))
+    parser.add_argument("command", choices=("freeze", "continue-freeze", "verify", "serve", "api"))
     parser.add_argument("directory", type=Path)
     parser.add_argument("--private-directory", type=Path)
     parser.add_argument("--case", choices=IDS[:8])
+    parser.add_argument("--continuation", type=Path)
     args = parser.parse_args()
     try:
-        if args.command == "verify":
-            print(json.dumps(LiveGate(args.directory).verify()))
+        if args.command == "continue-freeze":
+            prepare_continuation(args.directory)
+        elif args.command == "verify":
+            print(json.dumps(LiveGate(args.directory, continuation=args.continuation).verify()))
         elif args.private_directory is None:
             raise AcceptanceStopped("private_environment_required")
         elif args.command == "freeze":
             prepare_freeze(args.directory, args.private_directory)
         elif args.command == "serve":
-            serve(args.directory, args.private_directory)
+            serve(args.directory, args.private_directory, continuation=args.continuation)
         else:
-            asyncio.run(api_run(args.directory, args.private_directory, args.case))
+            asyncio.run(api_run(args.directory, args.private_directory, args.case, continuation=args.continuation))
     except AcceptanceStopped as error:
         print(json.dumps({"stopped": error.code, "automatic_retry": False}))
         raise SystemExit(2) from None

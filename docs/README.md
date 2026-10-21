@@ -18,11 +18,11 @@
 | [CHAT_REBUILD_PLAN](CHAT_REBUILD_PLAN.md) | 唯一chat-1～chat-9阶段细则：范围、依赖、验收、教学与停止点 |
 | [CHAT_1](CHAT_1.md) | 当前实现、存储与版本、受控证据、真实语义待验，以及本机普通账号自动登录 |
 | [CHAT_2](CHAT_2.md)／[城市目录](CHAT_CITY_CATALOG.md) | 通俗地点流程、有限工具／Skill、服务端确认、独立迁移与离线检查；真实语义／上游待验 |
-| [CHAT_ACCEPTANCE](CHAT_ACCEPTANCE.md) | 12项冻结计划、实际1次千问的语义失败、工具离线补修及暂停；高德0、Chrome未执行，不是质量通过 |
+| [CHAT_ACCEPTANCE](CHAT_ACCEPTANCE.md) | 原版1次失败与修复版8次续验分开；累计9/12、1次高德，4项截断，Chrome后三项未执行，仍暂停 |
 | [HARNESS_ENGINEERING](HARNESS_ENGINEERING.md) | H01～H12原则、当前缺口和交付卡；Agent／架构／评测工作必查 |
 | [AGENT_EVOLUTION](AGENT_EVOLUTION.md) | 任务分流、权威状态、恢复、工具／Skill及专业协作的架构决策 |
 
-`/`已实现需求意向与地点准备，真实语义／本轮真实POI仍待验；正式排程／费用／采用／存档未迁入聊天。下一阶段、真实模型额度与生产切换均需单独授权。
+`/`已实现需求意向与地点准备；真实原生工具及一次候选搜索有有限证据，意向／Chrome完整确认未通过，不能进入chat-3。正式排程／费用／采用／存档未迁入聊天。下一阶段、额外真实模型额度与生产切换均需单独授权。
 
 ## 开发与运维（仍是操作参考，不归档失效）
 

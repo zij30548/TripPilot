@@ -1,6 +1,6 @@
 # chat-1：聊天入口、多轮需求意向与用户确认
 
-最新状态（2026-10-21）：chat-2已交付，下面“chat-2未实施”等叙述保留原开发轮语境。有限真实验收首题单字名称失败后暂停；模型侧三处文本正则投影已离线补修，版本`chat-intent-schema-v2-whole-text`，提示仍为`chat-intent-v2-city-directory`。新增真实调用0、累计1/12，旧评分不改、真实效果待验。权威记录见[CHAT_ACCEPTANCE第8节](CHAT_ACCEPTANCE.md#8-后续离线补修消除shorttext匹配歧义2026-10-21)及PROGRESS，不把下方旧停止点当当前权限。
+最新状态（2026-10-21）：chat-2已交付，下面“chat-2未实施”等叙述保留原开发轮语境。三处文本正则离线消歧后，沿原12次预算执行8次修复版续验，累计9/12；4个原生工具选择符合预期，3个意向API及Chrome首题却因`chat_truncated`失败，完整意向／确认流程仍未通过。剩3不继续调用，原单字失败不改判；`chat-intent-schema-v2-whole-text`不等于已证实真实质量改善。权威结果见[CHAT_ACCEPTANCE第9节](CHAT_ACCEPTANCE.md#9-修复版本续验2026-10-21已执行并暂停)及PROGRESS，不把下方旧停止点当当前权限。
 
 ## 当前结论
 
