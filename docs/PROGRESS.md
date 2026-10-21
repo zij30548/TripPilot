@@ -1,5 +1,16 @@
 # TripPilot Progress
 
+## 最新摘要（2026-10-21，chat-1单字名称问题离线补修）
+
+- **范围／基线**：实际`main / 609b85977bd10662bfce0313d57d57cf3a27682d`，用户要求定位并修复首题问题。本轮新增真实模型、高德及其他业务API均 **0**；不恢复旧验收、不重启服务、不操作云端／用户库、不进入chat-3。原手工试用说明、五缓存与浏览器日志均保留不暂存。
+- **定位与修复**：原生输出已含单字，非前端截断；输出stop且432Token，未达上限。模型侧三类ShortText裸`\S`按搜索／整串解释有确定差异，离线已复现；仅在`app/services/chat.py`的`provider_schema()`把住宿、必去items、偏好items三处投影为`^[\s\S]*\S[\s\S]*$`，明确允许完整文字并保留非空白要求。**消除了可确定的Schema集成歧义，但没有证实供应商内部根因或真实语义改善。**
+- **版本／边界**：新增`PROVIDER_SCHEMA_VERSION=chat-intent-schema-v2-whole-text`；提示正文／PROMPT_VERSION、既有Flash、参数、超时、输出限额、共享Qwen、chat-2工具及全部本地严格校验保持。Selection、`chat-session-v1`、v1-v3存档、MySQL结构和前端均不改；不修补旧答案、不强制最短两字、不全局移除pattern。
+- **文件／证据**：服务函数、`tests/test_chat_api.py`新增受控完整名持久往返、`tests/test_chat_provider_schema.py`8项新测试；[CHAT_ACCEPTANCE第8节](CHAT_ACCEPTANCE.md#8-后续离线补修消除shorttext匹配歧义2026-10-21)含原理、取舍、Harness和面试说明，同步当前README／上下文／路线及CHAT_1提示。新离线证据`/Users/zijing/projects/trippilot-evidence/chat-acceptance/schema-fix-20261021/`不提交；原冻结、payload、输出、评分、台账不改。
+- **实际验证**：同一冻结api01输入离线重建完整payload，恰好3个pattern路径变化，提示／上下文／城市／模型／显式参数完全一致；Python搜索／全匹配、Pydantic Rust及Node ECMAScript正则覆盖，Node33检查通过。`cd backend && .venv/bin/python -B -m unittest discover -s tests -p 'test_chat*.py' -q`：149项发现、132执行通过、17独立MySQL配置条件跳过；`tests.test_explanation tests.test_adjustment_intent tests.test_itinerary_query`定向34项通过，重复不相加。原Starlette/httpx弃用提示保留。链接／敏感信息、diff及原五缓存／两SQLite／身份锚8哈希和16份旧台账保护复核；无前端变动，不重复整套前端构建或Chrome。
+- **停止点**：**离线兼容修复完成，真实效果未验，累计仍1/12。** 旧api01结构通过／语义失败不改判，11项仍未执行；理论剩余最多11次继续暂停，不能把新payload当原api01重发或改旧哈希放行。下一步仅建议另行明确修复版续验清单／原台账关联；本轮不实现通用resume、不发模型、不进入下一阶段或部署。
+
+---
+
 ## 最新摘要（2026-10-21，chat-1／chat-2有限真实验收暂停）
 
 - **授权／基线**：实际`main / 6458d2e52810e3503a789cd18c0e827c933f9afd`。用户授权本轮最多12次千问及计划内有界高德；发送前固定8API＋4Chrome题目／预期、完整payload、412项文件和16份旧台账哈希。旧额度不重置，原协议／题目／提示／Schema不改，不进入chat-3。

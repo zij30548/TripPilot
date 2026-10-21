@@ -244,6 +244,34 @@ class ChatAPIBoundaryTests(unittest.TestCase):
         self.assertEqual(self.usage_rows(), [])
         self.assertEqual(self.store.get(self.first_id, view["id"])["revision"], 0)
 
+    def test_full_place_names_roundtrip_with_whole_text_provider_schema(self) -> None:
+        """Real app/auth/storage, controlled output; not model quality proof."""
+        headers = self.login(self.a)
+        view = self.create(headers)
+        user = ("苏州，2026-11-01至2026-11-03，两个人，全程预算3000元，"
+                "住苏州站附近，想按拙政园、苏州博物馆的顺序去，步行。")
+        expected = view["requirements"] | {
+            "destination_id": "320500", "start_date": "2026-11-01", "end_date": "2026-11-03",
+            "travelers": 2, "budget_cny": "3000", "accommodation_hint": "苏州站附近",
+            "required_place_hints": ["拙政园", "苏州博物馆"], "transport_mode": "walking",
+        }
+        self.results.append(self.selection(view["requirements"], user, **expected))
+        response = self.turn(view, user, headers)
+        self.assertEqual(response.status_code, 200, response.text)
+        result = response.json()
+        self.assertEqual(result["requirements"], expected)
+        self.assertIsNone(result["confirmed_revision"])
+        self.assertEqual(result["last_turn"]["state"], "succeeded")
+        self.assertEqual(self.a.get(f"/chat/conversations/{view['id']}").json(), result)
+        self.assertEqual(len(self.calls), 1)
+        sent = self.calls[0]["response_format"]["json_schema"]["schema"]
+        properties = sent["$defs"]["Intent"]["properties"]
+        for node in (properties["accommodation_hint"]["anyOf"][0],
+                     properties["required_place_hints"]["items"], properties["preferences"]["items"]):
+            self.assertEqual(node["pattern"], r"^[\s\S]*\S[\s\S]*$")
+            self.assertEqual(node["maxLength"], 120)
+        self.assertEqual(self.usage_rows(), [(self.first_id, "qwen_text", "received")])
+
     def test_bad_model_structure_cannot_be_repaired_or_rendered_as_prose(self) -> None:
         headers = self.login(self.a)
         view = self.create(headers)

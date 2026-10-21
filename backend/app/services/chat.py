@@ -8,6 +8,7 @@ from app.integrations.qwen import MAX_OUTPUT_TOKENS, MAX_PROMPT_BYTES
 from app.schemas.chat import Intent, Selection, Source
 
 PROMPT_VERSION = "chat-intent-v2-city-directory"
+PROVIDER_SCHEMA_VERSION = "chat-intent-schema-v2-whole-text"
 FIELD_LABELS = {
     "destination_id": "目的地城市", "start_date": "开始日期", "end_date": "结束日期",
     "travelers": "总人数", "budget_cny": "全程全部旅客总预算（人民币）",
@@ -70,6 +71,31 @@ def render_reply(intent: Intent, issues: list[str]) -> str:
     return "\n\n".join(parts)
 
 
+def provider_schema() -> dict:
+    r"""Project local contracts without ambiguous search-only text patterns.
+
+    ShortText's local ``\S`` means at least one non-whitespace character.
+    A constrained decoder interpreting it as a whole-string match would only
+    allow one character. Anchor the equivalent full text expression in exactly
+    these three provider fields; keep the local model and all other constraints.
+    This avoids that integration ambiguity, not semantic interpretation errors.
+    """
+    schema = Selection.model_json_schema()
+    properties = schema["$defs"]["Intent"]["properties"]
+    for text_schema in (
+        properties["accommodation_hint"]["anyOf"][0],
+        properties["required_place_hints"]["items"],
+        properties["preferences"]["items"],
+    ):
+        text_schema["pattern"] = r"^[\s\S]*\S[\s\S]*$"
+    # Provider strict mode requires every property to be explicit, including
+    # nullable intent fields. No uniqueItems/automatic repair reliance.
+    for definition in schema.get("$defs", {}).values():
+        if definition.get("type") == "object":
+            definition["required"] = list(definition.get("properties", {}))
+    return schema
+
+
 def model_payload(conversation: dict, user_text: str, *, model: str, now: datetime) -> dict:
     """Only server-owned context and latest user text; no expectations or tools."""
     # Server history only. Program-generated assistant messages contain no facts
@@ -82,12 +108,7 @@ def model_payload(conversation: dict, user_text: str, *, model: str, now: dateti
         "latest_user_text": user_text,
         "supported_destinations": [{"id": key, "name": value.name} for key, value in CITIES.items()],
     }
-    schema = Selection.model_json_schema()
-    # Provider strict mode requires every property to be explicit, including
-    # nullable intent fields. No uniqueItems/automatic repair reliance.
-    for definition in schema.get("$defs", {}).values():
-        if definition.get("type") == "object":
-            definition["required"] = list(definition.get("properties", {}))
+    schema = provider_schema()
     payload = {
         "model": model, "stream": False, "enable_thinking": False, "max_tokens": MAX_OUTPUT_TOKENS,
         "messages": [
