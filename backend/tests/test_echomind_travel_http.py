@@ -93,7 +93,7 @@ class TravelMySQLHTTPTests(unittest.TestCase):
         places = self.a.get(self.path + "/places").json()
         self.assertIsNone(places["accommodation"])
         self.assertEqual(places["required_places"], [])
-        self.assertEqual(len(self.attempts()), 2)
+        self.assertEqual(len(self.attempts()), 1)
 
     def test_budget_action_is_unexecuted_proposal_not_invented_cost(self):
         response = self.submit("查询本次费用和未知项")
@@ -140,8 +140,10 @@ class TravelMySQLHTTPTests(unittest.TestCase):
         self.assertEqual(self.a.get(self.path + "/dialogue-action").json()["action"], None)
 
     def test_feedback_transport_failure_keeps_both_attempts_and_no_success_proposal(self):
-        self.upstream.responses = [native_tool("travel_budget", {"action": "read_budget"}), httpx.ReadTimeout("controlled timeout")]
-        response = self.submit("查询本次费用和未知项")
+        # A read still needs native feedback; a browser proposal now correctly
+        # hands off before the next model send, so it cannot exercise this path.
+        self.upstream.responses = [native_tool("inspect_trip", {}), httpx.ReadTimeout("controlled timeout")]
+        response = self.submit("查看当前需求")
         self.assertIn(response.status_code, {502, 504}, response.text)
         self.assertEqual(len(self.attempts()), 2)
         self.assertEqual(sorted(row[2] for row in self.attempts()), ["failed", "received"])

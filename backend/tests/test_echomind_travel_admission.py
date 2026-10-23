@@ -109,21 +109,21 @@ class TravelAdmissionTests(unittest.TestCase):
         self.assertEqual(self.sent, [])
 
     def test_native_protocol_executes_fixed_clarification_and_discards_free_model_body(self):
-        self.responses = [native_tools(("clarify_once", "travel_clarify", {"reason": "destination_missing"})), native_text()]
+        self.responses = [native_tools(("clarify_once", "travel_clarify", {"reason": "destination_missing"}))]
         response = self.submit("我想去旅行")
         self.assertEqual(response.status_code, 200, response.text)
         self.assertIn("请明确本次想去的城市", response.json()["messages"][-1]["text"])
         self.assertNotIn(FABRICATED, response.text)
-        self.assertEqual(len(self.sent), 2)
+        self.assertEqual(len(self.sent), 1)
         self.assertEqual(self.provider.calls, [])
         self.assertEqual(self.sent[0]["path"], "/compatible-mode/v1/chat/completions")
         self.assertEqual(len(self.sent[0]["payload"]["tools"]), 16)
-        self.assertEqual(self.sent[1]["payload"]["messages"][-1]["role"], "tool")
+        self.assertEqual(self.fixture.store.own_usage(self.owner)["services"]["qwen_text"]["used"], 1)
         task = self.tasks.latest(self.owner, self.view["id"])
         self.assertEqual(task["state"], "waiting")
         self.assertEqual(task["checkpoint"]["result"]["runtime"]["runtime"], "echomind_travel_v1")
         state = self.a.get(f"/chat/conversations/{self.view['id']}/assistant-state", headers=self.headers).json()
-        self.assertEqual((state["task"]["model_calls"], state["task"]["tool_calls"]), (2, 1))
+        self.assertEqual((state["task"]["model_calls"], state["task"]["tool_calls"]), (1, 1))
         self.assertTrue(all(row["state"] == "succeeded" for row in state["task"]["steps"]))
         self.assertNotIn("request_failed", str(state))
         metadata = task["checkpoint"]["result"]["runtime"]
@@ -132,7 +132,7 @@ class TravelAdmissionTests(unittest.TestCase):
         self.assertEqual(metadata["upstream_model"], "unknown")
 
     def test_browser_action_wire_is_unchanged_and_proposal_has_not_executed(self):
-        self.responses = [native_tools(("schedule_once", "travel_schedule", {"action": "generate_schedule"})), native_text()]
+        self.responses = [native_tools(("schedule_once", "travel_schedule", {"action": "generate_schedule"}))]
         response = self.submit("生成行程")
         self.assertEqual(response.status_code, 200, response.text)
         action = self.a.get(f"/chat/conversations/{self.view['id']}/dialogue-action", headers=self.headers)
@@ -146,6 +146,8 @@ class TravelAdmissionTests(unittest.TestCase):
         self.assertNotIn("session_id", str(public))
         self.assertNotIn("latitude", str(public))
         self.assertEqual(task["state"], "waiting")
+        self.assertEqual(len(self.sent), 1)
+        self.assertEqual(self.provider.calls, [])
 
     def test_requirement_proposal_is_accurate_persisted_draft_then_explicit_cas_confirmation(self):
         value = intent()
@@ -154,7 +156,7 @@ class TravelAdmissionTests(unittest.TestCase):
             {"field": "end_date", "quote": "2026-11-03"}, {"field": "travelers", "quote": "两人"},
             {"field": "budget_cny", "quote": "3000"}, {"field": "accommodation_hint", "quote": "西湖附近"},
             {"field": "required_place_hints", "quote": "西湖"}, {"field": "transport_mode", "quote": "步行"}], "issues": []}
-        self.responses = [native_tools(("requirements_once", "update_trip_requirements", selection)), native_text()]
+        self.responses = [native_tools(("requirements_once", "update_trip_requirements", selection))]
         response = self.submit("杭州，2026-11-01到2026-11-03，两人预算3000，住西湖附近，想去西湖，步行")
         self.assertEqual(response.status_code, 200, response.text)
         draft = response.json()
@@ -170,7 +172,7 @@ class TravelAdmissionTests(unittest.TestCase):
         # cannot mutate a newer requirement version.
         replay = self.a.post(f"/chat/conversations/{draft['id']}/confirm", headers=self.headers, json=command)
         self.assertEqual(replay.json(), confirmed.json())
-        self.assertEqual(len(self.sent), 2)
+        self.assertEqual(len(self.sent), 1)
 
     def test_successful_unchanged_turn_carries_valid_confirmation_but_changes_make_draft(self):
         initial = self.fixture_intent(confirm=True)
@@ -182,7 +184,7 @@ class TravelAdmissionTests(unittest.TestCase):
         self.assertEqual(current["requirements"], initial["requirements"])
         proposed = {**current["requirements"], "travelers": 3}
         self.responses = [native_tools(("change_once", "update_trip_requirements", {"requirements": proposed,
-            "sources": [{"field": "travelers", "quote": "三人"}], "issues": []})), native_text()]
+            "sources": [{"field": "travelers", "quote": "三人"}], "issues": []}))]
         changed = self.submit("改成三人")
         self.assertEqual(changed.status_code, 200, changed.text)
         self.assertIsNone(changed.json()["confirmed_revision"])

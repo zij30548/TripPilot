@@ -80,8 +80,9 @@ class NativeFixtureMySQLTests(unittest.TestCase):
         result = self.runner.submit("m01")
         self.assertEqual(result["http_status"], 200, result)
         self.assertEqual(result["readback"]["last_turn"]["state"], "succeeded")
-        self.assertEqual(result["task_state"]["task"]["model_calls"], 2)
-        self.assertEqual(self.observed, [result["binding_sha256"]] * 2)
+        self.assertEqual(result["task_state"]["task"]["model_calls"], 1)
+        self.assertEqual(self.observed, [result["binding_sha256"]])
+        self.assertEqual(len(self.peer.responses), 1)  # Unsent model text is not required to finish.
         self.assertFalse(result["browser_execution_verified"])
         self.assertEqual(self.business.events, [])
         self.assertIsNone(result["readback"]["confirmed_revision"])
@@ -209,8 +210,8 @@ class NativeFixtureMySQLTests(unittest.TestCase):
         # not redundant quotes for preserved people/budget/transport values.
         corrected["sources"] = [row for row in corrected["sources"]
                                  if row["field"] in {"destination_id", "start_date", "end_date"}]
-        self.peer.responses = [native_tool("update_trip_requirements", selection(first, "上海")), native_text(),
-                              native_tool("update_trip_requirements", corrected), native_text()]
+        self.peer.responses = [native_tool("update_trip_requirements", selection(first, "上海")),
+                              native_tool("update_trip_requirements", corrected)]
         first_result = self.runner.submit("m02")
         self.assertEqual(first_result["http_status"], 200, first_result)
         second_result = self.runner.submit("m03")

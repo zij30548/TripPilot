@@ -21,6 +21,7 @@ if any(importlib.util.find_spec(name) is None for name in ("jsonschema", "promet
 
 from prometheus_client import CollectorRegistry
 from core.config import Settings
+from core.llm_utils import RuntimeFailure
 from core.usage_runtime import MeteredAsyncClient
 from echomind_core.embedding import DIMENSIONS, EMBEDDING_MODEL, QwenIntentEmbedding
 from echomind_core.execution import ExecutionError, ExecutionGate, SafeToolManager, bind_execution
@@ -28,7 +29,7 @@ from echomind_core.provider import MODEL, MAX_INPUT_BYTES, TaskBudget, bind_prov
 from echomind_core.travel_bridge import CLARIFICATIONS, TravelToolBridge
 from echomind_core.travel_domain import TravelIntent, TravelIntentRecognizer, TravelRole
 from echomind_core.travel_engine import (
-    ROLE_FOR_SLOT, TravelAssistantCandidate, TravelMode, TravelOrchestrator,
+    ROLE_FOR_SLOT, TravelAssistantCandidate, TravelMode, TravelOrchestrator, _TravelAgent,
 )
 from echomind_core.upstream.agents.agent_orchestrator import (
     AgentOrchestrator, AgentType, BaseAgent, RoutingDecision,
@@ -101,17 +102,24 @@ class TravelEngineTests(unittest.IsolatedAsyncioTestCase):
         self.assertIs(TravelOrchestrator._best_agent, AgentOrchestrator._best_agent)
         self.assertIs(TravelOrchestrator.update_routing_penalties, AgentOrchestrator.update_routing_penalties)
         invoked, original_run = [], AgentOrchestrator.run
+        calls, original_call = [], BaseAgent._call_llm
 
         async def observed(instance, captured):
             invoked.append((instance, captured.intent))
             return await original_run(instance, captured)
 
-        with patch.object(AgentOrchestrator, "run", observed):
+        async def delegated_call(instance, captured):
+            calls.append((instance, captured.request_id))
+            return await original_call(instance, captured)
+
+        with patch.object(AgentOrchestrator, "run", observed), \
+                patch.object(BaseAgent, "_call_llm", delegated_call):
             result = await self.run_candidate([
                 native_tools(("inspect_once", "inspect_trip", {})), native_text()], candidate=candidate,
                 req=request(intent=TravelIntent.REQUIREMENTS, intent_group="requirements"))
         self.assertEqual(len(invoked), 1)
         self.assertIs(invoked[0][1], TravelIntent.REQUIREMENTS)
+        self.assertEqual(calls, [(candidate.orchestrator._pool[AgentType.GENERAL][0], OP)])
         self.assertEqual(result.role, TravelRole.COORDINATOR.value)
         stats = candidate.orchestrator.get_stats()["general_0"]
         self.assertEqual((stats["total"], stats["success_rate"]), (1, 1.0))
@@ -134,7 +142,10 @@ class TravelEngineTests(unittest.IsolatedAsyncioTestCase):
         for slot, agents in engine._pool.items():
             agent = agents[0]
             self.assertIs(type(agent).handle, BaseAgent.handle)
-            self.assertIs(type(agent)._call_llm, BaseAgent._call_llm)
+            # Only a request-local program handoff wraps the source-preserved
+            # loop. The delegation above still exercises that original loop.
+            self.assertIs(type(agent)._call_llm, _TravelAgent._call_llm)
+            self.assertIsNot(type(agent)._call_llm, BaseAgent._call_llm)
             self.assertEqual(set(agent.get_tools()), expected[slot])
             self.assertFalse(old_customer_tools & agent.get_tools().keys())
             self.assertEqual(agent.profile.role, ROLE_FOR_SLOT[slot].value)
@@ -156,7 +167,7 @@ class TravelEngineTests(unittest.IsolatedAsyncioTestCase):
         before = self.bridge.snapshot.payload()
         result = await self.run_candidate([native_tools(("requirements_once", "update_trip_requirements", {
             "requirements": {**intent(), "travelers": 3},
-            "sources": [{"field": "travelers", "quote": "三人"}], "issues": []})), native_text()],
+            "sources": [{"field": "travelers", "quote": "三人"}], "issues": []}))],
             req=request(message="改为三人去杭州"))
         self.assertEqual(result.state, "awaiting_confirmation")
         proposal = result.projection["tool_results"][0]["data"]
@@ -165,11 +176,12 @@ class TravelEngineTests(unittest.IsolatedAsyncioTestCase):
         self.assertTrue(proposal["confirmation_required"])
         self.assertEqual(self.bridge.snapshot.payload(), before)
         self.assertNotIn(FABRICATED, result.message)
-        self.assertEqual(result.counts, (2, 1, 1800))
+        self.assertEqual(result.counts, (1, 1, 900))
+        self.assertEqual(self.rows(), [("qwen_text", "received")])
 
     async def test_budget_is_browser_proposal_not_second_backend_calculator(self):
-        result = await self.run_candidate([native_tools(("budget_once", "travel_budget", {"action": "read_budget"})),
-            native_text()], req=request(message="费用多少，哪些未知", intent=TravelIntent.BUDGET, intent_group="budget"))
+        result = await self.run_candidate([native_tools(("budget_once", "travel_budget", {"action": "read_budget"}))],
+            req=request(message="费用多少，哪些未知", intent=TravelIntent.BUDGET, intent_group="budget"))
         self.assertEqual(result.state, "pending_browser")
         self.assertEqual(result.role, TravelRole.BUDGET.value)
         proposal = result.projection["tool_results"][0]["data"]
@@ -178,7 +190,8 @@ class TravelEngineTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(proposal["action"], {"name": "read_budget", "arguments": {}})
         self.assertNotIn("total", proposal)
         self.assertNotIn(FABRICATED, result.message)
-        self.assertEqual(result.counts, (2, 1, 1800))
+        self.assertEqual(result.counts, (1, 1, 900))
+        self.assertEqual(self.rows(), [("qwen_text", "received")])
 
     async def test_no_tool_free_prose_is_not_a_business_answer(self):
         result = await self.run_candidate([native_text()])
@@ -191,11 +204,14 @@ class TravelEngineTests(unittest.IsolatedAsyncioTestCase):
         for reason in ("unsupported", "multiple_requests", "target_ambiguous"):
             snapshot, *_ = capture()
             bridge = TravelToolBridge(snapshot, lambda: self.current)
-            result = await self.run_candidate([native_tools(("clarify_once", "travel_clarify", {"reason": reason})),
-                native_text()], candidate=TravelAssistantCandidate(bridge))
+            before = len(self.sent)
+            result = await self.run_candidate([native_tools(("clarify_once", "travel_clarify", {"reason": reason}))],
+                candidate=TravelAssistantCandidate(bridge))
             self.assertEqual(result.state, "clarification")
             self.assertEqual(result.message, CLARIFICATIONS[reason])
             self.assertFalse(result.projection["tool_results"][0]["data"]["executed"])
+            self.assertEqual(result.counts, (1, 1, 900))
+            self.assertEqual(len(self.sent), before + 1)
 
     async def test_illegal_tool_or_arguments_are_failed_closed_not_repaired(self):
         bad = [("unknown_payment", {}), ("travel_budget", {"action": "read_budget", "total": 0}),
@@ -331,15 +347,23 @@ class TravelEngineTests(unittest.IsolatedAsyncioTestCase):
         finally:
             await monitor.stop()
 
-    async def test_tool_and_model_limits_are_unchanged_and_prevent_additional_execution(self):
+    async def test_parallel_tool_batch_is_rejected_before_any_execution(self):
         four = native_tools(*[(f"read_{index}", "inspect_trip", {}) for index in range(4)])
-        fifth = native_tools(("read_fifth", "inspect_trip", {}))
-        result = await self.run_candidate([four, fifth])
+        result = await self.run_candidate([four])
         self.assertEqual(result.state, "failed")
-        self.assertEqual(result.counts, (2, 4, 1800))
+        self.assertEqual(result.counts, (1, 0, 900))
         self.assertIsNone(result.projection)
-        self.assertEqual(len(self.sent), 2)
-        self.assertEqual(len(self.bridge._rows), 4)
+        self.assertEqual(len(self.sent), 1)
+        self.assertEqual(len(self.bridge._rows), 0)
+
+    async def test_original_task_limits_are_not_expanded_by_the_program_handoff(self):
+        budget = TaskBudget()
+        for _ in range(4):
+            await budget.reserve_tool()
+        self.assertEqual(budget.counts, (0, 4, 0))
+        with self.assertRaisesRegex(RuntimeFailure, "task_budget"):
+            await budget.reserve_tool()
+        self.assertEqual(budget.counts, (0, 4, 0))
         for field, value in (("model_limit", 4), ("tool_limit", 5), ("seconds", 46)):
             with self.assertRaises(Exception):
                 TaskBudget(**{field: value})

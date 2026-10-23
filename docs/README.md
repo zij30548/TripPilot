@@ -19,7 +19,7 @@
 
 | 文档 | 什么时候读 |
 | --- | --- |
-| [ECHOMIND_TRAVEL_LIVE_ACCEPTANCE](ECHOMIND_TRAVEL_LIVE_ACCEPTANCE.md) | 最新首轮真实结果3/21后暂停：首工具正确但澄清未终止loop，业务0/1；13项未执行，含根因、旧L02计划缺陷、离线重放与最小修复建议 |
+| [ECHOMIND_TRAVEL_LIVE_ACCEPTANCE](ECHOMIND_TRAVEL_LIVE_ACCEPTANCE.md) | 原真实3/21失败／18暂停及旧L02计划缺陷保留；最新第8节为零调用终止补修、保存输出重放、回归和面试说明，不是新真实通过或网站切换 |
 | [ECHOMIND_TRAVEL_ACCEPTANCE_PLAN](ECHOMIND_TRAVEL_ACCEPTANCE_PLAN.md) | 最新第7节为受控计数钩子／原ASGI＋临时MySQL首发捕获及独立续冻；132相关项通过、真实0、live模式关闭。既定7模型＋7本地／21建议上限不是授权，实际live上下文及payload仍待准入 |
 | [ECHOMIND_CHAT_INTEGRATION](ECHOMIND_CHAT_INTEGRATION.md) | 第4步显式接线与受控闭环；最新第6节为零调用原生预初始化／退出补修，保留旧挂起／证据缺口，默认网站未切换，真实语义及生产待验 |
 | [ECHOMIND_FULL_MIGRATION](ECHOMIND_FULL_MIGRATION.md) | 完整核心保真与第2步：千问Embedding、隔离Redis／Chroma、安全执行和历史受控验证；本轮原生退出限制见顶部指针 |
