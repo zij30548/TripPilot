@@ -19,6 +19,7 @@
 
 | 文档 | 什么时候读 |
 | --- | --- |
+| [KNOWLEDGE_NATIONAL](KNOWLEDGE_NATIONAL.md) | 首批9城12场馆／乐园的官方资料、完整主题处理、独立v2检索、冻结评测及生成准入缺口；真实模型／Embedding0，不等于全国全覆盖或高答案准确率 |
 | [AMAP_MCP_SEARCH](AMAP_MCP_SEARCH.md) | 最新高德MCP只读搜索接线、标准协议／持久计量、配置和受控验证；默认REST，真实服务待验，不接路线天气或恢复知识问答 |
 | [ECHOMIND_TRAVEL_LIVE_ACCEPTANCE](ECHOMIND_TRAVEL_LIVE_ACCEPTANCE.md) | 原真实3/21失败／18暂停及旧L02计划缺陷保留；最新第8节为零调用终止补修、保存输出重放、回归和面试说明，不是新真实通过或网站切换 |
 | [ECHOMIND_TRAVEL_ACCEPTANCE_PLAN](ECHOMIND_TRAVEL_ACCEPTANCE_PLAN.md) | 最新第7节为受控计数钩子／原ASGI＋临时MySQL首发捕获及独立续冻；132相关项通过、真实0、live模式关闭。既定7模型＋7本地／21建议上限不是授权，实际live上下文及payload仍待准入 |
@@ -60,7 +61,7 @@
 - 城市／日期／快照：[DESTINATION_1](DESTINATION_1.md)、[DESTINATION_2](DESTINATION_2.md)、[DURATION_1](DURATION_1.md)。
 - 照片／视频：[MEDIA_1](MEDIA_1.md)、[MEDIA_2A](MEDIA_2A.md)、[MEDIA_2B](MEDIA_2B.md)。照片及选中单帧是线索辅助，不是身份认证或批量识别。
 - 原生单次工具查询：[ITINERARY_QUERY_7A1](ITINERARY_QUERY_7A1.md)。一次tool_calls不等于Agent loop。
-- 正式开放的资料检索：[KNOWLEDGE_6D1](KNOWLEDGE_6D1.md)。生成问答仍停用。
+- 资料检索的旧三馆区基线：[KNOWLEDGE_6D1](KNOWLEDGE_6D1.md)；当前多城扩展见[KNOWLEDGE_NATIONAL](KNOWLEDGE_NATIONAL.md)。旧评分保持，生成问答仍停用。
 
 ## 历史、实验与冻结件
 

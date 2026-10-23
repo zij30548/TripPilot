@@ -4,7 +4,7 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { type ReactNode } from "react";
 import ConversationWorkspace from "./chat/conversation-workspace";
-import KnowledgeSearch from "./knowledge-search";
+import KnowledgeNationalSearch from "./knowledge-national-search";
 import EvaluationWorkspace from "./evaluation-workspace";
 
 const pages = [{ href: "/", name: "对话助手", mark: "chat" }, { href: "/knowledge", name: "知识库", mark: "book" }, { href: "/evaluation", name: "Agent 评测", mark: "chart" }] as const;
@@ -26,7 +26,7 @@ export default function ProductShell({ children }: { children: ReactNode }) {
       </div>
     </header>
     <div hidden={pathname !== "/"} inert={pathname !== "/"}><ConversationWorkspace /></div>
-    <div hidden={pathname !== "/knowledge"} inert={pathname !== "/knowledge"}><KnowledgeSearch /></div>
+    <div hidden={pathname !== "/knowledge"} inert={pathname !== "/knowledge"}><KnowledgeNationalSearch active={pathname === "/knowledge"} /></div>
     <div hidden={pathname !== "/evaluation"} inert={pathname !== "/evaluation"}><EvaluationWorkspace active={pathname === "/evaluation"} /></div>
   </div>;
 }

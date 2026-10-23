@@ -16,6 +16,7 @@ import type { ChatConversation } from "@/lib/chat";
 import type { PlacesRequest, PlacesWorkspace } from "@/lib/chat-places";
 import type { DialogueAction } from "@/lib/dialogue-action";
 import type { SaveOperation, SavedDetail } from "@/lib/saved-trips";
+import { nationalCatalogFixture } from "@/lib/knowledge-national.test-fixtures";
 
 // Only HTTP is controlled: actual UI, confirmations, request/response guards,
 // place and planning controllers, costs, preview/adoption and save owner run.
@@ -46,6 +47,7 @@ function controlledServer({ confirmed = false, populated = false } = {}) {
   ]);
   const fetcher = vi.fn(async (url: string, init: RequestInit = {}) => {
     const body = init.body ? JSON.parse(String(init.body)) : null;
+    if (url === "/api/knowledge/catalog-v2") return json(nationalCatalogFixture());
     if (url.includes("/chat/conversations?")) return json({ schema_version: "chat-list-v1", items: conversation.revision ? [{
       id: conversation.id, title: conversation.title, revision: conversation.revision, updated_at: conversation.updated_at,
     }] : [], next_offset: null });
@@ -230,7 +232,10 @@ describe("opt-in full core retains existing three-surface dialogue wire and doma
     route.pathname = "/knowledge"; view.rerender(<ProductShell>{null}</ProductShell>);
     route.pathname = "/"; view.rerender(<ProductShell>{null}</ProductShell>);
     expect((screen.getByRole("textbox", { name: "告诉我你的旅行想法" }) as HTMLTextAreaElement).value).toBe("未发送的旅行想法");
-    expect(server.fetcher).toHaveBeenCalledTimes(beforeNavigation);
+    // The first reference-page visit reads its local reviewed directory only.
+    // No keyword search, model, schedule or save is triggered by navigation.
+    expect(server.fetcher).toHaveBeenCalledTimes(beforeNavigation + 1);
+    expect(server.fetcher.mock.calls.slice(beforeNavigation).map(([url]) => url)).toEqual(["/api/knowledge/catalog-v2"]);
     await send("准备规划"); await send("确认"); await expectLast("保存结果尚未确认");
     await send("保存行程 新名字不得替换冻结内容"); await send("确认"); await expectLast("已保存“冻结内容”");
     expect(server.writes).toHaveLength(2); expect(server.writes[1]).toEqual(original);

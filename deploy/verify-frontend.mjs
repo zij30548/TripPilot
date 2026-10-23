@@ -19,6 +19,7 @@ const LEGACY_API_PATHS = Object.freeze([
   '/api/saved-trips', '/api/knowledge/search', '/api/knowledge/answer',
   '/api/routes/walking', '/api/routes/transit', '/api/trips/plan',
 ]);
+const NATIONAL_KNOWLEDGE_PATHS = Object.freeze(['/api/knowledge/catalog-v2', '/api/knowledge/search-v2']);
 const sha = data => createHash('sha256').update(data).digest('hex');
 const fail = code => { throw new Error(code); };
 
@@ -83,7 +84,7 @@ export async function sourceHash(frontend) {
 
 export async function checkRewrites(frontend, manifest) {
   const source = await readFile(join(frontend, 'src/lib/api-endpoints.ts'), 'utf8');
-  const api = [...source.matchAll(/:\s*"(\/api\/[a-z/-]+)"/g)].map(match => match[1]);
+  const api = [...source.matchAll(/:\s*"(\/api\/[a-z0-9/-]+)"/g)].map(match => match[1]);
   // Keep every reviewed historical allowlist, including already-staged releases.
   // Anonymous workspace bootstrap is one explicit replacement version: account
   // routes cannot be mixed back into it, and chat cities/places stay together.
@@ -113,8 +114,12 @@ export async function checkRewrites(frontend, manifest) {
     ...LEGACY_API_PATHS.filter(path => !path.startsWith('/api/auth/')),
     '/api/chat/conversations', '/api/chat/cities',
   ];
-  const workspaceAllowed = workspace && assistant && dialogue &&
-    api.length === workspaceExpected.length && workspaceExpected.every(path => api.includes(path));
+  // Preserve both exact anonymous-workspace release contracts. The v2 catalogue
+  // and search are one reviewed pair, not a generic knowledge path allowance.
+  const workspaceAllowed = workspace && assistant && dialogue && [[], NATIONAL_KNOWLEDGE_PATHS].some(increment => {
+    const expected = [...workspaceExpected, ...increment];
+    return api.length === expected.length && expected.every(path => api.includes(path));
+  });
   if (new Set(api).size !== api.length || !(legacyAllowed || workspaceAllowed)) fail('endpoint_allowlist_changed');
   const expected = api.map(path => ({ source: path, destination: ORIGIN + path.slice(4) }));
   expected.push(

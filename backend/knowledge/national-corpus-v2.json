@@ -1,0 +1,872 @@
+{
+  "schema_version": "knowledge-corpus-v2",
+  "corpus_version": "2026-10-24.1",
+  "cities": [
+    {
+      "id": "110000",
+      "name": "北京"
+    },
+    {
+      "id": "310000",
+      "name": "上海"
+    },
+    {
+      "id": "320500",
+      "name": "苏州"
+    },
+    {
+      "id": "330100",
+      "name": "杭州"
+    },
+    {
+      "id": "420100",
+      "name": "武汉"
+    },
+    {
+      "id": "440100",
+      "name": "广州"
+    },
+    {
+      "id": "440300",
+      "name": "深圳"
+    },
+    {
+      "id": "500000",
+      "name": "重庆"
+    },
+    {
+      "id": "510100",
+      "name": "成都"
+    }
+  ],
+  "venues": [
+    {
+      "id": "museum_people",
+      "name": "上海博物馆人民广场馆",
+      "aliases": [
+        "上博人广",
+        "人民广场馆"
+      ],
+      "city_id": "310000",
+      "kind": "museum"
+    },
+    {
+      "id": "museum_east",
+      "name": "上海博物馆东馆",
+      "aliases": [
+        "上博东馆",
+        "浦东东馆"
+      ],
+      "city_id": "310000",
+      "kind": "museum"
+    },
+    {
+      "id": "natural",
+      "name": "上海自然博物馆",
+      "aliases": [
+        "自博",
+        "自然馆"
+      ],
+      "city_id": "310000",
+      "kind": "museum"
+    },
+    {
+      "id": "beijing-universal",
+      "city_id": "110000",
+      "name": "北京环球影城",
+      "kind": "amusement_park",
+      "aliases": [
+        "北京环球度假区主题公园",
+        "北京环球影城"
+      ]
+    },
+    {
+      "id": "guangzhou-guangdong-museum",
+      "city_id": "440100",
+      "name": "广东省博物馆（珠江新城）",
+      "kind": "museum",
+      "aliases": [
+        "粤博",
+        "广东省博物馆"
+      ]
+    },
+    {
+      "id": "guangzhou-chimelong-paradise",
+      "city_id": "440100",
+      "name": "广州长隆欢乐世界",
+      "kind": "amusement_park",
+      "aliases": [
+        "长隆欢乐世界",
+        "广州长隆欢乐世界"
+      ]
+    },
+    {
+      "id": "chengdu-museum",
+      "city_id": "510100",
+      "name": "成都博物馆",
+      "kind": "museum",
+      "aliases": [
+        "成博",
+        "成都博物馆"
+      ]
+    },
+    {
+      "id": "hangzhou-tea-shuangfeng",
+      "city_id": "330100",
+      "name": "中国茶叶博物馆双峰馆区",
+      "kind": "museum",
+      "aliases": [
+        "茶博双峰馆",
+        "中国茶叶博物馆双峰馆区"
+      ]
+    },
+    {
+      "id": "wuhan-hubei-museum",
+      "city_id": "420100",
+      "name": "湖北省博物馆（主馆）",
+      "kind": "museum",
+      "aliases": [
+        "湖北省博",
+        "湖北省博物馆主馆"
+      ]
+    },
+    {
+      "id": "shenzhen-happy-valley",
+      "city_id": "440300",
+      "name": "深圳欢乐谷",
+      "kind": "amusement_park",
+      "aliases": [
+        "深圳欢乐谷",
+        "深圳欢乐谷陆公园"
+      ]
+    },
+    {
+      "id": "suzhou-museum-west",
+      "city_id": "320500",
+      "name": "苏州博物馆西馆",
+      "kind": "museum",
+      "aliases": [
+        "苏博西馆",
+        "苏州博物馆西馆"
+      ]
+    },
+    {
+      "id": "chongqing-three-gorges",
+      "city_id": "500000",
+      "name": "重庆中国三峡博物馆",
+      "kind": "museum",
+      "aliases": [
+        "重庆博物馆",
+        "重庆中国三峡博物馆"
+      ]
+    }
+  ],
+  "documents": [
+    {
+      "id": "museum-west",
+      "title": "上海博物馆人民广场馆｜开放信息与服务",
+      "venue_id": "museum_people",
+      "url": "https://www.shanghaimuseum.cn/mu/frontend/pg/service/visit-west",
+      "publisher": "上海博物馆",
+      "kind": "temporary",
+      "fetched_at": "2026-10-13T08:33:09Z",
+      "published_at": null,
+      "updated_at": null,
+      "effective_from": "2026-06-30",
+      "effective_until": null,
+      "content_version": "2026-10-14.1",
+      "applicability": "须知注明自2026-06-30实行；特展2026-07-09至2027-11-14。夜场另行公告。出发前核对馆方最新说明，不据检索排序判断现行入馆资格。 本条保留v1人工整理记录及原获取时间，本轮未重新读取原网页；reviewed_text_sha256对应仓库外留存的原v1整理对象文本，不是原网页正文哈希。",
+      "reuse_basis": "官方公开网页；仅必要短摘录和独立整理摘要并附原链接，未取得全文转载授权，不复制整站。",
+      "sections": [
+        {
+          "id": "entry",
+          "heading": "开放信息／参观须知",
+          "excerpt": "日场：9:00-17:00",
+          "summary": "整理摘要：人民广场馆日场9:00–17:00，15:00停止入场，周一通常闭馆，国定假日除外。美洲古代文明大展期间须预约购票并携带有效证件原件，从南门核验；夜场安排需另查官方公告。",
+          "topics": [
+            "opening",
+            "reservation",
+            "ticket"
+          ]
+        },
+        {
+          "id": "group",
+          "heading": "参观须知／团队",
+          "excerpt": "",
+          "summary": "整理摘要：20人及以上团队须至少提前7天（不含当天）电话预约，名额有限；材料、人数等需符合馆方要求，不能据此保证预约或入馆成功。",
+          "topics": [
+            "reservation"
+          ]
+        },
+        {
+          "id": "family",
+          "heading": "服务项目／寄物",
+          "excerpt": "",
+          "summary": "整理摘要：南门寄存处可借轮椅和婴儿童车，需300元押金或有效证件，仅供馆内使用。此服务信息未标发布日期，不等于入馆票务承诺。",
+          "topics": [
+            "children",
+            "accessibility",
+            "services"
+          ]
+        },
+        {
+          "id": "photo",
+          "heading": "其他注意事项／摄影",
+          "excerpt": "",
+          "summary": "整理摘要：禁止闪光灯、自拍杆和支架类摄影器材；涉及合作展览版权协议时可能禁止拍摄展品，须遵守现场标志。",
+          "topics": [
+            "safety"
+          ]
+        }
+      ],
+      "reviewed_text_sha256": "b6f073153e8e5e0e96b652390233ff71361d5789ee456b6450ea1dd8c6b2d501"
+    },
+    {
+      "id": "museum-east",
+      "title": "上海博物馆东馆｜开放信息与服务",
+      "venue_id": "museum_east",
+      "url": "https://www.shanghaimuseum.cn/mu/frontend/pg/service/visit-east",
+      "publisher": "上海博物馆",
+      "kind": "standing",
+      "fetched_at": "2026-10-13T08:33:09Z",
+      "published_at": null,
+      "updated_at": null,
+      "effective_from": "2024-09-15",
+      "effective_until": null,
+      "content_version": "2026-10-13.1",
+      "applicability": "须知注明2024-09-15起实行，页面未标最后更新时间；互动空间和收费特展不能套用普通散客规则。出发前核对官方最新说明。 本条保留v1人工整理记录及原获取时间，本轮未重新读取原网页；reviewed_text_sha256对应仓库外留存的原v1整理对象文本，不是原网页正文哈希。",
+      "reuse_basis": "官方公开网页；仅必要短摘录和独立整理摘要并附原链接，未取得全文转载授权，不复制整站。",
+      "sections": [
+        {
+          "id": "entry",
+          "heading": "开放信息／场馆入口",
+          "excerpt": "散客免预约",
+          "summary": "整理摘要：东馆10:00–18:00，17:00停止入场，周二闭馆（国定节假日除外）。普通散客持有效证件原件经B1东门安检刷证；免预约不包括数字馆、古代文明探索宫等需专项预约的互动空间，收费特展另看公告。",
+          "topics": [
+            "opening",
+            "reservation"
+          ]
+        },
+        {
+          "id": "experience",
+          "heading": "参观须知／专项预约",
+          "excerpt": "",
+          "summary": "整理摘要：数字馆、古代文明探索宫仍须提前预约，在东馆预约界面选择专项预约。不能将散客免预约理解为互动体验免预约。",
+          "topics": [
+            "reservation",
+            "children"
+          ]
+        },
+        {
+          "id": "family",
+          "heading": "服务项目／便民服务",
+          "excerpt": "",
+          "summary": "整理摘要：东馆有母婴室、无障碍电梯；轮椅和婴儿童车租借需300元押金或有效证件，仅限馆内。1层可寄大件行李，B1自助寄物柜仅存小件。",
+          "topics": [
+            "children",
+            "accessibility",
+            "luggage"
+          ]
+        },
+        {
+          "id": "group",
+          "heading": "参观须知／团队入口",
+          "excerpt": "",
+          "summary": "整理摘要：20人及以上团队提前7天（不含当天）电话预约，限额管理，备齐规定材料后从1楼北门团队通道入馆；并非散客B1东门通道。",
+          "topics": [
+            "reservation"
+          ]
+        }
+      ],
+      "reviewed_text_sha256": "268ce51627adc0d3e3881340fa4f71eb03e4d5a38e36843c2c22d9871505b134"
+    },
+    {
+      "id": "natural-visit",
+      "title": "上海自然博物馆｜参观咨询",
+      "venue_id": "natural",
+      "url": "https://www.snhm.org.cn/cgfw/cgzx.htm",
+      "publisher": "上海自然博物馆",
+      "kind": "standing",
+      "fetched_at": "2026-10-13T08:33:09Z",
+      "published_at": null,
+      "updated_at": null,
+      "effective_from": null,
+      "effective_until": null,
+      "content_version": "2026-10-13.1",
+      "applicability": "无明确发布、生效或更新时间；页面的化石挖掘概述写现场预约，细则写官网／微信预约，须向馆方确认；学校周二活动与周二闭馆说明的适用关系不明。 本条保留v1人工整理记录及原获取时间，本轮未重新读取原网页；reviewed_text_sha256对应仓库外留存的原v1整理对象文本，不是原网页正文哈希。",
+      "reuse_basis": "官方公开网页；仅必要短摘录和独立整理摘要并附原链接，未取得全文转载授权，不复制整站。",
+      "sections": [
+        {
+          "id": "entry",
+          "heading": "开放时间／参观须知",
+          "excerpt": "周二休馆，国定假日除外",
+          "summary": "整理摘要：开放9:00–17:00，16:00停止入馆，通常周二闭馆，国定假日除外；调整另行公告。参观须线上实名购票、携二代身份证原件接受安检和现场检票。",
+          "topics": [
+            "opening",
+            "reservation",
+            "ticket"
+          ]
+        },
+        {
+          "id": "child",
+          "heading": "票价目表／免费人群与陪同",
+          "excerpt": "",
+          "summary": "整理摘要：页面列1.3米（含）以下或6周岁（含）以下儿童为免票人群，需遵守证件要求；1.3米以下儿童应由亲友陪同。不能据此保证预约或其他项目免费。",
+          "topics": [
+            "ticket",
+            "children"
+          ]
+        },
+        {
+          "id": "fossil",
+          "heading": "探索中心／化石挖掘预约",
+          "excerpt": "",
+          "summary": "整理摘要：细则写每天8:35通过官网或微信预约当天化石挖掘，限身高1.0–1.3米儿童，须现场测量，提前15分钟确认；教育活动不另收费但需购入馆票。概述却写现场预约，渠道差异需核实。",
+          "topics": [
+            "reservation",
+            "children"
+          ]
+        },
+        {
+          "id": "services",
+          "heading": "游客服务中心／服务项目",
+          "excerpt": "",
+          "summary": "整理摘要：一楼游客服务中心提供轮椅、婴儿车、拐杖和针线等便民服务，以及失物招领、寻人广播、大件行李寄存。",
+          "topics": [
+            "services",
+            "children",
+            "accessibility",
+            "luggage"
+          ]
+        }
+      ],
+      "reviewed_text_sha256": "94b8153044d91eeb5c5934025b715182d8c7adbf0f56853b49e9ade39ea2ade6"
+    },
+    {
+      "id": "natural-school",
+      "title": "上海自然博物馆｜团体预约",
+      "venue_id": "natural",
+      "url": "https://www.snhm.org.cn/cgfw/ttyy.htm",
+      "publisher": "上海自然博物馆",
+      "kind": "standing",
+      "fetched_at": "2026-10-13T08:33:09Z",
+      "published_at": null,
+      "updated_at": null,
+      "effective_from": null,
+      "effective_until": null,
+      "content_version": "2026-10-14.1",
+      "applicability": "页面未标日期，仅说明学校团体的课程预约，不能推及普通团队入馆或一般游客开放日；具体适用情况需向馆方确认。 本条保留v1人工整理记录及原获取时间，本轮未重新读取原网页；reviewed_text_sha256对应仓库外留存的原v1整理对象文本，不是原网页正文哈希。",
+      "reuse_basis": "官方公开网页；仅必要短摘录和独立整理摘要并附原链接，未取得全文转载授权，不复制整站。",
+      "sections": [
+        {
+          "id": "school",
+          "heading": "团体预约",
+          "excerpt": "仅针对的是学校团体",
+          "summary": "整理摘要：此页的团体预约对象为学校团体，列周二至周五，教师按年龄和课件选择；预约电话021-62620261或021-68622000转5038。未说明所有成人旅游团适用。",
+          "topics": [
+            "reservation",
+            "children"
+          ]
+        }
+      ],
+      "reviewed_text_sha256": "df5553bf335d778b31c8d9cb11d3565a8531814c2590c0cb76c4f9a8beba2b4e"
+    },
+    {
+      "id": "natural-education",
+      "title": "上海自然博物馆｜活动课程筛选",
+      "venue_id": "natural",
+      "url": "https://www.snhm.org.cn/jyhd/index.htm",
+      "publisher": "上海自然博物馆",
+      "kind": "catalog",
+      "fetched_at": "2026-10-13T08:33:09Z",
+      "published_at": null,
+      "updated_at": null,
+      "effective_from": null,
+      "effective_until": null,
+      "content_version": "2026-10-13.1",
+      "applicability": "仅收录页面的筛选分类；动态课程余量和具体场次未收录，不代表任何活动可预约。来源无发布日期。 本条保留v1人工整理记录及原获取时间，本轮未重新读取原网页；reviewed_text_sha256对应仓库外留存的原v1整理对象文本，不是原网页正文哈希。",
+      "reuse_basis": "官方公开网页；仅必要短摘录和独立整理摘要并附原链接，未取得全文转载授权，不复制整站。",
+      "sections": [
+        {
+          "id": "audience",
+          "heading": "活动课程／受众人群",
+          "excerpt": "亲子",
+          "summary": "整理摘要：课程页提供幼儿园、小学、初高中、亲子和成人等受众分类，活动类型含学习单、小小博物家、化石挖掘等。这些是目录分类，不是当日可预约课程清单。",
+          "topics": [
+            "children",
+            "other"
+          ]
+        }
+      ],
+      "reviewed_text_sha256": "bba14cadde3d95fc946964e50214cb523daf7e0b8fe684dea4ca003c7a4ebe96"
+    },
+    {
+      "id": "people-2025",
+      "title": "人民广场馆2025年试行免预约公告（历史）",
+      "venue_id": "museum_people",
+      "url": "https://www.meet-in-shanghai.net/tc/news/the-peoples-square-pavilion-of-the-shanghai-museum-will-be-available-for-trial-visits-without-an-appointment-from-september-1-421453/",
+      "publisher": "上海市文化和旅游局官方旅游网站（来源：乐游上海；馆方公告）",
+      "kind": "historical",
+      "fetched_at": "2026-10-13T08:33:09Z",
+      "published_at": "2025-08-26",
+      "updated_at": null,
+      "effective_from": "2025-09-01",
+      "effective_until": null,
+      "content_version": "2026-10-14.1",
+      "applicability": "网页发布2025-08-26，内嵌馆方公告署名2025-08-25。历史试行说明，未写失效日，不能直接用于当前入馆；请核对最新官方须知。 本条保留v1人工整理记录及原获取时间，本轮未重新读取原网页；reviewed_text_sha256对应仓库外留存的原v1整理对象文本，不是原网页正文哈希。",
+      "reuse_basis": "官方公开网页；仅必要短摘录和独立整理摘要并附原链接，未取得全文转载授权，不复制整站。",
+      "sections": [
+        {
+          "id": "booking",
+          "heading": "2025试行公告／散客与例外",
+          "excerpt": "試行散客免預約憑證入館參觀",
+          "summary": "整理摘要：2025公告称9月1日起试行散客凭证免预约，但国定假日、寒暑假及热门特展高峰仍需预约；当时列16:00停止入场。",
+          "topics": [
+            "opening",
+            "reservation"
+          ]
+        }
+      ],
+      "reviewed_text_sha256": "985611598a2932f5b194c042201bcfd1bd2c8150831d04d7f0595e50e16945b3"
+    },
+    {
+      "id": "ubr-entry",
+      "title": "北京环球影城｜预约及室外天气提示",
+      "venue_id": "beijing-universal",
+      "url": "https://www.universalbeijingresort.com/zh_CN/ubrbasepage/anquanzhinan",
+      "publisher": "北京环球度假区",
+      "kind": "standing",
+      "fetched_at": "2026-10-23T20:29:20Z",
+      "published_at": null,
+      "updated_at": null,
+      "effective_from": null,
+      "effective_until": null,
+      "content_version": "2026-10-24.1",
+      "applicability": "仅整理同页“入园及预约”和“室外天气影响”；预约条款明确自2023-06-12起，天气条款无日期，不能把该生效日套用于整页。页面另有2026年限时装扮活动，本条未收录，不作为常年规定。无最后更新时间，不保证今天适用或任何项目开放。",
+      "reuse_basis": "官方公开网页；仅必要短摘录和人工整理摘要，附原链接，未取得全文转载授权；不复制整站，不把摘要标为官方原话。",
+      "reviewed_text_sha256": "eedf6398375dc8afa2120a38f434bb319b019ca8319c48dd9f1aa9e11bfa1faf",
+      "sections": [
+        {
+          "id": "reservation",
+          "heading": "入园及预约／票种区别",
+          "excerpt": "持指定日门票的游客进入北京环球影城无需预约。",
+          "summary": "整理摘要：该提示区分票种：自2023年6月12日起，非指定日门票持有者及年卡用户入园前须线上预约；指定日门票持有者无需另行预约。仍须符合所持门票和现场入园要求，不能据此保证获得名额。",
+          "topics": [
+            "reservation",
+            "ticket"
+          ]
+        },
+        {
+          "id": "weather",
+          "heading": "室外天气影响／设施运营",
+          "excerpt": "部分室外景点、演出、骑乘设施",
+          "summary": "整理摘要：部分室外景点、演出和骑乘设施可能因雨雪、雷电、气温等天气调整运营或开放。具体情况需查官方App、支付宝或微信小程序；本地资料没有旅行当天开放状态。",
+          "topics": [
+            "safety",
+            "other"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "ubr-family",
+      "title": "北京环球影城｜家庭、轮椅及寄存常见问题",
+      "venue_id": "beijing-universal",
+      "url": "https://www.universalbeijingresort.com/zh_CN/contact/faq",
+      "publisher": "北京环球度假区",
+      "kind": "standing",
+      "fetched_at": "2026-10-23T20:29:20Z",
+      "published_at": null,
+      "updated_at": null,
+      "effective_from": null,
+      "effective_until": null,
+      "content_version": "2026-10-24.1",
+      "applicability": "仅收录FAQ中家庭中心、婴儿车、轮椅和行李部分。FAQ未标发布或更新时间，其他条目含旧疫情措辞，本条不据此判断实时票务、入园资格或现行优惠。北京环球城市大道与主题公园是不同范围，服务位置按各节区分。",
+      "reuse_basis": "官方公开网页；仅必要短摘录和人工整理摘要，附原链接，未取得全文转载授权；不复制整站，不把摘要标为官方原话。",
+      "reviewed_text_sha256": "aa86ceaba6ea110d593e1630a38b59992c8e3f762dd8219d2778cea8b67c091a",
+      "sections": [
+        {
+          "id": "children",
+          "heading": "幼童与婴儿／家庭中心",
+          "excerpt": "好莱坞景区设有家庭中心",
+          "summary": "整理摘要：FAQ介绍北京环球影城好莱坞景区有家庭中心，可照料婴儿或喂奶；该景区租赁服务中心提供婴儿车租赁。没有收录租金、可用数量或项目乘坐资格。",
+          "topics": [
+            "children",
+            "services"
+          ]
+        },
+        {
+          "id": "accessibility",
+          "heading": "轮椅租赁／办理地点",
+          "excerpt": "请持有效身份证件",
+          "summary": "整理摘要：FAQ称影城入口及北京环球城市大道提供轮椅租赁；办理需有效身份证件，可到城市大道附近人行枢纽二楼租赁处或主题公园主入口附近婴儿车领取处咨询。未收录费用和即时余量。",
+          "topics": [
+            "accessibility",
+            "services"
+          ]
+        },
+        {
+          "id": "luggage",
+          "heading": "寄存柜与大件行李",
+          "excerpt": "不能带入主题公园",
+          "summary": "整理摘要：FAQ称公园入口和城市大道有寄存服务。超过长56厘米、宽36厘米、高23厘米尺寸的背包或容器仅可存放于行李寄存服务中心，不能带入主题公园。未收录费用，须以现场要求为准。",
+          "topics": [
+            "luggage",
+            "safety"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "gdm-visit",
+      "title": "广东省博物馆｜参观指南",
+      "venue_id": "guangzhou-guangdong-museum",
+      "url": "https://www.gdmuseum.org.cn/col666/list",
+      "publisher": "广东省博物馆",
+      "kind": "standing",
+      "fetched_at": "2026-10-23T20:29:20Z",
+      "published_at": null,
+      "updated_at": null,
+      "effective_from": null,
+      "effective_until": null,
+      "content_version": "2026-10-24.1",
+      "applicability": "本条为广州珠江新城馆址参观指南，不是广州鲁迅纪念馆规则。网页未标发布、生效及更新时间。全员预约之外另列特殊人群现场登记条款，不能把普通预约段落解释为没有例外；出发前核对官方最新规定。",
+      "reuse_basis": "官方公开网页；仅必要短摘录和人工整理摘要，附原链接，未取得全文转载授权；不复制整站，不把摘要标为官方原话。",
+      "reviewed_text_sha256": "ecbd15f1e61cc1a61ef10285eb76554f7358ec049f8fdba2fbe78460002675db",
+      "sections": [
+        {
+          "id": "reservation",
+          "heading": "普通参观／实名分时预约",
+          "excerpt": "全员（含儿童）分时段实名制预约",
+          "summary": "整理摘要：指南列普通参观全员含儿童实名分时预约，页面放票时间为22:00。观众需按预约日期、时段，持身份证从西门散客通道核验；预约仅当次有效。另有特殊人群现场登记条款，不可把这一段单独当全部人群规则。",
+          "topics": [
+            "reservation"
+          ]
+        },
+        {
+          "id": "opening",
+          "heading": "正常开放时间／节假日例外",
+          "excerpt": "法定节假日除外",
+          "summary": "整理摘要：正常周二至周日9:00—17:00开放，16:00停止入场；周一闭馆，但法定节假日除外，特殊情况另行公告。页面无更新日，本资料不能确认特定日期一定开放。",
+          "topics": [
+            "opening"
+          ]
+        },
+        {
+          "id": "children",
+          "heading": "儿童预约及特殊人群登记",
+          "excerpt": "6岁(含)以下儿童不能单独预约",
+          "summary": "整理摘要：页面规定6岁及以下儿童不能单独预约，订单最多预约5人。同页另列残障人士、65周岁及以上老人等特殊人群可凭有效证件现场登记，可有1名陪护；不能据此推断所有同行人免预约或全部项目免费。",
+          "topics": [
+            "children",
+            "accessibility",
+            "reservation"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "cdm-guide",
+      "title": "成都博物馆｜参观指南",
+      "venue_id": "chengdu-museum",
+      "url": "https://www.cdmuseum.com/zhinan/",
+      "publisher": "成都博物馆",
+      "kind": "standing",
+      "fetched_at": "2026-10-23T20:29:20Z",
+      "published_at": null,
+      "updated_at": null,
+      "effective_from": null,
+      "effective_until": null,
+      "content_version": "2026-10-24.1",
+      "applicability": "适用天府广场西侧成都博物馆，不是成都自然博物馆。网页未标发布、更新或生效日；周五周六延时段明确标“周末儿童博物馆”，不保证所有展厅及活动同时开放。预约入口存在不等于已收录完整预约制度；本条不裁决实时名额。",
+      "reuse_basis": "官方公开网页；仅必要短摘录和人工整理摘要，附原链接，未取得全文转载授权；不复制整站，不把摘要标为官方原话。",
+      "reviewed_text_sha256": "2ad66c25cdd2136d5ab547575dab3775f22c3d6e12e1b027ac6be4f48460b822",
+      "sections": [
+        {
+          "id": "opening",
+          "heading": "开放时间／周末儿童博物馆",
+          "excerpt": "周一闭馆（法定节假日除外）",
+          "summary": "整理摘要：指南列周二至周四、周日9:00—17:00，16:30停止入馆；周五周六的“周末儿童博物馆”列9:00—20:30，20:00停止入馆；周一闭馆，法定节假日除外。未说明全部展厅是否均适用延时。",
+          "topics": [
+            "opening",
+            "children"
+          ]
+        },
+        {
+          "id": "children",
+          "heading": "游览安全／需要监护陪伴的人群",
+          "excerpt": "需有监护人陪伴方能入馆",
+          "summary": "整理摘要：幼童、高龄老人、行动不便或身体有潜在疾病的观众需监护人陪伴。指南此段没有给具体年龄界限，不自行推算儿童票价或免预约条件。",
+          "topics": [
+            "children",
+            "accessibility",
+            "safety"
+          ]
+        },
+        {
+          "id": "photo",
+          "heading": "允许拍照展览／器材限制",
+          "excerpt": "允许拍照的展览",
+          "summary": "整理摘要：在允许拍照的展览中，请勿使用闪光灯、自拍杆和脚架；这不是所有展览都允许拍照的承诺，仍需服从现场标识。",
+          "topics": [
+            "safety"
+          ]
+        },
+        {
+          "id": "services",
+          "heading": "一楼咨询台及南楼寄存",
+          "excerpt": "南楼处寄存包裹",
+          "summary": "整理摘要：一楼咨询台提供问询、导览、讲解及特殊需求协助；南楼可寄存包裹。未收录收费、柜位余量或全部物品可寄存的承诺。",
+          "topics": [
+            "services",
+            "luggage"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "chimelong-paradise-notice",
+      "title": "广州长隆欢乐世界｜天气与承载量须知",
+      "venue_id": "guangzhou-chimelong-paradise",
+      "url": "https://www.chimelong.com/gz/chimelongparadise/notice/",
+      "publisher": "长隆度假区",
+      "kind": "standing",
+      "fetched_at": "2026-10-23T20:29:20Z",
+      "published_at": null,
+      "updated_at": null,
+      "effective_from": null,
+      "effective_until": null,
+      "content_version": "2026-10-24.1",
+      "applicability": "仅适用广州长隆欢乐世界，不可套用于长隆野生动物世界、水上乐园或珠海海洋王国。本条只收录常规天气、承载量段落；同页2026年“欢乐异世界”限时规则未收录，不当常年规则。页面未标更新时间，具体开放以现场公告为准。",
+      "reuse_basis": "官方公开网页；仅必要短摘录和人工整理摘要，附原链接，未取得全文转载授权；不复制整站，不把摘要标为官方原话。",
+      "reviewed_text_sha256": "408f1bbded5eeb3bec319de9c16ae4719c6c965f8bd67385a42e18c84db68122",
+      "sections": [
+        {
+          "id": "weather",
+          "heading": "出行天气／户外设施临时管控",
+          "excerpt": "具体设施开放情况以园区当天的现场公告为准",
+          "summary": "整理摘要：下雨、大风等天气可能使户外设施出于安全考虑暂停；天气好转并经安全检测后才可能继续开放，期间可选择室内设施。具体项目以当天现场公告为准，本条不是实时停运或重开查询。",
+          "topics": [
+            "safety",
+            "other"
+          ]
+        },
+        {
+          "id": "capacity",
+          "heading": "游客承载量／入园管控",
+          "excerpt": "景区瞬时承载量7万人",
+          "summary": "整理摘要：页面列日最大接待能力15万人、瞬时承载量7万人，达到相应数值会实施管控。这是承载量说明，不是实时在园人数、剩余票量或可入园保证。",
+          "topics": [
+            "safety",
+            "other"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "sz-hv-notice",
+      "title": "深圳欢乐谷｜游客须知",
+      "venue_id": "shenzhen-happy-valley",
+      "url": "https://sz.happyvalley.cn/frmnotice.aspx",
+      "publisher": "深圳欢乐谷",
+      "kind": "standing",
+      "fetched_at": "2026-10-23T20:29:20Z",
+      "published_at": null,
+      "updated_at": null,
+      "effective_from": null,
+      "effective_until": null,
+      "content_version": "2026-10-24.1",
+      "applicability": "适用深圳欢乐谷，不是天津、北京或其他欢乐谷。页面没有发布、生效或更新时间，不收录页眉动态“今日”营业时间为长期规则。儿童身高边界按原文“1.5米以下”保留，不额外增加“含”；出发前核对最新官方及现场公告。",
+      "reuse_basis": "官方公开网页；仅必要短摘录和人工整理摘要，附原链接，未取得全文转载授权；不复制整站，不把摘要标为官方原话。",
+      "reviewed_text_sha256": "186b5d24f522078ba8f841a2d16987083f9021ac1ab62d3f94ad7e8f3c8cc637",
+      "sections": [
+        {
+          "id": "ticket",
+          "heading": "门票使用／再次入园",
+          "excerpt": "出园后再次入园须重新购票",
+          "summary": "整理摘要：游客须知称门票在有效期内仅供本人使用且一次有效，出园后再次入园需重新购票，过期作废；应通过官方渠道购买。没有收录特殊产品条款或即时票价，不推及其他公园。",
+          "topics": [
+            "ticket"
+          ]
+        },
+        {
+          "id": "children",
+          "heading": "陪同条件／儿童、长者与残障人士",
+          "excerpt": "身高1.5米以下的儿童",
+          "summary": "整理摘要：身高1.5米以下儿童、70周岁以上长者及残障人士须由具有安全监护能力的成人陪同入园；监护人应持续看护未成年人。这里是陪同条件，不是免票标准，也不自行添加边界等号。",
+          "topics": [
+            "children",
+            "accessibility",
+            "safety"
+          ]
+        },
+        {
+          "id": "weather",
+          "heading": "设施及表演／临时开放变化",
+          "excerpt": "可能因天气、设备故障、检修或其他原因",
+          "summary": "整理摘要：部分设备、表演可能因天气、故障、检修等调整时间或关闭，须留意官网和售票窗告示；闭园将至时项目还可能提前结束排队。没有实时设施开放与队列信息。",
+          "topics": [
+            "safety",
+            "other"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "cqtgm-guides",
+      "title": "重庆中国三峡博物馆｜规范优化讲解服务通知",
+      "venue_id": "chongqing-three-gorges",
+      "url": "https://www.3gmuseum.cn/web/article/1432034472487231488/web/content_1432034472487231488.html",
+      "publisher": "重庆中国三峡博物馆",
+      "kind": "standing",
+      "fetched_at": "2026-10-23T20:29:20Z",
+      "published_at": "2025-02-13",
+      "updated_at": null,
+      "effective_from": "2025-02-13",
+      "effective_until": null,
+      "content_version": "2026-10-24.1",
+      "applicability": "通知发布2025-02-13，并明确自发布日起施行；来源未给后续更新或失效日，不代表本轮确认其今天仍无变化。适用重庆人民路馆区讲解与研学服务，不是宋庆龄纪念馆或白鹤梁水下博物馆规则，也不替代普通入馆预约。",
+      "reuse_basis": "官方公开网页；仅必要短摘录和人工整理摘要，附原链接，未取得全文转载授权；不复制整站，不把摘要标为官方原话。",
+      "reviewed_text_sha256": "5e25a2e74d621f4a9be15e24b431e62884165551d800a25dc1fcbbfc3650fe2a",
+      "sections": [
+        {
+          "id": "tours",
+          "heading": "人工讲解与志愿服务",
+          "excerpt": "当日服务信息可通过官方公众号查询",
+          "summary": "整理摘要：通知提供专职人工收费讲解，可在周二至周日拨023-63679066或63679067预约，也可进馆后到大厅前台咨询；志愿讲解有定时定点服务，当日信息需查官方公众号。未收录具体收费标准及实时名额。",
+          "topics": [
+            "services",
+            "reservation"
+          ]
+        },
+        {
+          "id": "external-guides",
+          "heading": "馆外讲解及研学／须先获许可",
+          "excerpt": "须提前3日提出申请",
+          "summary": "整理摘要：未经馆方许可，单位或个人不能在馆内开展讲解、研学；馆外单位开展讲解须提前3日申请并提交规定材料。这是业务活动准入，不等于普通游客入馆须提前3日预约。",
+          "topics": [
+            "services",
+            "reservation",
+            "safety"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "suzhou-west-catalog",
+      "title": "苏州博物馆西馆｜基本陈列与探索体验馆",
+      "venue_id": "suzhou-museum-west",
+      "url": "https://dx.szmuseum.com/views/NewsDetails.aspx?guid=7543ca69-e4db-47b6-a418-f3a1b4776b08",
+      "publisher": "苏州博物馆",
+      "kind": "catalog",
+      "fetched_at": "2026-10-23T20:29:20Z",
+      "published_at": null,
+      "updated_at": null,
+      "effective_from": null,
+      "effective_until": null,
+      "content_version": "2026-10-24.1",
+      "applicability": "仅为西馆基本陈列目录，不是东北街本馆。来源无发布、更新及生效日；楼层、主题和目标受众不是开放、预约、票价或实时场次承诺。未收录西馆现行预约规则，不能据目录保证进入体验空间。",
+      "reuse_basis": "官方公开网页；仅必要短摘录和人工整理摘要，附原链接，未取得全文转载授权；不复制整站，不把摘要标为官方原话。",
+      "reviewed_text_sha256": "63f5b998d9dee1416de783f9b3f7460418d93ed85ba246cb49e297aadb8fd23f",
+      "sections": [
+        {
+          "id": "exploration",
+          "heading": "探索体验馆／空间与目标受众",
+          "excerpt": "聚焦3-12岁青少年的全面发展",
+          "summary": "整理摘要：西馆探索体验馆位于地下一层，以展教结合方式面向3—12岁青少年发展。这是介绍中的目标受众，不代表严格入场年龄、免费资格或免预约，实际参与条件未收录。",
+          "topics": [
+            "children",
+            "services"
+          ]
+        },
+        {
+          "id": "exhibitions",
+          "heading": "一层通史陈列／纯粹江南",
+          "excerpt": "展出基本陈列“纯粹江南”",
+          "summary": "整理摘要：西馆一层通史陈列为“纯粹江南”，以城、史、人为线索介绍从三山岛旧石器时代至辛亥革命的苏州历史。仅用于了解展览主题，不保证查询当日展厅开放。",
+          "topics": [
+            "other"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "tea-shuangfeng-profile",
+      "title": "中国茶叶博物馆双峰馆区｜馆区身份资料",
+      "venue_id": "hangzhou-tea-shuangfeng",
+      "url": "https://www.teamuseum.cn/basicInfo/basicIntroduction.htm",
+      "publisher": "中国茶叶博物馆",
+      "kind": "catalog",
+      "fetched_at": "2026-10-23T20:29:20Z",
+      "published_at": null,
+      "updated_at": null,
+      "effective_from": null,
+      "effective_until": null,
+      "content_version": "2026-10-24.1",
+      "applicability": "本条只摘取基本介绍中双峰馆区身份和地址；同页还介绍龙井馆区，本条不把两区混成一个地点。来源未标发布或更新时间，尚未收录当前预约、票价、开放时间和临时活动，不从馆区介绍推断免预约或可入场。",
+      "reuse_basis": "官方公开网页；仅必要短摘录和人工整理摘要，附原链接，未取得全文转载授权；不复制整站，不把摘要标为官方原话。",
+      "reviewed_text_sha256": "127455aa8f7078539ff3af7dbc1902737e4a795a3d37b5ee53bb6bb7caed2b7b",
+      "sections": [
+        {
+          "id": "campus",
+          "heading": "双峰馆区／与龙井馆区区分",
+          "excerpt": "双峰馆区(龙井路88号)",
+          "summary": "整理摘要：中国茶叶博物馆位于杭州，双峰馆区地址为龙井路88号；同一机构的龙井馆区地址另为翁家山268号。选择场馆时需区分两处地点，本条没有现行参观预约规则。",
+          "topics": [
+            "transport",
+            "other"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "hb-visit",
+      "title": "湖北省博物馆｜开放服务及儿童入馆",
+      "venue_id": "wuhan-hubei-museum",
+      "url": "https://hbww.org.cn/fuwu/index.html",
+      "publisher": "湖北省博物馆",
+      "kind": "standing",
+      "fetched_at": "2026-10-23T20:29:20Z",
+      "published_at": null,
+      "updated_at": null,
+      "effective_from": null,
+      "effective_until": null,
+      "content_version": "2026-10-24.1",
+      "applicability": "适用武汉湖北省博物馆主馆，不是云梦分馆；页面无明确发布、更新及生效日，并混列“暑期8月31日前”时段但未写年份。散客段列多渠道，团队段称仅官网，须区分人群；不据此确认今天的放票时间、实时余量或最新渠道。请向馆方核实适用性。",
+      "reuse_basis": "官方公开网页；仅必要短摘录和人工整理摘要，附原链接，未取得全文转载授权；不复制整站，不把摘要标为官方原话。",
+      "reviewed_text_sha256": "4ccbce84d5369b34e76ff4a1f23e1373fc326ef3cd463d957fa05a8f41bc825f",
+      "sections": [
+        {
+          "id": "reservation",
+          "heading": "散客实名预约／未注明年份的暑期段落",
+          "excerpt": "预约最多可提前5天",
+          "summary": "整理摘要：散客段列官网、官方公众号、美团、湖北文旅之声及鄂汇办的实名预约。页面称最多提前5天，并混列未注明年份的暑期开放段落；本条不能确定今天的放票时刻和适用时段。团队另有独立规则，不混用散客渠道。",
+          "topics": [
+            "reservation",
+            "opening"
+          ]
+        },
+        {
+          "id": "children",
+          "heading": "儿童预约及无实体身份证情况",
+          "excerpt": "每位成人最多携带两名儿童",
+          "summary": "整理摘要：页面要求儿童预约。无身份证原件的儿童由家长在预约界面添加儿童身份证号等信息，预约成功后刷家长身份证并展示订单核对后同行入馆；每位成人最多携带两名儿童。此段不等于免票或无需预约，现行适用性仍须核实。",
+          "topics": [
+            "children",
+            "reservation"
+          ]
+        },
+        {
+          "id": "luggage",
+          "heading": "大件与小件寄存／位置",
+          "excerpt": "北门出口大件物品寄存处",
+          "summary": "整理摘要：页面介绍大件可在北门出口寄存处免费存放，小件在南馆负一楼寄存处存放；普通个人参观入口为南大门。不要把寄存地点当成入馆入口，未收录柜位余量及所有物品可寄存的条件。",
+          "topics": [
+            "luggage",
+            "services"
+          ]
+        }
+      ]
+    }
+  ]
+}

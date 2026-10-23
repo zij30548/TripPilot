@@ -5,7 +5,7 @@ import ProductShell from "./product-shell";
 const route = vi.hoisted(() => ({ pathname: "/" }));
 vi.mock("next/navigation", () => ({ usePathname: () => route.pathname }));
 vi.mock("./chat/conversation-workspace", () => ({ default: () => <section aria-label="纯聊天"><textarea aria-label="未发送内容" /></section> }));
-vi.mock("./knowledge-search", () => ({ default: () => <section aria-label="资料页"><input aria-label="资料问题" /></section> }));
+vi.mock("./knowledge-national-search", () => ({ default: () => <section aria-label="资料页"><input aria-label="资料问题" /></section> }));
 vi.mock("./evaluation-workspace", () => ({ default: ({ active }: { active: boolean }) => <section aria-label="评测页" data-active={active}>执行回执</section> }));
 
 describe("three-surface persistent product shell", () => {

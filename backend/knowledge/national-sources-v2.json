@@ -1,0 +1,134 @@
+{
+  "schema_version": "knowledge-sources-v2",
+  "corpus_version": "2026-10-24.1",
+  "sources": [
+    {
+      "document_id": "museum-west",
+      "venue_id": "museum_people",
+      "url": "https://www.shanghaimuseum.cn/mu/frontend/pg/service/visit-west",
+      "content_version": "2026-10-14.1",
+      "reviewed_text_sha256": "b6f073153e8e5e0e96b652390233ff71361d5789ee456b6450ea1dd8c6b2d501",
+      "document_sha256": "8299ead376aaff7d5afd08963f767b18c0b09ecca14ebf61fefa0ec28a2272d4"
+    },
+    {
+      "document_id": "museum-east",
+      "venue_id": "museum_east",
+      "url": "https://www.shanghaimuseum.cn/mu/frontend/pg/service/visit-east",
+      "content_version": "2026-10-13.1",
+      "reviewed_text_sha256": "268ce51627adc0d3e3881340fa4f71eb03e4d5a38e36843c2c22d9871505b134",
+      "document_sha256": "6144c75b4961eec31778b8264c1b28d3fc12bb17a4e7468999d9afb2563938e4"
+    },
+    {
+      "document_id": "natural-visit",
+      "venue_id": "natural",
+      "url": "https://www.snhm.org.cn/cgfw/cgzx.htm",
+      "content_version": "2026-10-13.1",
+      "reviewed_text_sha256": "94b8153044d91eeb5c5934025b715182d8c7adbf0f56853b49e9ade39ea2ade6",
+      "document_sha256": "0e0815b919d00e1be2693438653c74b254aba45a87b946cac9a53e7776b1037e"
+    },
+    {
+      "document_id": "natural-school",
+      "venue_id": "natural",
+      "url": "https://www.snhm.org.cn/cgfw/ttyy.htm",
+      "content_version": "2026-10-14.1",
+      "reviewed_text_sha256": "df5553bf335d778b31c8d9cb11d3565a8531814c2590c0cb76c4f9a8beba2b4e",
+      "document_sha256": "29b0431b93bfe2e672979244e2fc279f50b7404cf77e56c2c15ef8de38e4af63"
+    },
+    {
+      "document_id": "natural-education",
+      "venue_id": "natural",
+      "url": "https://www.snhm.org.cn/jyhd/index.htm",
+      "content_version": "2026-10-13.1",
+      "reviewed_text_sha256": "bba14cadde3d95fc946964e50214cb523daf7e0b8fe684dea4ca003c7a4ebe96",
+      "document_sha256": "6da0379228133cd35867949301311aa441c02b2757fa327cda102a9e05145fec"
+    },
+    {
+      "document_id": "people-2025",
+      "venue_id": "museum_people",
+      "url": "https://www.meet-in-shanghai.net/tc/news/the-peoples-square-pavilion-of-the-shanghai-museum-will-be-available-for-trial-visits-without-an-appointment-from-september-1-421453/",
+      "content_version": "2026-10-14.1",
+      "reviewed_text_sha256": "985611598a2932f5b194c042201bcfd1bd2c8150831d04d7f0595e50e16945b3",
+      "document_sha256": "b054f1cbadd3056eafa9db2ec9b12f6531fb5a449f256fbde9efb98af71f8299"
+    },
+    {
+      "document_id": "ubr-entry",
+      "venue_id": "beijing-universal",
+      "url": "https://www.universalbeijingresort.com/zh_CN/ubrbasepage/anquanzhinan",
+      "content_version": "2026-10-24.1",
+      "reviewed_text_sha256": "eedf6398375dc8afa2120a38f434bb319b019ca8319c48dd9f1aa9e11bfa1faf",
+      "document_sha256": "165dda68cb07cba7ac5c2452bdf03ea418928b3c71f8c9eac2c86306c3705283"
+    },
+    {
+      "document_id": "ubr-family",
+      "venue_id": "beijing-universal",
+      "url": "https://www.universalbeijingresort.com/zh_CN/contact/faq",
+      "content_version": "2026-10-24.1",
+      "reviewed_text_sha256": "aa86ceaba6ea110d593e1630a38b59992c8e3f762dd8219d2778cea8b67c091a",
+      "document_sha256": "3ae9fb774fead6d696ba53f428f6f56131589d111ce705a8b94438196e216c57"
+    },
+    {
+      "document_id": "gdm-visit",
+      "venue_id": "guangzhou-guangdong-museum",
+      "url": "https://www.gdmuseum.org.cn/col666/list",
+      "content_version": "2026-10-24.1",
+      "reviewed_text_sha256": "ecbd15f1e61cc1a61ef10285eb76554f7358ec049f8fdba2fbe78460002675db",
+      "document_sha256": "f68d5bac40cf68449c8b489c8d71703cf4eae89f3a59643d22a27c4568018963"
+    },
+    {
+      "document_id": "cdm-guide",
+      "venue_id": "chengdu-museum",
+      "url": "https://www.cdmuseum.com/zhinan/",
+      "content_version": "2026-10-24.1",
+      "reviewed_text_sha256": "2ad66c25cdd2136d5ab547575dab3775f22c3d6e12e1b027ac6be4f48460b822",
+      "document_sha256": "dd4161b31758ffd2850a59d1add4f5fb2cda55e6ba79a5e018bc88dd1d494359"
+    },
+    {
+      "document_id": "chimelong-paradise-notice",
+      "venue_id": "guangzhou-chimelong-paradise",
+      "url": "https://www.chimelong.com/gz/chimelongparadise/notice/",
+      "content_version": "2026-10-24.1",
+      "reviewed_text_sha256": "408f1bbded5eeb3bec319de9c16ae4719c6c965f8bd67385a42e18c84db68122",
+      "document_sha256": "39e9a265206640421f859922a3ac51a2b48ec3dd22b909f36ace90041186da16"
+    },
+    {
+      "document_id": "sz-hv-notice",
+      "venue_id": "shenzhen-happy-valley",
+      "url": "https://sz.happyvalley.cn/frmnotice.aspx",
+      "content_version": "2026-10-24.1",
+      "reviewed_text_sha256": "186b5d24f522078ba8f841a2d16987083f9021ac1ab62d3f94ad7e8f3c8cc637",
+      "document_sha256": "4ea4c987c2026876ebb92248ff828449baf7881df0ae52898231ab5ba4b7b593"
+    },
+    {
+      "document_id": "cqtgm-guides",
+      "venue_id": "chongqing-three-gorges",
+      "url": "https://www.3gmuseum.cn/web/article/1432034472487231488/web/content_1432034472487231488.html",
+      "content_version": "2026-10-24.1",
+      "reviewed_text_sha256": "5e25a2e74d621f4a9be15e24b431e62884165551d800a25dc1fcbbfc3650fe2a",
+      "document_sha256": "ead97d0f194d3c910a436ba3ea3f967fa7873566a15f9baf2186b10f4362ab12"
+    },
+    {
+      "document_id": "suzhou-west-catalog",
+      "venue_id": "suzhou-museum-west",
+      "url": "https://dx.szmuseum.com/views/NewsDetails.aspx?guid=7543ca69-e4db-47b6-a418-f3a1b4776b08",
+      "content_version": "2026-10-24.1",
+      "reviewed_text_sha256": "63f5b998d9dee1416de783f9b3f7460418d93ed85ba246cb49e297aadb8fd23f",
+      "document_sha256": "19949d89f1b86cf006a6607b23f820e142986107b639c47662aee681988d9451"
+    },
+    {
+      "document_id": "tea-shuangfeng-profile",
+      "venue_id": "hangzhou-tea-shuangfeng",
+      "url": "https://www.teamuseum.cn/basicInfo/basicIntroduction.htm",
+      "content_version": "2026-10-24.1",
+      "reviewed_text_sha256": "127455aa8f7078539ff3af7dbc1902737e4a795a3d37b5ee53bb6bb7caed2b7b",
+      "document_sha256": "2b3fcda34c55643bccb1e615a9c04ff8ba2a59a75d5a05d097c7f03e28ee5987"
+    },
+    {
+      "document_id": "hb-visit",
+      "venue_id": "wuhan-hubei-museum",
+      "url": "https://hbww.org.cn/fuwu/index.html",
+      "content_version": "2026-10-24.1",
+      "reviewed_text_sha256": "4ccbce84d5369b34e76ff4a1f23e1373fc326ef3cd463d957fa05a8f41bc825f",
+      "document_sha256": "0c244862975a84bced8d599280331d4241cf782cd50b1acb246cd79b8f4a37a6"
+    }
+  ]
+}

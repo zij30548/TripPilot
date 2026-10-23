@@ -36,6 +36,7 @@ export const CONTROLLED_ENDPOINTS = [
   ["POST", "/trips/itinerary-query"], ["POST", "/media/landmark"],
   ["POST", "/media/video-frames"], ["POST", "/saved-trips"],
   ["POST", "/knowledge/search"], ["POST", "/knowledge/answer"],
+  ["GET", "/knowledge/catalog-v2"], ["POST", "/knowledge/search-v2"],
   ["POST", "/routes/walking"], ["POST", "/routes/transit"], ["POST", "/trips/plan"],
   ["GET", "/chat/conversations"], ["POST", "/chat/conversations"],
   ["GET", "/chat/cities"],

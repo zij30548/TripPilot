@@ -16,6 +16,8 @@ export const API_ENDPOINTS = Object.freeze({
   video: "/api/media/video-frames",
   savedTrips: "/api/saved-trips",
   knowledgeSearch: "/api/knowledge/search",
+  knowledgeCatalog: "/api/knowledge/catalog-v2",
+  knowledgeSearchV2: "/api/knowledge/search-v2",
   knowledgeAnswer: "/api/knowledge/answer",
   walking: "/api/routes/walking",
   transit: "/api/routes/transit",

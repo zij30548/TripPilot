@@ -24,7 +24,7 @@ describe("trusted server-only same-origin forwarding", () => {
   it("has an explicit resource allowlist, never a user-supplied URL or catch-all", () => {
     const target = "http://127.0.0.1:18081";
     const rules = backendRewrites(target);
-    expect(Object.keys(API_ENDPOINTS)).toHaveLength(19);
+    expect(Object.keys(API_ENDPOINTS)).toHaveLength(21);
     expect(new Set(rules.map(r => r.source)).size).toBe(rules.length);
     for (const source of Object.values(API_ENDPOINTS)) {
       expect(source.startsWith("/api/")).toBe(true);
@@ -32,6 +32,10 @@ describe("trusted server-only same-origin forwarding", () => {
     }
     expect(rules).toContainEqual({ source: "/_AMapService/v3/config/district", destination: `${target}/_AMapService/v3/config/district` });
     expect(rules).toContainEqual({ source: "/api/chat/cities", destination: `${target}/chat/cities` });
+    for (const path of ["/knowledge/catalog-v2", "/knowledge/search-v2"]) {
+      expect(rules).toContainEqual({ source: `/api${path}`, destination: `${target}${path}` });
+    }
+    expect(rules.some(rule => rule.source === "/api/knowledge/:path*" || rule.source === "/api/knowledge/:url")).toBe(false);
     for (const suffix of ["", "/turns", "/cancel", "/confirm", "/delete", "/places", "/assistant-turns", "/assistant-state", "/assistant-preferences", "/dialogue-action"]) {
       expect(rules).toContainEqual({
         source: `/api/chat/conversations/:id([0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12})${suffix}`,

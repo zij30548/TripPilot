@@ -10,8 +10,8 @@ test("current resources include cookie-scoped workspace bootstrap and usage with
   const identityAndUsage = [
     ["GET", "/workspace/session"], ["POST", "/workspace/session"], ["GET", "/usage"],
   ];
-  assert.equal(CONTROLLED_ENDPOINTS.length, 33);
-  assert.equal(new Set(CONTROLLED_ENDPOINTS.map(([method, path]) => `${method} ${path}`)).size, 33);
+  assert.equal(CONTROLLED_ENDPOINTS.length, 35);
+  assert.equal(new Set(CONTROLLED_ENDPOINTS.map(([method, path]) => `${method} ${path}`)).size, 35);
   assert.equal(CONTROLLED_ENDPOINTS.some(([, path]) => path.startsWith("/auth/")), false);
   assert.ok(CONTROLLED_ENDPOINTS.some(([method, path]) => method === "POST" && path.endsWith("/turns")));
   assert.ok(CONTROLLED_ENDPOINTS.some(([method, path]) => method === "GET" && path === "/chat/cities"));
@@ -41,6 +41,23 @@ test("current resources include cookie-scoped workspace bootstrap and usage with
       assert.ok(Object.values(record.authentication_headers).every(value => typeof value === "boolean"));
       assert.equal(Object.hasOwn(record, "headers"), false);
     }
+  } finally { await backend.close(); }
+});
+
+test("national knowledge has two exact readonly resource paths with method/body/query/auth preserved", async () => {
+  const backend = await startControlledBackend({ port: 0 });
+  try {
+    const endpoints = CONTROLLED_ENDPOINTS.filter(([, path]) => path === "/knowledge/catalog-v2" || path === "/knowledge/search-v2");
+    assert.deepEqual(endpoints, [["GET", "/knowledge/catalog-v2"], ["POST", "/knowledge/search-v2"]]);
+    for (const [method, path] of endpoints) {
+      const body = method === "POST" ? JSON.stringify({ city_id: "110000", venue_id: "controlled-museum", question: "预约事项", limit: 5, visit_date: null }) : undefined;
+      const response = await fetch(`http://127.0.0.1:${backend.port}${path}?probe_echo=1`, { method, body, headers: SYNTHETIC_AUTH_HEADERS });
+      const record = await response.json();
+      assert.equal(response.status, 200); assert.equal(record.path, path); assert.equal(record.method, method);
+      assert.equal(record.sha256, digest(body ?? "")); assert.deepEqual(record.query, [["probe_echo", "1"]]);
+      assert.deepEqual(record.authentication_headers, { cookie_matches: true, origin_matches: true, csrf_matches: true });
+    }
+    assert.equal(backend.records.length, 2);
   } finally { await backend.close(); }
 });
 

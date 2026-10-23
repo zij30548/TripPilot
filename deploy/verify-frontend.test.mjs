@@ -38,7 +38,7 @@ async function fixture(run) {
   const root = await mkdtemp(join(tmpdir(), 'trippilot-artifact-test-'));
   try {
     const source = LEGACY_ENDPOINT_SOURCE;
-    const endpoints = [...source.matchAll(/:\s*"(\/api\/[a-z/-]+)"/g)].map(m => m[1]);
+    const endpoints = [...source.matchAll(/:\s*"(\/api\/[a-z0-9/-]+)"/g)].map(m => m[1]);
     const rules = endpoints.map(path => ({ source: path, destination: ORIGIN + path.slice(4) }));
     rules.push({ source: '/api/health', destination: ORIGIN + '/health' },
       { source: '/api/saved-trips/:id([0-9a-f]{32})', destination: ORIGIN + '/saved-trips/:id' });
@@ -202,7 +202,7 @@ test('anonymous workspace is one exact replacement allowlist and cannot reinstat
     const routing = await readFile(join(repository, 'frontend/src/lib/server/backend-routing.ts'), 'utf8');
     assert.ok(source.includes('"/api/workspace/session"'));
     assert.equal(source.includes('/api/auth/'), false);
-    const endpoints = [...source.matchAll(/:\s*"(\/api\/[a-z/-]+)"/g)].map(match => match[1]);
+    const endpoints = [...source.matchAll(/:\s*"(\/api\/[a-z0-9/-]+)"/g)].map(match => match[1]);
     const current = structuredClone(historical);
     current.rewrites.beforeFiles = [
       ...endpoints.map(path => ({ source: path, destination: ORIGIN + path.slice(4) })),
@@ -218,6 +218,20 @@ test('anonymous workspace is one exact replacement allowlist and cannot reinstat
     await mkdir(join(root, 'src/lib/server'), { recursive: true });
     await writeFile(join(root, 'src/lib/server/backend-routing.ts'), routing);
     await checkRewrites(root, current);
+    const oldWorkspaceSource = source.replace(/^.*knowledgeCatalog:.*\n/m, '').replace(/^.*knowledgeSearchV2:.*\n/m, '');
+    const oldWorkspace = structuredClone(current);
+    oldWorkspace.rewrites.beforeFiles = oldWorkspace.rewrites.beforeFiles.filter(rule => !['/api/knowledge/catalog-v2', '/api/knowledge/search-v2'].includes(rule.source));
+    await writeFile(file, oldWorkspaceSource);
+    await checkRewrites(root, oldWorkspace);
+    await assert.rejects(checkRewrites(root, current), /backend_rewrites_mismatch/);
+    await writeFile(file, source);
+    await assert.rejects(checkRewrites(root, oldWorkspace), /backend_rewrites_mismatch/);
+    // Partial pairs and arbitrary additions cannot pass as a current release.
+    for (const altered of [source.replace(/^.*knowledgeCatalog:.*\n/m, ''), source.replace(/^.*knowledgeSearchV2:.*\n/m, ''), source.replace('/api/knowledge/search-v2', '/api/knowledge/search-v3')]) {
+      await writeFile(file, altered);
+      await assert.rejects(checkRewrites(root, current), /endpoint_allowlist_changed/);
+    }
+    await writeFile(file, source);
     await assert.rejects(checkRewrites(root, historical), /backend_rewrites_mismatch/);
     await writeFile(join(root, '.next/routes-manifest.json'), JSON.stringify(current));
     const currentBuild = await inspectBuild(root);

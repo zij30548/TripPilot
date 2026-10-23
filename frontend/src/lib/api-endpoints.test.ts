@@ -14,7 +14,7 @@ describe("fixed same-origin browser endpoints", () => {
       weather: "/api/weather/forecast", explanation: "/api/trips/schedule-explanation",
       adjustment: "/api/trips/adjustment-intent", itineraryQuery: "/api/trips/itinerary-query",
       photo: "/api/media/landmark", video: "/api/media/video-frames", savedTrips: "/api/saved-trips",
-      knowledgeSearch: "/api/knowledge/search", knowledgeAnswer: "/api/knowledge/answer",
+      knowledgeSearch: "/api/knowledge/search", knowledgeCatalog: "/api/knowledge/catalog-v2", knowledgeSearchV2: "/api/knowledge/search-v2", knowledgeAnswer: "/api/knowledge/answer",
       walking: "/api/routes/walking", transit: "/api/routes/transit", plan: "/api/trips/plan",
     });
     expect(AMAP_SERVICE_PATH).toBe("/_AMapService");
