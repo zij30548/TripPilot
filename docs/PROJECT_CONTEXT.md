@@ -10,6 +10,8 @@ TripPilot 是面向个人及小团体的国内旅行助手：通过对话说清�
 
 ## 当前入口与实现范围
 
+**最新离线补修**：在第4步后核对Chroma导入即加载ONNX的原生路径，候选外层采用官方`ORT_DISABLE_TELEMETRY=1`预初始化保护，自身不导入可选库；冲突／已初始化失败关闭。相关294项及macOS子进程自然退出、取消排空检查通过。旧挂起没有稳定复现，旧exit130／证据缺口不改判；真实语义、Linux／长期生命周期和生产切换仍待验。见[稳定性补修](ECHOMIND_CHAT_INTEGRATION.md#6-原生依赖稳定性补修2026-10-23零调用)，本轮模型／外部业务调用0。
+
 **2026-10-23完整迁移第4步**：[第3步旅行候选](ECHOMIND_TRAVEL_ADAPTATION.md)已通过显式后端`ASSISTANT_RUNTIME=echomind_travel_v1`接入原`dialogue-v2`、MySQL turn／task准入／CAS和浏览器领域控制器，见[聊天接线](ECHOMIND_CHAT_INTEGRATION.md)。需求整理仍为待确认草稿；仅未改需求的同一持久操作可继承原确认，旧回调不能自确认。工具结果投影为程序文字或待执行动作，不采用模型自由事实；日期／费用仍读取本地正式草案。受控浏览器闭环完成，真实模型／高德0；**默认legacy和现有3110／8804／线上未切换**，缺选装依赖不静默回退。原核心／Skill／来源、排程／计费／存档规则不变，共享3模型／4工具／45秒，融合分类和直接执行分开、自动并行不开放。原pytest124断言通过但ONNX退出清理未退出，选装生命周期／生产及真实语义仍未准入，不能称整体迁移质量已通过。
 
 用户已选择移除当前产品的登录、注册、邀请码与账号菜单。现在直接进入独立浏览器工作区，后台用不公开的Cookie承载归属与CSRF，不需要凭据。原账号／邀请／数据表保留作历史数据和兼容，不通过正式HTTP入口登录、兑换或自动认领。机制与限制见[ANONYMOUS_WORKSPACE](ANONYMOUS_WORKSPACE.md)；清除Cookie不能像账号登录那样找回旧数据。
@@ -72,4 +74,4 @@ TripPilot 是面向个人及小团体的国内旅行助手：通过对话说清�
 
 依次读[README](../README.md)→本文件→[ROADMAP](ROADMAP.md)→[PROGRESS](PROGRESS.md)，遵守[AGENTS](../AGENTS.md)。Agent／架构／评测工作再读[Harness约定](HARNESS_ENGINEERING.md)；具体阶段只在[CHAT_REBUILD_PLAN](CHAT_REBUILD_PLAN.md)维护，原理见[AGENT_EVOLUTION](AGENT_EVOLUTION.md)。
 
-**当前停止在完整迁移第4步：显式持久准入、聊天接线和列明受控闭环；默认／运行服务未切换。** 检查见PROGRESS及[ECHOMIND_CHAT_INTEGRATION](ECHOMIND_CHAT_INTEGRATION.md)。新路径已有正式准入／页面组合验证，不再记为“完全未接入”；真实语义、ONNX退出／生产生命周期、完整恢复和专业协作仍未完成。原迁移实际5/8及旧chat-1／2累计9/12分别保留，不合并、不追加；下一步只建议固定版本真实语义评审及依赖生命周期核验，不自动发送或部署。
+**当前停止在第4步后的零调用稳定性补修：显式接线与受控闭环保留，本机预初始化保护／自然退出回归通过；默认／运行服务未切换。** 旧挂起本轮未复现，不能声称其内部根因已完全证明；真实语义、Linux／长期生命周期、完整恢复和专业协作仍待验。检查见PROGRESS及[ECHOMIND_CHAT_INTEGRATION第6节](ECHOMIND_CHAT_INTEGRATION.md#6-原生依赖稳定性补修2026-10-23零调用)。原迁移实际5/8及旧chat-1／2累计9/12分别保留，不合并、不追加；下一步仅建议另行冻结真实场景／预算及准入，不自动发送或部署。

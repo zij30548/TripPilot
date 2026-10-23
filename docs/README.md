@@ -19,7 +19,7 @@
 
 | 文档 | 什么时候读 |
 | --- | --- |
-| [ECHOMIND_CHAT_INTEGRATION](ECHOMIND_CHAT_INTEGRATION.md) | 最新第4步：显式runtime、MySQL准入／确认继承和原控制器受控闭环；默认／现有服务未切换，真实语义与生产生命周期待验 |
+| [ECHOMIND_CHAT_INTEGRATION](ECHOMIND_CHAT_INTEGRATION.md) | 第4步显式接线与受控闭环；最新第6节为零调用原生预初始化／退出补修，保留旧挂起／证据缺口，默认网站未切换，真实语义及生产待验 |
 | [ECHOMIND_FULL_MIGRATION](ECHOMIND_FULL_MIGRATION.md) | 完整核心保真与第2步：千问Embedding、隔离Redis／Chroma、安全执行和历史受控验证；本轮原生退出限制见顶部指针 |
 | [ECHOMIND_TRAVEL_ADAPTATION](ECHOMIND_TRAVEL_ADAPTATION.md) | 第3步旅行意图／角色／只读及提议工具、规则捕获与16条离线场景准备；历史未接线状态由最新第4步补充，不改旧成绩 |
 | [ANONYMOUS_WORKSPACE](ANONYMOUS_WORKSPACE.md) | 当前无登录入口、Cookie隔离、数据保留、额度和验证边界 |

@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import importlib.util
+import builtins
 import json
 import sys
 import unittest
@@ -83,6 +84,22 @@ class TravelAdmissionTests(unittest.TestCase):
         self.assertEqual(response.json()["detail"]["code"], "assistant_runtime_dependencies_unavailable")
         self.assertEqual(self.sent, [])
         self.assertEqual(self.chat.get(self.owner, self.view["id"])["revision"], 0)
+
+    def test_native_policy_refusal_is_safe_503_before_turn_and_upstream(self):
+        from echomind_core.native_runtime import NativeRuntimeError
+        original_import = builtins.__import__
+        def policy_refusal(name: str, *args: object, **kwargs: object) -> object:
+            if name == "echomind_core.integration":
+                raise NativeRuntimeError("native_runtime_already_initialized")
+            return original_import(name, *args, **kwargs)
+        with patch("builtins.__import__", side_effect=policy_refusal):
+            response = self.submit()
+        self.assertEqual(response.status_code, 503, response.text)
+        self.assertEqual(response.json()["detail"]["code"], "assistant_runtime_dependencies_unavailable")
+        self.assertNotIn("native_runtime_already_initialized", response.text)
+        self.assertEqual(self.sent, [])
+        self.assertEqual(self.chat.get(self.owner, self.view["id"])["revision"], 0)
+        self.assertIsNone(self.tasks.latest(self.owner, self.view["id"]))
 
     def test_request_cannot_override_runtime_or_supply_an_owner(self):
         for field in ("assistant_runtime", "owner_id", "tools", "upstream_url"):

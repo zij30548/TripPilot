@@ -1,5 +1,19 @@
 # TripPilot Progress
 
+## 最新摘要（2026-10-23，零调用稳定性补修：原生预初始化保护与退出检查）
+
+- **范围／基线**：实际`main / 722ff10be14e8555c50765182448633aa9bdf3d1`，开工与origin同步。用户同意先处理第4步后的退出稳定性；仅离线诊断、最小保护及回归，真实模型／高德／其他外部业务API **0次**。不冻结或执行新的付费试验，不切换3110／8804／8000／云端，不改用户库、实际环境文件、模型／提示／Schema或原核心。详见[专题第6节、原理与面试](ECHOMIND_CHAT_INTEGRATION.md#6-原生依赖稳定性补修2026-10-23零调用)。
+- **证据与不确定性**：旧sample停在ONNX `OneDsTelemetry::Shutdown→FlushAndTeardown`；Chroma0.5.23在导入默认参数时加载ONNX1.31.0，无推理也会载入。当前聊天`integration→travel_engine→execution`不加载这条链，不能把原测试挂起说成聊天请求已挂死。修复前9个导入、3个6秒停留、原124项基线／预设开关对照均自然退出0，**旧挂起本轮未稳定复现，原生内部竞争／时序根因未证明**；旧exit130、sample、全部旧失败／台账和第4步逐条传输明细缺口保持，不改分、不补造。
+- **最小修复**：新增stdlib-only `echomind_core/native_runtime.py`／`echomind-native-preinit-v1`，在候选包入口及storage导入Chroma前按安装包官方Privacy说明设置进程内`ORT_DISABLE_TELEMETRY=1`。后置API与Chroma NoTelemetry不能代替原生初始化前保护；线程锁／幂等检查，不导入可选库，不启动服务。显式冲突值、首次已载入ONNX、后续配置变化安全拒绝，不覆盖为成功；受限ImportError复用原503，在turn预记及模型发送前结束。没有修改真实.env或全局默认模型，原依赖／upstream／SOURCE／Skill／业务规则不变。
+- **实际检查**：新增12项独立策略测试和7项进程生命周期；补1项准入503无写入／无发送。选装环境候选相关完整 **294项／38.771秒通过，无跳过、exit0**，含独立临时MySQL、原确认／额度／受控journal及取消回归。最终生命周期单跑 **7项／13.009秒通过**，原124断言、1原警告及子进程都自然退出0；6项原有清理方法包含在一个子例，不能重复加总。普通venv策略／边界17项通过，选装准入／策略／边界30项通过；普通venv生命周期1通过／6依赖缺失明确跳过，非原生全验。这些子集不与294相加。
+- **退出／网络门禁**：macOS子进程先用libc直接connect确认IPv4／IPv6被OS拒绝，再导入native；独立Redis仅私有Unix socket，模型／向量／上游均受控。覆盖包／integration轻导入、storage/runtime导入、正常关闭、异常、重复取消／线程排空及SIGTERM转协作取消；必须真实exit0、无遗留才过，摘要／READY不算。实际无超时或强杀；失败后的回收不能算通过。没有放开网络复现或用`os._exit`遮蔽问题。
+- **检查／保护／证据**：来源36原文件／11namespace重建、132包offline锁检查、语法／文档链接／敏感信息／diff核对通过。证据`/Users/zijing/projects/trippilot-evidence/echomind-stability-20261023.9F4tnj/`保存固定探针／哈希、基线结果、官方包说明摘要及检查／保护收据。原五缓存、两SQLite／额度锚8哈希、旧sample和原EchoMind保持；原服务PID及MySQL未重启，未启动业务服务。无前端／协议变更，不机械重复前端构建／Chrome；既有Pydantic／MCP／Starlette警告及Chroma临时SQLite ResourceWarning保留。
+- **结论／停止点**：**预初始化保护及列明的macOS离线退出／取消验证完成，不代表已证明旧挂起内部因果或所有平台永不挂起。** Linux／长期负载、真实语义、完整恢复、备份及生产切换仍待验；知识问答停用，旧额度不借用。停止于本次零调用稳定性补修；下一步仅建议另行冻结少量真实旅行问题、物理发送预算及停止条件，明确授权后再进行，不自动切换网站或增加功能。
+
+当前导航：[稳定性补修／面试](ECHOMIND_CHAT_INTEGRATION.md#6-原生依赖稳定性补修2026-10-23零调用) → [第4步接线与受控闭环](ECHOMIND_CHAT_INTEGRATION.md) → [第3步旅行候选](ECHOMIND_TRAVEL_ADAPTATION.md)。下方旧“当前／下一步／未验”均为其当时事实，失败和成绩不重写。
+
+---
+
 ## 最新摘要（2026-10-23，EchoMind完整迁移第4步：显式聊天接线与受控闭环）
 
 - **范围／基线**：实际`main / 920c8c09ccf79675801f7b5f983f355d0abd4235`，开工与origin同步。用户同意仔细完成接线步骤；本轮真实模型、高德及其他外部业务API **0次**，旧授权／台账／失败不重置。没有切换现有3110／8804／8000、云端、用户MySQL或原SQLite。详见[第4步数据流、验收、取舍与面试](ECHOMIND_CHAT_INTEGRATION.md)。

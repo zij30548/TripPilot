@@ -21,6 +21,10 @@ import stat
 import threading
 from typing import Any, TypeVar
 
+from echomind_core.native_runtime import configure_native_runtime
+
+configure_native_runtime()
+
 import chromadb
 from chromadb.telemetry.product import ProductTelemetryClient, ProductTelemetryEvent
 import redis.asyncio as redis
