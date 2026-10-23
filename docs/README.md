@@ -19,8 +19,9 @@
 
 | 文档 | 什么时候读 |
 | --- | --- |
-| [ECHOMIND_FULL_MIGRATION](ECHOMIND_FULL_MIGRATION.md) | 完整核心保真与第2步：千问Embedding、隔离Redis／Chroma、安全执行和受控验证；产品尚未切换 |
-| [ECHOMIND_TRAVEL_ADAPTATION](ECHOMIND_TRAVEL_ADAPTATION.md) | 第3步旅行意图／角色／只读及提议工具、规则捕获与16条离线场景准备；正式准入／页面切换和真实质量未完成 |
+| [ECHOMIND_CHAT_INTEGRATION](ECHOMIND_CHAT_INTEGRATION.md) | 最新第4步：显式runtime、MySQL准入／确认继承和原控制器受控闭环；默认／现有服务未切换，真实语义与生产生命周期待验 |
+| [ECHOMIND_FULL_MIGRATION](ECHOMIND_FULL_MIGRATION.md) | 完整核心保真与第2步：千问Embedding、隔离Redis／Chroma、安全执行和历史受控验证；本轮原生退出限制见顶部指针 |
+| [ECHOMIND_TRAVEL_ADAPTATION](ECHOMIND_TRAVEL_ADAPTATION.md) | 第3步旅行意图／角色／只读及提议工具、规则捕获与16条离线场景准备；历史未接线状态由最新第4步补充，不改旧成绩 |
 | [ANONYMOUS_WORKSPACE](ANONYMOUS_WORKSPACE.md) | 当前无登录入口、Cookie隔离、数据保留、额度和验证边界 |
 | [TRAVEL_DIALOGUE_INTEGRATION](TRAVEL_DIALOGUE_INTEGRATION.md) | 当前dialogue-v2的38项受限动作、明确确认、原领域控制器、程序事实／缺证说明及本地状态边界；新真实语义待验 |
 | [THREE_SURFACE_UI](THREE_SURFACE_UI.md) | 三主导航设计及原dialogue-v1交付记录；顶部最新状态与下方历史范围分开 |

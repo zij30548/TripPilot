@@ -1,6 +1,7 @@
 import ipaddress
 from pathlib import Path
 import re
+from typing import Literal
 from urllib.parse import urlsplit
 
 from pydantic import SecretStr, field_validator
@@ -65,6 +66,9 @@ class Settings(BaseSettings):
     qwen_base_url: str = ""
     qwen_model: str = "qwen3.7-flash-2026-07-15"
     qwen_vision_model: str = "qwen3-vl-plus"
+    # Trusted server-only admission choice. A request cannot select an engine,
+    # provider, URL or model. Legacy callers keep their existing default.
+    assistant_runtime: Literal["legacy", "echomind_travel_v1"] = "legacy"
 
     @field_validator("amap_allowed_page_origins", mode="before")
     @classmethod

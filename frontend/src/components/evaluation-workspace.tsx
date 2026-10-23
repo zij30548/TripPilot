@@ -28,7 +28,7 @@ const STATES: Record<AssistantTaskState | "skipped", string> = {
 const STOPS: Record<string, string> = {
   completed: "本轮执行结束", complete: "本轮执行结束", succeeded: "本轮执行结束", awaiting_user: "等待用户补充或确认",
   awaiting_confirmation: "等待用户确认", context_changed: "会话已变化，旧任务结果不能直接继续使用", cancelled: "用户已取消",
-  model_budget: "已达到模型调用上限", tool_budget: "已达到工具执行上限", deadline: "已达到任务时间上限",
+  model_budget: "已达到模型尝试上限", tool_budget: "已达到工具执行上限", deadline: "已达到任务时间上限",
   no_progress: "没有取得新进展，已停止", read_receipts_only: "结果尚不确定，只能读取回执核对",
 };
 function updatedAt(value: string): string {
@@ -39,12 +39,12 @@ export type TechnicalReceiptCheck = { id: "model_budget" | "tool_budget" | "comp
 export function technicalReceiptChecks(value: AssistantState): TechnicalReceiptCheck[] {
   const task = value.task;
   if (!value.migration_ready || !task) return [
-    { id: "model_budget", label: "模型调用上限", state: "pending", detail: "没有可核查的任务回执" },
+    { id: "model_budget", label: "模型尝试上限", state: "pending", detail: "没有可核查的任务回执" },
     { id: "tool_budget", label: "工具执行上限", state: "pending", detail: "没有可核查的任务回执" },
     { id: "completion", label: "任务完成状态", state: "pending", detail: "没有可核查的任务回执" },
   ];
   return [
-    { id: "model_budget", label: "模型调用上限", state: task.model_calls <= 3 ? "passed" : "failed", detail: `${task.model_calls} / 3 次` },
+    { id: "model_budget", label: "模型尝试上限", state: task.model_calls <= 3 ? "passed" : "failed", detail: `${task.model_calls} / 3 次` },
     { id: "tool_budget", label: "工具执行上限", state: task.tool_calls <= 4 ? "passed" : "failed", detail: `${task.tool_calls} / 4 次` },
     { id: "completion", label: "任务完成状态", state: task.state === "succeeded" ? "passed" : ["failed", "cancelled"].includes(task.state) ? "failed" : "pending",
       detail: task.state === "succeeded" ? "程序记录为执行完成，非答案质量判定" : `${STATES[task.state]}，不记为成功` },
@@ -139,17 +139,17 @@ export default function EvaluationWorkspace({ active = true }: { active?: boolea
           {!view.receipt.migration_ready && <p role="status" className="mt-7 text-sm leading-7 text-[#945746]">任务存储尚未准备好，请联系管理员。没有替代或虚构执行记录。</p>}
           {view.receipt.migration_ready && !task && <p className="mt-8 text-sm leading-7 text-[#71807a]">这份会话还没有任务回执。读取不会自动开始任务。</p>}
           {task && <>
-            <dl className="mt-7 grid grid-cols-3 gap-x-3 border-y border-[#e4e8e6] py-5"><div><dt className="text-xs text-[#71807a]">执行状态</dt><dd className="mt-2 break-words text-sm font-medium text-[#294e43]">{STATES[task.state]}</dd></div><div><dt className="text-xs text-[#71807a]">模型调用</dt><dd className="mt-2 text-lg tabular-nums">{task.model_calls}<span className="ml-1 text-xs text-[#71807a]">次</span></dd></div><div><dt className="text-xs text-[#71807a]">工具执行</dt><dd className="mt-2 text-lg tabular-nums">{task.tool_calls}<span className="ml-1 text-xs text-[#71807a]">次</span></dd></div></dl>
+            <dl className="mt-7 grid grid-cols-3 gap-x-3 border-y border-[#e4e8e6] py-5"><div><dt className="text-xs text-[#71807a]">执行状态</dt><dd className="mt-2 break-words text-sm font-medium text-[#294e43]">{STATES[task.state]}</dd></div><div><dt className="text-xs text-[#71807a]">模型尝试</dt><dd className="mt-2 text-lg tabular-nums">{task.model_calls}<span className="ml-1 text-xs text-[#71807a]">次</span></dd></div><div><dt className="text-xs text-[#71807a]">工具执行</dt><dd className="mt-2 text-lg tabular-nums">{task.tool_calls}<span className="ml-1 text-xs text-[#71807a]">次</span></dd></div></dl>
             <section aria-label="本轮技术核查" className="mt-7">
               <h3 className="text-xs font-medium text-[#71807a]">技术核查</h3>
               <ul className="mt-3">{technicalReceiptChecks(view.receipt).map(check => <li key={check.id} className="border-b border-[#edf0ee] py-3 text-sm leading-6"><div className="flex flex-wrap justify-between gap-x-4"><span>{check.label}</span><span className={check.state === "failed" ? "text-[#945746]" : check.state === "passed" ? "text-[#294e43]" : "text-[#71807a]"}>{check.state === "passed" ? "通过" : check.state === "failed" ? "未通过" : "待核"}</span></div><p className="mt-1 text-xs text-[#71807a]">{check.detail}</p></li>)}</ul>
-              <p className="mt-3 text-xs leading-6 text-[#71807a]">仅核查调用边界与回执状态；语义正确性、事实支持和需求覆盖未评。</p>
+              <p className="mt-3 text-xs leading-6 text-[#71807a]">预算尝试与上限核查，不是供应商计费次数；语义正确性、事实支持和需求覆盖未评。</p>
             </section>
             <h3 className="mb-3 mt-7 text-xs font-medium text-[#71807a]">执行步骤</h3>
             {!task.steps.length && <p className="text-sm text-[#71807a]">本次回执没有分步记录。</p>}
-            <ol>{task.steps.map((step, index) => <li key={`${index}-${step.name}`} className="flex flex-wrap justify-between gap-x-4 gap-y-1 border-b border-[#edf0ee] py-4 text-sm leading-6"><span className="min-w-0 break-words"><span className="mr-3 text-xs tabular-nums text-[#9aa49e]">{String(index + 1).padStart(2, "0")}</span>{step.name}</span><span className="shrink-0 text-xs text-[#71807a]">{STATES[step.state]} · {(step.elapsed_ms / 1000).toFixed(2)} 秒</span></li>)}</ol>
+            <ol>{task.steps.map((step, index) => <li key={`${index}-${step.name}`} className="flex flex-wrap justify-between gap-x-4 gap-y-1 border-b border-[#edf0ee] py-4 text-sm leading-6"><span className="min-w-0 break-words"><span className="mr-3 text-xs tabular-nums text-[#9aa49e]">{String(index + 1).padStart(2, "0")}</span>{step.name}</span><span className="shrink-0 text-xs text-[#71807a]">{STATES[step.state]} · {step.elapsed_ms === 0 ? "耗时未记录" : `${(step.elapsed_ms / 1000).toFixed(2)} 秒`}</span></li>)}</ol>
             {task.stop_reason && <p className="mt-5 break-words text-sm leading-7 text-[#71807a]">停止原因：{STOPS[task.stop_reason] ?? task.stop_reason}</p>}
-            <details className="mt-5 text-xs text-[#71807a]"><summary className={`cursor-pointer py-2 ${focus}`}>记录标识</summary><p className="mt-2 break-all font-mono">{task.id}</p><p className="mt-2 leading-6">步骤耗时来自服务端回执，不代表整次对话的端到端延迟。不展示模型内部思考。</p></details>
+            <details className="mt-5 text-xs text-[#71807a]"><summary className={`cursor-pointer py-2 ${focus}`}>记录标识</summary><p className="mt-2 break-all font-mono">{task.id}</p><p className="mt-2 leading-6">步骤耗时来自服务端回执；未记录时不宣称为实测零秒，也不代表整次对话的端到端延迟。不展示模型内部思考。</p></details>
           </>}
         </>}
       </div>

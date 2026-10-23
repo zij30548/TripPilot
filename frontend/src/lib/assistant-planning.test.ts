@@ -32,7 +32,7 @@ describe("confirmed chat input to existing planner (pure controlled fixtures)", 
     expect({ conversation, places }).toEqual(before);
   });
   it("refuses other catalog cities, stale/version/ownership mismatches, absent or wrong-city confirmations", () => {
-    expect(() => prepareAssistantPlanning(placesConversation(), placesFixture({ accommodation: placeFixture() }))).toThrow("仅支持地点准备");
+    expect(() => prepareAssistantPlanning({ ...placesConversation(), confirmed_revision: 2 }, placesFixture({ accommodation: placeFixture() }))).toThrow("仅支持地点准备");
     const { conversation, places } = assistantPlanningFixture();
     for (const invalid of [null, { ...places, stale: true }, { ...places, intent_revision: 1 }, { ...places, conversation_id: OTHER_CHAT_ID },
       { ...places, accommodation: null }, { ...places, accommodation: placeFixture() }, { ...places, city_id: "320500" }]) {
@@ -41,6 +41,14 @@ describe("confirmed chat input to existing planner (pure controlled fixtures)", 
     for (const field of ["start_date", "end_date", "travelers", "budget_cny", "transport_mode"] as const) {
       expect(() => prepareAssistantPlanning({ ...conversation, requirements: { ...conversation.requirements, [field]: null } }, places)).toThrow();
     }
+  });
+  it("a model-authored draft cannot become planning inputs until its current revision is explicitly confirmed", () => {
+    const { conversation, places } = assistantPlanningFixture();
+    expect(() => prepareAssistantPlanning({ ...conversation, confirmed_revision: null }, places)).toThrow("待确认的需求草稿");
+    const next = { ...conversation, revision: 3, confirmed_revision: null };
+    expect(() => prepareAssistantPlanning(next, { ...places, intent_revision: 3 })).toThrow("确认需求");
+    const confirmed = { ...next, revision: 4, confirmed_revision: 4 };
+    expect(prepareAssistantPlanning(confirmed, { ...places, intent_revision: 4 }).request.travelers).toBe(2);
   });
   it("safe cent conversion rejects subcent/overflow and binary-number round-trip loss, never truncates", () => {
     const { conversation, places } = assistantPlanningFixture();

@@ -21,6 +21,7 @@ from typing import Any, Callable, Iterator, Mapping
 from uuid import UUID
 
 from core.config import Settings
+from core.business_usage import UsageError
 from core.llm_utils import RuntimeFailure, bounded_json, strict_json
 from core.usage_runtime import MeteredAsyncClient, _context as usage_context
 from echomind_core.diagnostics import SafeEvent, emit, quarantine_upstream_logging
@@ -77,6 +78,7 @@ class ExecutionGate:
     budget: TaskBudget = field(repr=False)
     _closed: bool = field(default=False, init=False, repr=False)
     _failure: str | None = field(default=None, init=False, repr=False)
+    _usage_error: UsageError | None = field(default=None, init=False, repr=False)
     _pending: set[asyncio.Task[Any]] = field(default_factory=set, init=False, repr=False)
 
     def check(self, request: Request | None = None) -> None:
@@ -155,6 +157,13 @@ class _GuardedMessages:
         except RuntimeFailure as error:
             gate.fail(error.code)
             raise
+        except UsageError as error:
+            # Retain the existing safe public quota contract for the trusted
+            # admission adapter. Original source fallbacks must not swallow it
+            # into generic provider failure or obtain another send allowance.
+            gate._usage_error = error
+            gate.fail(error.code)
+            raise ExecutionError(error.code) from None
         except asyncio.CancelledError:
             gate.fail("cancelled")
             raise

@@ -232,6 +232,24 @@ async def assistant_turn(conversation_id: Identifier, raw: Request, store: Store
     dialogue_only = bool(surfaces)
     native_dialogue = surfaces == ["dialogue-v2"]
     command = await body(raw, SubmitDialogueTurn if native_dialogue else SubmitTurn)
+    travel_runtime = settings.assistant_runtime == "echomind_travel_v1"
+    if travel_runtime and not native_dialogue:
+        raise HTTPException(422, detail={"code": "assistant_runtime_surface_required",
+            "message": "当前服务端助手只接受既有dialogue-v2界面，未切回旧引擎。"})
+    admitted_type = None
+    if travel_runtime:
+        try:
+            # Optional core dependencies are loaded only by the trusted server
+            # opt-in. Missing dependencies fail this feature, never the entire
+            # default app or a request-selected fallback engine.
+            from echomind_core.integration import AdmittedTravelTurn
+            from core.usage_runtime import MeteredAsyncClient
+            if type(client) is not MeteredAsyncClient:
+                raise ImportError
+            admitted_type = AdmittedTravelTurn
+        except ImportError:
+            raise HTTPException(503, detail={"code": "assistant_runtime_dependencies_unavailable",
+                "message": "当前助手运行依赖尚未准备，未发送模型或自动切回旧引擎。"}) from None
     reservation: dict | None = None
     task: dict | None = None
     trace: dict = {}
@@ -248,11 +266,17 @@ async def assistant_turn(conversation_id: Identifier, raw: Request, store: Store
         preferences = await db_call(tasks.list_preferences, user.id)
         place_before = await db_call(places.get, user.id, conversation_id)
         search_continuity = SearchBatchCarry.capture(initial, place_before) if native_dialogue else None
+        admitted = admitted_type(user.id, command.operation_id, command.text, initial, place_before, preferences,
+                                 command.dialogue_context) if admitted_type is not None else None
         if previous is not None and not previous["stale"] and not place_before["stale"]:
             inherited = {key: value for key, value in previous["checkpoint"].items()
                          if key in {"workspace", "preview", "plan", "drawing", "continuation"}}
-        reservation = await db_call(store.begin_turn, user.id, conversation_id, command.operation_id,
-                                    command.expected_revision, command.text)
+        if travel_runtime:
+            reservation = await db_call(lambda: store.begin_turn(user.id, conversation_id, command.operation_id,
+                command.expected_revision, command.text, capture_confirmation=True))
+        else:
+            reservation = await db_call(store.begin_turn, user.id, conversation_id, command.operation_id,
+                                        command.expected_revision, command.text)
         frozen, version = reservation["conversation"], reservation["revision"]
         task = await db_call(tasks.begin, user.id, conversation_id, command.operation_id, version)
         intent = Intent.model_validate(frozen["requirements"])
@@ -386,23 +410,34 @@ async def assistant_turn(conversation_id: Identifier, raw: Request, store: Store
                 "available_actions": sorted(_DIALOGUE_TOOLS),
                 "limitations": "当前纯聊天界面只整理需求或澄清；未提供真实POI预览确认、正式行程生成、日期时间轴或费用读取。不能指向不存在的地点卡、行程或费用面板，也不能声称已执行这些操作。",
             }
-        orchestrator = factory(QwenGateway(settings, client), registered, skill_manager=skills(),
+        orchestrator = None if travel_runtime else factory(QwenGateway(settings, client), registered, skill_manager=skills(),
                                **({"program_only": True} if native_dialogue else {}))
 
         async def execute() -> dict:
-            nonlocal trace, finalized, inherited, place_reservation
+            nonlocal trace, finalized, inherited, place_reservation, intent, changed_sources, issues
             await current()
-            outcome = await orchestrator.run(AgentRequest(command.text, user.id, conversation_id, command.operation_id, context))
+            if admitted is not None:
+                outcome = await admitted.run(settings, client, current,
+                    lambda: db_call(places.get, user.id, conversation_id),
+                    lambda: db_call(tasks.list_preferences, user.id))
+                intent, changed_sources, issues = Intent.model_validate(outcome.requirements), outcome.sources, outcome.issues
+            else:
+                outcome = await orchestrator.run(AgentRequest(command.text, user.id, conversation_id, command.operation_id, context))
             trace = outcome.trace
             await current()
-            reply = (("助手建议（尚需核实）\n" + outcome.reply)
+            reply = outcome.message if admitted is not None else (("助手建议（尚需核实）\n" + outcome.reply)
                      if trace.get("reply_source") == "model_suggestion" else outcome.reply)
             if len(reply) > 3000:
                 raise RuntimeFailure("reply_limit")
             if intent.model_dump(mode="json") != initial["requirements"]:
                 inherited = {}
-            result = await db_call(store.finish_turn, user.id, conversation_id, command.operation_id, version,
-                                   intent.model_dump(mode="json"), reply, changed_sources, issues)
+            if admitted is not None:
+                result = await db_call(lambda: store.finish_turn(user.id, conversation_id, command.operation_id, version,
+                    intent.model_dump(mode="json"), reply, changed_sources, issues,
+                    confirmation_carry=reservation.get("confirmation_carry")))
+            else:
+                result = await db_call(store.finish_turn, user.id, conversation_id, command.operation_id, version,
+                                       intent.model_dump(mode="json"), reply, changed_sources, issues)
             latest_places = await db_call(places.get, user.id, conversation_id)
             carry = search_continuity if intent.model_dump(mode="json") == initial["requirements"] else None
             synced = await db_call(lambda: places.sync(user.id, conversation_id, str(uuid4()), result["revision"],
@@ -416,7 +451,9 @@ async def assistant_turn(conversation_id: Identifier, raw: Request, store: Store
                 await db_call(lambda: places.finish_operation(user.id, conversation_id, place_reservation["operation_id"],
                     place_reservation["revision"], result["revision"], batch=pending_batch))
             data = inherited | {"trace": _trace_rows(trace), "stop_reason": trace.get("stop_reason", "answered"),
-                                "result": {"tool_results": outcome.tool_results, **({"surface": "dialogue-v2"} if native_dialogue else {})}, "waiting_for": "user" if trace.get("stop_reason") == "awaiting_user" else None}
+                                "result": {"tool_results": outcome.tool_results,
+                                    **({"runtime": outcome.metadata} if admitted is not None else {}),
+                                    **({"surface": "dialogue-v2"} if native_dialogue else {})}, "waiting_for": "user" if trace.get("stop_reason") == "awaiting_user" else None}
             await db_call(tasks.finalize, user.id, command.operation_id, task["revision"], result["revision"], data,
                           "waiting" if trace.get("stop_reason") in {"awaiting_user", "model_budget"} else "succeeded")
             finalized = True

@@ -74,6 +74,15 @@ describe("EchoMind travel assistant strict transport", () => {
     expect(fetcher).toHaveBeenCalledTimes(1);
     expect(fetcher.mock.calls[0][0]).toContain("/assistant-turns");
   });
+  it.each([
+    ["assistant_runtime_dependencies_unavailable", 503, "运行依赖尚未准备好"],
+    ["assistant_runtime_surface_required", 422, "仅支持正式对话入口"],
+  ])("%s fails clearly without exposing private detail or trying another runtime", async (code, status, expected) => {
+    fetcher.mockResolvedValue(reply({ detail: { code, message: "private runtime import path" } }, Number(status)));
+    await expect(sendAssistantTurn(CHAT_ID, { operation_id: OP_ID, expected_revision: 0, text: "杭州" }, new AbortController().signal)).rejects.toThrow(String(expected));
+    expect(fetcher).toHaveBeenCalledTimes(1);
+    expect(fetcher.mock.calls[0][0]).toContain("/assistant-turns");
+  });
   it("bounds responses before parsing, including streaming payloads", async () => {
     fetcher.mockResolvedValue(new Response("x", { headers: { "Content-Length": "65537" } }));
     await expect(readAssistantState(CHAT_ID, 2, new AbortController().signal)).rejects.toThrow("大小无效");

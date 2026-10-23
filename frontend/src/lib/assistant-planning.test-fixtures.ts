@@ -13,7 +13,7 @@ export function assistantPlanningFixture(city: DestinationId = "hangzhou") {
     start_date: request.start_date, end_date: request.end_date, budget_cny: String(request.budget), travelers: request.travelers,
     accommodation_hint: request.accommodation_place!.name, required_place_hints: request.must_visit,
     transport_mode: "walking", preferences: [],
-  }, issues: [] });
+  }, confirmed_revision: 2, issues: [] });
   const places = placesFixture({ city_id: definition.adcode, accommodation: structuredClone(request.accommodation_place) as ChatPlace,
     required_places: structuredClone(request.must_visit_places) as ChatPlace[] });
   return { conversation, places };

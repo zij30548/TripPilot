@@ -11,6 +11,11 @@ import type { TripRequest } from "@/types/trip";
 export type PlanningWindow = { start: string; end: string };
 export const DEFAULT_ASSISTANT_WINDOW: PlanningWindow = { start: "09:00", end: "18:00" };
 
+/** One current-version gate, before even synchronizing dependent POI inputs. */
+export function assertConfirmedPlanningRequirements(conversation: ChatConversation): void {
+  if (conversation.confirmed_revision !== conversation.revision) throw new Error("当前是待确认的需求草稿。请先回复“确认需求”，核对并明确确认当前版本，再准备规划；不会自动确认或生成。");
+}
+
 /** Actual input identity only: a read-only chat turn must not discard a draft. */
 export function assistantPlanningKey(conversation: ChatConversation, places: PlacesWorkspace | null, window: PlanningWindow): string {
   return canonical({ conversation: conversation.id, requirements: conversation.requirements,
@@ -21,6 +26,7 @@ export function assistantPlanningKey(conversation: ChatConversation, places: Pla
 /** Pure conversion. No inferred Place, network call, response or automatic save. */
 export function prepareAssistantPlanning(conversation: ChatConversation, places: PlacesWorkspace | null, window: PlanningWindow = DEFAULT_ASSISTANT_WINDOW): WorkspaceInputs {
   if (!isChatConversation(conversation)) throw new Error("当前会话需求无效，请重新读取会话。");
+  assertConfirmedPlanningRequirements(conversation);
   if (conversation.issues.some(issue => issue !== "unimplemented_preference")) throw new Error("当前需求仍有歧义、跨范围或不支持事项，请先在聊天中明确确认；不会静默只规划其中一座城市。");
   const r = conversation.requirements;
   const city = chatCity(r.destination_id);

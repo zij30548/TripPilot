@@ -44,6 +44,12 @@ export function isAssistantState(value: unknown): value is AssistantState {
 }
 
 function assistantError(code: string | null): string {
+  if (code === "assistant_runtime_dependencies_unavailable") {
+    return "当前旅行助手运行依赖尚未准备好，请联系管理员核对。没有发送模型，也没有自动切回旧引擎。";
+  }
+  if (code === "assistant_runtime_surface_required") {
+    return "当前运行时仅支持正式对话入口，请核对页面与服务版本。没有切换旧接口或生成替代回复。";
+  }
   if (["assistant_migration_required", "assistant_storage_unavailable", "assistant_not_ready"].includes(code ?? "")) {
     return "旅行助手存储尚未准备好，请联系管理员完成独立迁移。没有生成替代回复。";
   }

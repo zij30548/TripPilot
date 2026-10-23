@@ -74,6 +74,23 @@ describe("minimal read-only Agent evaluation workspace (controlled receipts)", (
     await click("重新读取"); expect(api.state).toHaveBeenCalledTimes(2);
   });
 
+  it("zero legacy-wire step duration stays unrecorded and model attempts are not billed sends", async () => {
+    api.state.mockResolvedValueOnce(receipt({ task: { ...receipt().task!, state: "succeeded", steps: [
+      { name: "unmeasured_stage", state: "succeeded", elapsed_ms: 0 },
+      { name: "measured_stage", state: "succeeded", elapsed_ms: 1450 },
+    ] } }));
+    render(<EvaluationWorkspace />); await readList(); await click(/杭州旅行/);
+    expect(screen.getByText("unmeasured_stage").closest("li")?.textContent).toContain("执行完成 · 耗时未记录");
+    expect(screen.getByText("measured_stage").closest("li")?.textContent).toContain("执行完成 · 1.45 秒");
+    expect(screen.queryByText(/0\.00 秒/)).toBeNull();
+    expect(screen.getByText("模型尝试", { selector: "dt" })).toBeTruthy();
+    expect(screen.getByText("模型尝试上限")).toBeTruthy();
+    expect(screen.queryByText("模型调用", { selector: "dt" })).toBeNull();
+    expect(screen.getByText(/预算尝试与上限核查，不是供应商计费次数/)).toBeTruthy();
+    expect(screen.getByText(/语义正确性、事实支持和需求覆盖未评/)).toBeTruthy();
+    expect(api.state).toHaveBeenCalledTimes(1);
+  });
+
   it.each(["success", "error"])("A→B→A rejects old %s and old finally cannot release a newer read", async outcome => {
     const old = deferred<AssistantState>(), fresh = deferred<AssistantState>();
     api.state.mockReturnValueOnce(old.promise).mockResolvedValueOnce(receipt({ conversation_id: OTHER_CHAT_ID })).mockReturnValueOnce(fresh.promise);

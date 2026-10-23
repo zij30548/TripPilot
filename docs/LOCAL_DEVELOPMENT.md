@@ -8,7 +8,7 @@
 - **当前3110环境**：直接打开`http://127.0.0.1:3110/`，自动建立浏览器工作区，不需要账号密码或邀请码，不再使用8810。8804复用同一独立测试MySQL、身份锚与全部消费记录，原账号数据不删除／公开；天气／地图代理／视觉及媒体仍受原0额度限制。先前5/8模型与4次高德验收已封存，匿名化没有追加授权、重置全局计数或切换线上。
 - **从源码启动**：按下文配置独立数据库和额度，使用默认3000→8000；无需创建产品账号或邀请码。真实查询还需要上游凭据、权限及额度；维护者的真实验收另需明确授权，不能靠配置密钥就视为授权。
 
-后端源码当前按 `api/agents/core/tooling/memory/monitor/evaluation/skills` 组织，`main.py`仍为FastAPI入口；`app/`只保留受保护旧缓存，不是现运行模块目录。无需安装EchoMind原Anthropic／Redis／Chroma依赖；实际依赖以锁文件为准。
+后端源码当前按 `api/agents/core/tooling/memory/monitor/evaluation/skills` 组织，`main.py`仍为FastAPI入口；`app/`只保留受保护旧缓存，不是现运行模块目录。默认legacy不需要选装核心依赖。2026-10-23新增显式`ASSISTANT_RUNTIME=echomind_travel_v1`接入完整旅行候选，只允许已有`dialogue-v2`，缺选装依赖503、不回退；配置与独立环境见[第4步聊天接线](ECHOMIND_CHAT_INTEGRATION.md)。现有3110／8804未切换；本轮原核心ONNX退出清理仍有待核，不建议直接启用生产。无需Anthropic SDK，不自动启动Redis／Chroma，实际选装版本仍以锁文件为准。
 
 ## 环境与依赖
 
@@ -30,8 +30,10 @@
 | 后端`AMAP_JS_KEY`／`AMAP_JS_SECURITY_CODE`／`AMAP_ALLOWED_PAGE_ORIGINS` | 固定安全代理与SDK页面来源，安全码不进浏览器；不等于任意代理或CORS放开 |
 | 后端`QWEN_API_KEY`／`QWEN_BASE_URL`／`QWEN_MODEL` | 当前受支持Flash、北京官方HTTPS固定路径；不静默换模型／地域，见[QWEN_SETUP](QWEN_SETUP.md) |
 | 后端`QWEN_VISION_MODEL` | 独立`qwen3-vl-plus`；未明确识别不调用，历史授权不可复用 |
+| 后端`ASSISTANT_RUNTIME` | 默认`legacy`；仅可信配置可显式选`echomind_travel_v1`，需要独立核对选装依赖／MySQL扩展／版本，不能从浏览器选择，也不代表生产已准入 |
 | 后端`BUSINESS_RATE_*`／`BUSINESS_DAILY_LIMITS` | 持久短窗口／服务分类日额度，账户与全局同时生效，不是精确人民币预算 |
 | 前端`TRIPPILOT_BACKEND_ORIGIN` | 仅Next服务端可信HTTP(S) origin，不能用`NEXT_PUBLIC_`，禁止凭据／子路径／query／fragment；构建与启动一致 |
+| 前端`TRIPPILOT_NEXT_DIST_DIR` | 默认`.next`；已有服务需独立受控构建时可显式用项目内`.next-`加受限小写名称，构建与启动相同；不覆盖当前服务产物，不接受路径 |
 | 前端`NEXT_PUBLIC_AMAP_JS_KEY` | 仅浏览器专用公开地图Key，不得填服务端Web Key或安全码 |
 
 **数据库必须先显式准备**：原MySQL复制迁移／verify、chat-storage-v1、chat-places-storage-v1按[MYSQL_REGISTRATION](MYSQL_REGISTRATION.md)、[CHAT_1迁移边界](CHAT_1.md#存储与迁移不自动动旧库)和[CHAT_2](CHAT_2.md)核对。助手另需 `assistant-storage-v1`；应用启动不补表、不改旧库或自动给新额度，缺少扩展会明确报 `assistant_migration_required`。当前产品由浏览器自动建立匿名owner，不要求预先创建登录账号。

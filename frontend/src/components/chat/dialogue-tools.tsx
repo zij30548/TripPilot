@@ -9,7 +9,7 @@ import { bindDialogueSelection } from "@/lib/dialogue-selection";
 import { useDialoguePlaces } from "@/lib/dialogue-places-controller";
 import { useDialoguePreferences } from "@/lib/dialogue-preferences-controller";
 import { useDialoguePlanning, resolveDialogueSelector, type DialoguePlanning } from "@/lib/dialogue-planning-controller";
-import { prepareAssistantPlanning, DEFAULT_ASSISTANT_WINDOW } from "@/lib/assistant-planning";
+import { assertConfirmedPlanningRequirements, prepareAssistantPlanning, DEFAULT_ASSISTANT_WINDOW } from "@/lib/assistant-planning";
 import { applyEditedRequirements, restoreSavedTrip, type WorkspaceInputs } from "@/lib/restore-trip";
 import { useSavedHistory } from "@/lib/use-saved-trips";
 import { historyDialogueText } from "@/lib/dialogue-travel-text";
@@ -108,6 +108,7 @@ export default function DialogueTools({ conversation, blocked, proposal, handle,
     const reply = (text: string) => { if (valid()) onMessage("assistant", text); };
     try {
       if (["prepare_planning", "restore_saved", "set_daily_window"].includes(action.name)) requireResolvedSave();
+      if (action.name === "prepare_planning") assertConfirmedPlanningRequirements(conversation);
       if (action.name === "confirm_requirements") { await onConfirmRequirements(); return; }
       if (["read_preferences", "save_preference", "delete_preference"].includes(action.name)) {
         const result = await preferences.execute(action, confirmed); reply(result.text); return;

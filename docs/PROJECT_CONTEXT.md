@@ -10,7 +10,7 @@ TripPilot 是面向个人及小团体的国内旅行助手：通过对话说清�
 
 ## 当前入口与实现范围
 
-**2026-10-23完整迁移第3步**：原核心、Skill、测试及来源清单不变，在[第2步安全组合](ECHOMIND_FULL_MIGRATION.md#9-第2步依赖计数与安全组合2026-10-23)上，新增旅行融合意图、协调／行程／费用／地点资料角色、16个只读或提议工具及既有旅行Skill捕获，详见[旅行候选适配](ECHOMIND_TRAVEL_ADAPTATION.md)。工具复用现有38动作、需求引文校验和BM25，最终正文由程序投影，不把模型总结当事实；不另写排程／计费器。直接工具执行与融合分类分开，自动并行禁用，仍共享3次模型／4工具／45秒预算。所有模型HTTP受控、真实调用0；当前应用未导入候选、服务／MySQL／界面未切换。正式接入还缺持久任务准入及页面受控联调，单对象重复保护不是跨进程幂等。真实语义、生产生命周期与完整任务恢复仍待验，以下仍是当前运行路径事实。
+**2026-10-23完整迁移第4步**：[第3步旅行候选](ECHOMIND_TRAVEL_ADAPTATION.md)已通过显式后端`ASSISTANT_RUNTIME=echomind_travel_v1`接入原`dialogue-v2`、MySQL turn／task准入／CAS和浏览器领域控制器，见[聊天接线](ECHOMIND_CHAT_INTEGRATION.md)。需求整理仍为待确认草稿；仅未改需求的同一持久操作可继承原确认，旧回调不能自确认。工具结果投影为程序文字或待执行动作，不采用模型自由事实；日期／费用仍读取本地正式草案。受控浏览器闭环完成，真实模型／高德0；**默认legacy和现有3110／8804／线上未切换**，缺选装依赖不静默回退。原核心／Skill／来源、排程／计费／存档规则不变，共享3模型／4工具／45秒，融合分类和直接执行分开、自动并行不开放。原pytest124断言通过但ONNX退出清理未退出，选装生命周期／生产及真实语义仍未准入，不能称整体迁移质量已通过。
 
 用户已选择移除当前产品的登录、注册、邀请码与账号菜单。现在直接进入独立浏览器工作区，后台用不公开的Cookie承载归属与CSRF，不需要凭据。原账号／邀请／数据表保留作历史数据和兼容，不通过正式HTTP入口登录、兑换或自动认领。机制与限制见[ANONYMOUS_WORKSPACE](ANONYMOUS_WORKSPACE.md)；清除Cookie不能像账号登录那样找回旧数据。
 
@@ -50,7 +50,7 @@ TripPilot 是面向个人及小团体的国内旅行助手：通过对话说清�
 
 - **前端**：Next.js 16.3.8 App Router、React 19.2.8、TypeScript、Tailwind4；Hook/ref、fetch、AbortController和单调版本／身份epoch。浏览器固定同源`/api/*`与地图代理；目标只由Next可信服务端配置决定。
 - **后端**：Python≥3.13、FastAPI、Pydantic、httpx、SQLModel；源码按`api/agents/core/tooling/memory/monitor/evaluation/skills`组织，旧app源码移动而非维护双份；配置和领域规则仍保持原边界。`shared/destinations.json`与`planning-limits.json`统一容量，不靠放宽历史契约迁移。
-- **AI**：当前运行路径为百炼北京地域，聊天有界反馈使用既有Flash，照片独立`qwen3-vl-plus`；旧独立AI接口仍单次有界，没有Anthropic或第二供应商。独立完整迁移候选另有受计量的Embedding与单次Judge，未接入当前应用、未真实调用。本轮旅行候选与此前dialogue-v2均零真实调用；历史迁移独立授权8次实际5次：首版1结构失败，严格index兼容修复后3个剩余请求共4次通过；高德2POI＋2步行。不同版本分开，不与旧9/12拼分，未用次数不自动追加。
+- **AI**：当前运行路径为百炼北京地域，聊天有界反馈使用既有Flash，照片独立`qwen3-vl-plus`；旧独立AI接口仍单次有界，没有Anthropic或第二供应商。选装核心另有受计量的Embedding与单次Judge，未用于本轮直接工具执行、未真实调用；新runtime已显式接线但默认／现有运行服务未启用。本轮旅行候选与此前dialogue-v2均零真实调用；历史迁移独立授权8次实际5次：首版1结构失败，严格index兼容修复后3个剩余请求共4次通过；高德2POI＋2步行。不同版本分开，不与旧9/12拼分，未用次数不自动追加。
 - **本机新版存储**：独立MySQL承载浏览器工作区、会话、对话、意向、存档和持久业务额度；沿用原owner／会话表兼容旧数据，不新增表、不删除旧账号／邀请。地点副本为`chat-places-storage-v1`，运行仍不自动加表，旧库、身份锚及所有尝试状态不改写；新工作区不回退SQLite。
 - **存档**：新正式快照v3支持七天；v1/v2严格保留原1～3天字段与重放含义。快照不是会话、任务恢复或长期偏好；媒体、AI、天气、地图状态与临时预览不入存档。历史打开不刷新原时间或重新核验。
 - **工作区与测试**：当前正式应用不挂载旧`/auth/*`，浏览器自动建立独立匿名工作区；CSRF／Origin、服务端owner、版本epoch、取消与持久全局额度仍有效。清Cookie可建立新工作区，因此单工作区额度不再等同于实名／账号抗重建限制；全局硬额度不重置。3110直接使用，无需8810或邀请码；旧3104保留旧运行环境，不自动同步。
@@ -72,4 +72,4 @@ TripPilot 是面向个人及小团体的国内旅行助手：通过对话说清�
 
 依次读[README](../README.md)→本文件→[ROADMAP](ROADMAP.md)→[PROGRESS](PROGRESS.md)，遵守[AGENTS](../AGENTS.md)。Agent／架构／评测工作再读[Harness约定](HARNESS_ENGINEERING.md)；具体阶段只在[CHAT_REBUILD_PLAN](CHAT_REBUILD_PLAN.md)维护，原理见[AGENT_EVOLUTION](AGENT_EVOLUTION.md)。
 
-**当前停止在完整迁移第3步旅行候选离线适配与验收准备；网站仍为原纯聊天路径。** 检查见PROGRESS及[ECHOMIND_TRAVEL_ADAPTATION](ECHOMIND_TRAVEL_ADAPTATION.md)，现有产品流程见TRAVEL_DIALOGUE_INTEGRATION。原迁移实际5/8、首版失败及修复版3个剩余请求，旧chat-1／2累计9/12暂停各自保留，不合并、不追加。本轮受控验证不是新模型语义成绩；正式任务准入、页面接线、完整恢复、专业协作及生产切换仍未完成，不自动开始下一步或真实复验。
+**当前停止在完整迁移第4步：显式持久准入、聊天接线和列明受控闭环；默认／运行服务未切换。** 检查见PROGRESS及[ECHOMIND_CHAT_INTEGRATION](ECHOMIND_CHAT_INTEGRATION.md)。新路径已有正式准入／页面组合验证，不再记为“完全未接入”；真实语义、ONNX退出／生产生命周期、完整恢复和专业协作仍未完成。原迁移实际5/8及旧chat-1／2累计9/12分别保留，不合并、不追加；下一步只建议固定版本真实语义评审及依赖生命周期核验，不自动发送或部署。

@@ -9,6 +9,7 @@ from __future__ import annotations
 from collections.abc import Iterator
 from contextlib import contextmanager
 from datetime import datetime, timezone
+from dataclasses import dataclass, field
 import hashlib
 import json
 import re
@@ -39,6 +40,34 @@ _ERRORS = frozenset({"cancelled", "model_unavailable", "model_invalid_output", "
 
 class ChatError(StorageError):
     pass
+
+
+_CONFIRMATION_SEAL = object()
+
+
+@dataclass(frozen=True)
+class ConfirmationCarry:
+    """Internal transaction proof, never an HTTP field or replay allowance.
+
+    Only begin_turn captures it from a currently confirmed row before clearing
+    the flag. It is bound to one exact owner/conversation/running operation and
+    the original requirements, sources and issues. It is not durable recovery.
+    """
+    owner_id: str
+    conversation_id: str
+    operation_id: str
+    frozen_revision: int
+    original_confirm_operation: str
+    digest: str
+    _seal: object = field(repr=False, compare=False)
+
+    def __post_init__(self) -> None:
+        if self._seal is not _CONFIRMATION_SEAL:
+            raise ChatError("chat_confirmation_invalid", 409)
+
+
+def _confirmation_digest(requirements: object, sources: object, issues: object) -> str:
+    return hashlib.sha256(_encoded({"requirements": requirements, "sources": sources, "issues": issues}).encode()).hexdigest()
 
 
 def chat_tables() -> list:
@@ -239,10 +268,13 @@ class ChatStore:
         if type(expected_revision) is not int or row["revision"] != expected_revision:
             raise ChatError("chat_revision_conflict", 409)
 
-    def begin_turn(self, owner: str, conversation_id: str, operation_id: str, expected_revision: int, message: str) -> dict:
+    def begin_turn(self, owner: str, conversation_id: str, operation_id: str, expected_revision: int, message: str,
+                   *, capture_confirmation: bool = False) -> dict:
         from core.schemas.chat import SubmitTurn
         self._operation(operation_id)
         SubmitTurn(operation_id=operation_id, expected_revision=expected_revision, text=message)
+        if type(capture_confirmation) is not bool:
+            raise ChatError("chat_confirmation_invalid", 409)
         with self._transaction(owner, write=True) as db:
             row = self._row(db, owner, conversation_id)
             repeated = db.execute(select(TurnRow.id).where(TurnRow.owner_id == owner, TurnRow.operation_id == operation_id)).first()
@@ -257,6 +289,13 @@ class ChatStore:
             if count >= MAX_TURNS or len(messages) + 2 > 40:
                 raise ChatError("chat_turn_limit", 409)
             now, turn_id, revision = int(self.clock()), str(uuid4()), row["revision"] + 1
+            carry = None
+            if capture_confirmation and row["confirmed_revision"] == row["revision"]:
+                if not isinstance(row["confirm_operation_id"], str) or _ID.fullmatch(row["confirm_operation_id"]) is None:
+                    raise ChatError("chat_record_invalid")
+                carry = ConfirmationCarry(owner, conversation_id, operation_id, revision, row["confirm_operation_id"],
+                    _confirmation_digest(_decoded(row["requirements_json"]), _decoded(row["sources_json"]), _decoded(row["issues_json"])),
+                    _CONFIRMATION_SEAL)
             messages.append({"id": str(uuid4()), "role": "user", "text": message, "created_at": _iso(now)})
             db.execute(TurnRow.__table__.insert().values(id=turn_id, owner_id=owner, conversation_id=conversation_id,
                 operation_id=operation_id, input_hash=hashlib.sha256(_encoded({"revision": expected_revision, "text": message}).encode()).hexdigest(),
@@ -266,7 +305,8 @@ class ChatStore:
                 confirmed_revision=None, confirm_operation_id=None, active_turn_id=turn_id,
                 messages_json=_encoded(messages), updated_at=now))
             return {"turn_id": turn_id, "revision": revision,
-                    "conversation": self._view(db, self._row(db, owner, conversation_id))}
+                    "conversation": self._view(db, self._row(db, owner, conversation_id)),
+                    **({"confirmation_carry": carry} if capture_confirmation else {})}
 
     @staticmethod
     def _running(db: Connection, owner: str, row: dict, operation_id: str, revision: int) -> dict:
@@ -278,21 +318,34 @@ class ChatStore:
         return dict(turn)
 
     def finish_turn(self, owner: str, conversation_id: str, operation_id: str, revision: int,
-                    requirements: dict, assistant_text: str, sources: list, issues: list[str] | None = None) -> dict:
+                    requirements: dict, assistant_text: str, sources: list, issues: list[str] | None = None,
+                    *, confirmation_carry: ConfirmationCarry | None = None) -> dict:
         intent = Intent.model_validate(requirements).model_dump(mode="json")
         checked_sources = [Source.model_validate(item).model_dump(mode="json") for item in sources]
         from core.schemas.chat import Selection
         checked_issues = Selection(requirements=intent, sources=checked_sources, issues=issues or []).issues
         if len(checked_sources) > 9 or not isinstance(assistant_text, str) or not 1 <= len(assistant_text) <= 3000:
             raise ChatError("chat_invalid_result", 422)
+        if confirmation_carry is not None and (type(confirmation_carry) is not ConfirmationCarry
+                or confirmation_carry._seal is not _CONFIRMATION_SEAL
+                or (confirmation_carry.owner_id, confirmation_carry.conversation_id,
+                    confirmation_carry.operation_id, confirmation_carry.frozen_revision) !=
+                   (owner, conversation_id, operation_id, revision)):
+            raise ChatError("chat_confirmation_invalid", 409)
         with self._transaction(owner, write=True) as db:
             row = self._row(db, owner, conversation_id)
             turn = self._running(db, owner, row, operation_id, revision)
+            preserve = (confirmation_carry is not None
+                and row["confirmed_revision"] is None
+                and _confirmation_digest(_decoded(row["requirements_json"]), _decoded(row["sources_json"]), _decoded(row["issues_json"])) == confirmation_carry.digest
+                and _confirmation_digest(intent, checked_sources, checked_issues) == confirmation_carry.digest)
             now, messages = int(self.clock()), _decoded(row["messages_json"])
             messages.append({"id": str(uuid4()), "role": "assistant", "text": assistant_text, "created_at": _iso(now)})
             db.execute(update(TurnRow).where(TurnRow.id == turn["id"]).values(state="succeeded", updated_at=now))
             db.execute(update(ConversationRow).where(ConversationRow.id == conversation_id).values(
                 revision=revision + 1, requirements_json=_encoded(intent), sources_json=_encoded(checked_sources), issues_json=_encoded(checked_issues),
+                confirmed_revision=revision + 1 if preserve else None,
+                confirm_operation_id=confirmation_carry.original_confirm_operation if preserve else None,
                 messages_json=_encoded(messages), active_turn_id=None, updated_at=now))
             return self._view(db, self._row(db, owner, conversation_id))
 
