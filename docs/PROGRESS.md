@@ -1,5 +1,18 @@
 # TripPilot Progress
 
+## 最新摘要（2026-10-23，EchoMind完整迁移第3步：旅行候选离线适配与验收准备）
+
+- **范围／基线**：`main / 6fd47567e21d39606240a7b97e33dd49ce23c938`，开工与origin同步。用户同意继续第3步旅行适配并准备验收；本轮真实模型、高德及其他外部业务API **0次**，没有新的调用授权。不改前端／正式HTTP入口／数据库结构／环境／运行服务，不切换当前3110／8804、旧服务或云端；原EchoMind、upstream／SOURCE／原Skill和历史评分保持。详见[旅行适配、验收与面试说明](ECHOMIND_TRAVEL_ADAPTATION.md)。
+- **实现／文件**：新增`echomind_core/travel_domain.py`、`travel_engine.py`、`travel_bridge.py`、`travel_skills.py`及5份对应测试；`execution.py`仅增加默认行为不变的可信请求捕获扩展点。12类旅行意图／24模板，私有有限领域绑定复用原融合code object；4旅行角色复用原路由／反馈／监控机制，16工具复用38项既有动作、需求Selection／引文及本地BM25。读取服务端需求／地点／同意偏好，或产生`executed=false`待确认／浏览器操作提议；不复制排程器、计费器、地点确认或存档。3份现有旅行Skill按任务冻结，工具权限不由Markdown授予，模型自由事实正文不显示。
+- **版本／预算／限制**：`echomind-travel-candidate-v1`／`travel-domain-v1`／`echomind-travel-bridge-v1`；直接工具路径与融合分类分开。直接工具预期2次、硬上限仍3次模型／4工具／45秒；24模板冷准备需3批，分类另2次，未准备时任何LLM发送前拒绝。当前自动旅行并行／客服Composer明确禁用，原并行算法仍保真。MySQL权威不变；只读Loader核对owner、operation、需求确认／地点／偏好版本，工具及最终投影再次检查，ABA不复活。**候选对象防重复不是跨进程幂等**；正式接入仍须复用`ChatStore.begin_turn`及AssistantStore预记／CAS，当前没有新HTTP准入、页面切换或完整断点恢复。
+- **验收准备**：新增`evaluations/echomind-travel-v1.json`、离线`tools/echomind_travel_evaluation.py`及测试，16条＝12语义候选＋4受控边界；canonical清单hash `f0230b99d1eca75bca71ad0e5db9a47f4d21f65bc3763c80b670eabd4598e382`。校验题号／预期不进模型业务输入，成本计划及verify通过；无发送器／新调用台账。**场景已准备，不是16题语义通过，完整live payload未冻结、live_ready=false**。费用／日期／预览最终效果仍需原浏览器控制器接线后验收；12题若按硬3次测上界36，仅为预算估算，不是授权。
+- **实际检查**：独立选装Python3.13环境最终`unittest discover -p 'test_echomind*.py'` **228项／15.366秒通过**（含105项本轮新增，不与子集相加）；原保真核心pytest **124项／6.10秒通过**。原应用venv候选发现66项，36执行通过／30选装条件跳过；现有应用相关回归 **165项发现、148通过／17独立MySQL条件跳过**。来源36文件／11命名空间重建、`uv lock --check --offline`、离线verify／plan、文档链接／语法／敏感信息及diff检查通过。原生产依赖、锁文件、Skill、前端与原核心源码0修改；没有前端改动，不重复Webpack／Chrome。保留既有Chroma/Pydantic、MCP前向引用及原生SQLite ResourceWarning和受控故障日志；不是实时上游故障或语义质量成绩。
+- **证据／保护／停止**：`/Users/zijing/projects/trippilot-evidence/echomind-core-stage3-20261023.rQfqAE/`保存检查和保护哈希，独立临时存储／受控HTTP不连接用户库。五缓存、两SQLite／额度锚8哈希与原EchoMind保持，PROGRESS已有手工说明及浏览器日志不暂存。停止于**第3步旅行候选离线适配与验收准备**；下一步建议先补正式持久准入及页面受控接线，再另获明确额度冻结真实验收。不自动调用模型、切产品、扩并行／远端MCP或部署。知识库生成式问答仍停用，旧失败／台账／未用额度各自保留。
+
+当前导航：[第3步机制与面试](ECHOMIND_TRAVEL_ADAPTATION.md) → [完整迁移来源／第1～2步](ECHOMIND_FULL_MIGRATION.md) → [当前网站仍运行的旅行聊天](TRAVEL_DIALOGUE_INTEGRATION.md)。下方旧“最新”与停止点均为当轮历史，不覆盖本摘要。
+
+---
+
 ## 最新摘要（2026-10-23，EchoMind完整迁移第2步：独立依赖、Embedding与执行安全）
 
 - **范围／基线**：`main / cc38d0e99a344abf186e7f8cfc5db7692c71344f`，开工与origin同步。按用户要求仔细实施依赖与安全步骤；真实模型、高德及其他外部业务API **0次**。没有切换聊天入口、改前端、重启现有3110／8804或旧服务、操作云端或迁用户MySQL；原框架upstream／SOURCE／Skill／原测试0修改，旧评分／台账不变。详见[完整迁移第9节](ECHOMIND_FULL_MIGRATION.md#9-第2步依赖计数与安全组合2026-10-23)。

@@ -558,11 +558,19 @@ class CandidateRunner:
         self._identity: tuple[str, str, str] | None = None
         self._latest_version = -1
 
+    def _capture(self, request: Request, scope: CandidateScope) -> Request:
+        """Trusted domain adapters may extend enums, never the core field guard.
+
+        This is a Python composition seam, not a request-selected class/hook.
+        The default preserved-core behavior and validation stay unchanged.
+        """
+        return _freeze_request(request, scope)
+
     async def run(self, request: Request, gate: ExecutionGate, settings: Settings,
                   client: MeteredAsyncClient) -> CandidateRun:
         if self._running:
             raise ExecutionError("configuration")
-        request = _freeze_request(request, gate.scope)
+        request = self._capture(request, gate.scope)
         identity = (gate.scope.owner_id, gate.scope.conversation_id, gate.scope.session_id)
         if (self._identity is not None and identity != self._identity
                 or gate.scope.input_version < self._latest_version):

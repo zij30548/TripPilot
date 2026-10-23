@@ -4,7 +4,7 @@
 
 ## 当前版本：对话、知识库、Agent评测
 
-**2026-10-23：完整框架迁移第2步完成依赖与安全候选。** 原EchoMind核心与测试保真保留，本轮接通独立本机Redis／Chroma，新增千问Embedding、有界工具执行、单次Judge与取消／身份／日志保护；全部模型HTTP为受控测试，真实模型调用0。**现有产品尚未切换**，旅行专业角色、真实语义效果和生产生命周期仍待验；原三次共享模型预算不扩额，复杂链可能明确超限。范围、检查与停止点见[完整迁移第2步](docs/ECHOMIND_FULL_MIGRATION.md#9-第2步依赖计数与安全组合2026-10-23)。下文描述的仍是当前正式运行路径。
+**2026-10-23：完整框架迁移第3步完成旅行候选离线适配。** 在保真核心及第2步安全组合上，接入12类旅行意图、4个旅行角色、16个只读／提议工具和3份既有旅行Skill；复用原融合、路由和原生工具反馈，用户文字由程序投影实际结果，不采用模型自由编写的事实正文。全部模型HTTP均受控，真实模型／高德调用0。**现有网站尚未切换**；持久任务准入、页面接线及真实语义仍待验，不把场景清单当成效果成绩。所有分支共享3次模型预算，旅行自动并行仍禁用。范围、验收准备与面试说明见[第3步旅行适配](docs/ECHOMIND_TRAVEL_ADAPTATION.md)；下文仍描述当前正式运行路径。
 
 产品主导航仅三个界面：客服式纯聊天、可追溯资料知识库、Agent执行与技术核查。`dialogue-v2`以38个受限动作连接原地点、规划、费用、天气、调整、存档和偏好控制器，结果由程序用聊天文字展示；首页没有旅行卡片、规划面板或执行记录按钮，媒体、地图和需求编辑只在用户明确操作时打开轻量窗口。详见[旅行能力接入](docs/TRAVEL_DIALOGUE_INTEGRATION.md)及[三界面历史说明](docs/THREE_SURFACE_UI.md)。底层沿用EchoMind旅行适配的原生工具反馈、Skills和MySQL；线上不会随本机修改自动更新。
 
@@ -92,6 +92,7 @@ TRIPPILOT_BACKEND_ORIGIN=http://127.0.0.1:8000 npm run dev -- --webpack
 - [AGENTS](AGENTS.md)：开发约束；[Harness](docs/HARNESS_ENGINEERING.md)：12项必查与阶段证据。
 - [EchoMind迁移](docs/ECHOMIND_MIGRATION.md)：架构来源、旅行适配、显式MySQL扩展、验证边界和面试说明。
 - [EchoMind完整迁移](docs/ECHOMIND_FULL_MIGRATION.md)：原核心保真、千问／Embedding、隔离存储、安全组合及尚未切换的边界。
+- [旅行候选适配](docs/ECHOMIND_TRAVEL_ADAPTATION.md)：旅行意图／角色／工具、分路径成本、离线场景及正式接入门槛；未进行新真实模型验收。
 - [旅行能力聊天接入](docs/TRAVEL_DIALOGUE_INTEGRATION.md)：38项受限动作、明确确认、程序事实与本地状态边界；新真实语义待验。
 - [匿名工作区](docs/ANONYMOUS_WORKSPACE.md)：直接进入、浏览器隔离、数据保留及限制；[MySQL历史迁移](docs/MYSQL_REGISTRATION.md)、[Linux部署](docs/RELEASE_1F.md)须按版本另行核对，不自动执行。
 - [历史归档索引](docs/archive/README.md)：原进度、架构决策、旧演示与交付；不是当前操作说明或新调用授权。
