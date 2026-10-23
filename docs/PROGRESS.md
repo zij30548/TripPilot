@@ -1,5 +1,20 @@
 # TripPilot Progress
 
+## 最新摘要（2026-10-23，首轮真实千问验收：M01失败，3/21后暂停）
+
+- **授权／基线**：实际`main / 9c907b2cd18e4fa6f59a4900c918bcf3505e1ac2`，开工与origin同步。用户明确开始此前讨论的7模型提交＋7本地操作／最多21次物理发送首轮检查，高德0；不是30题全面评测或新功能。本轮未改候选、上游保真代码、提示／Schema／模型／参数／业务／前端、数据库结构／用户库、环境、现有服务或云端。旧额度、成绩和未提交手工说明／日志保持。详见[真实结果与逐层定位](ECHOMIND_TRAVEL_LIVE_ACCEPTANCE.md)。
+- **真实结果**：千问 **3/21**，均属M01一次主动提交的工具反馈，不是重试；高德／其他业务外部API0。三次HTTP200、native结构／参数有效、请求及返回标识均Flash固定快照；首次`travel_clarify(destination_missing)`符合预期，随后`date_missing`、`travelers_missing`。最终API502 `assistant_agent_failed`，未把程序澄清交给用户；**结构3/3、首次选择1/1、业务0/1**，其余6模型＋7本地共13项未执行，不补历史成绩。总Token32,417（输入32,329／输出88），传输1309／943／937ms合计3189ms，不是端到端或人民币费用。
+- **首阻断定位**：原BaseAgent每次工具后继续反馈，只有模型无工具结束文本才退出；第三轮仍有工具直接最大轮数失败。旅行bridge已正常记录clarification，但候选在失败分支提前退出，未到程序投影。不是意图选错、端点／Schema／网络失败，也不是发第四次才撞网络计数；共享上限没有放大。接口HTTPException又被验收wrapper保守视为执行异常，journal持久pause；三条均received、无pending／unknown，**余18暂停，不清pause或改版重跑**。task统一failed不代表三个工具都失败。
+- **验收工具／冻结**：新增`tools/echomind_travel_live_{protocol,transport,runner}.py`及3份测试；原485＋4源文件和4旧测试不变，只加3验收模块，真实Cookie／CSRF／ASGI／CAS＋独立MySQL。新live格式journal复用锁／fsync／hashchain，不把受控账本改名；exact MeteredAsyncClient、可信北京地址、3／21上限、无重试／重定向，实际首发绑定及hash先持久，反馈绑定真实native ID与结果，仅留有界白名单输出／用量，不留prompt／认证／思维链。
+- **0发送前置失败保留**：初版私有driver误把旧ledger路径作为短标签，被正确拒绝；只读证实journal不存在、model usage0、chat turn0。原protocol `ae5ddec7…508171`／script／6份源与测试字节快照保留；补纯`ledger_binding()`路径hash投影及真实16路径回归，在同目录／原资源／同21授权下另存v2，不新建库重置、不算模型重试。实际执行protocol-v2 SHA `2ed21e615ae62075a356b2b58202e11072a9f5d8d2d0bae17db8cd8bf1eb770a`，原零调用protocol／execution-v2／清单／16历史ledger不覆盖。
+- **独立计划缺陷**：发送前发现M02／M03没有住宿线索，正确结果应`accommodation_hint=null`，原L02却预期确认成功；现有confirm应409 `chat_requirements_incomplete`。新runner受控回归已证明，L02本轮未执行；不补造住宿、不放宽校验或改旧题／旧预期。后续评测版本须先有理由修订，不在看到模型输出后改标签。
+- **离线诊断／检查**：实际3份白名单native投影重构envelope，经原ASGI／新临时库复现502／3模型3工具／无澄清；不是字节原报文或新模型成绩。新增`test_echomind_travel_termination_diagnosis.py`，对照连续三个有效澄清与tool→text结束，证明旧脚本漏项；首诊断fixture因通用helper复用call ID而正确触发structure拒绝，只修测试为独立ID，首次失败保留。最终相关组合 **180项／20.010秒通过，无跳过**；发送前176项、投影补修后46项是中间／子集，不相加。无业务／前端改动，不跑全量业务构建或Chrome；保留Starlette/httpx弃用提示。来源36文件／11namespace重建、7份新Python语法、248本地链接、敏感信息／diff及保护核对通过；普通venv收尾核验因缺选装jsonschema导入失败，切回既有选装环境核验通过，未安装依赖。纯verify返回0仅指核验函数不发送，真实批次以journal的3次为准。
+- **证据／保护／停止点**：`/Users/zijing/projects/trippilot-evidence/echomind-travel-live-20261023.1cuIa1/`含原／v2冻结、同批0发送补修、追加journal、3份native、程序／任务读回、暂停及离线重放／检查／保护；私密runtime仅仓库外0700／0600。原五缓存／原两SQLite／身份锚、16历史台账、旧原图／评分和服务PID保持；新诊断临时库只清理其自建库，live独立资源保留，不读写用户库。**停止在真实失败及离线定位，未实施候选修复，未完成Chrome／400px／日期费用预览链，也不宣布框架质量通过。** 下一步只建议离线修复旅行工具的确定性终止／等待用户语义，保留上游和预算，再审查关联本protocol／台账前缀的续验；不得重发M01、自动消费18或新开21。知识问答继续停用，默认服务／线上未切换。
+
+当前导航：[首轮真实失败、怎么找问题／怎么修／面试](ECHOMIND_TRAVEL_LIVE_ACCEPTANCE.md) → [固定原题与历史准备](ECHOMIND_TRAVEL_ACCEPTANCE_PLAN.md) → [第4步接线](ECHOMIND_CHAT_INTEGRATION.md)。下方0调用及旧停止点只表示各轮历史，不覆盖本轮3/21暂停。
+
+---
+
 ## 最新摘要（2026-10-23，受控验收准备：持久计数钩子与原接口首发捕获）
 
 - **范围／基线**：实际`main / f3d035bdaab1030b5c679fd309be000fb57e97bf`。用户同意按建议继续离线准备，未新增付费额度；本轮模型、高德及其他外部业务API **0次**。没有改候选／业务／前端／提示／Schema／模型／原参数、数据库结构／用户库／环境／现有服务或云端；原7模型＋7本地固定计划不变。详见[验收准备第7节／原理与面试](ECHOMIND_TRAVEL_ACCEPTANCE_PLAN.md#7-后续离线准备精确客户端计数适配与首发捕获)。
