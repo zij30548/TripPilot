@@ -19,6 +19,7 @@
 
 | 文档 | 什么时候读 |
 | --- | --- |
+| [AMAP_MCP_SEARCH](AMAP_MCP_SEARCH.md) | 最新高德MCP只读搜索接线、标准协议／持久计量、配置和受控验证；默认REST，真实服务待验，不接路线天气或恢复知识问答 |
 | [ECHOMIND_TRAVEL_LIVE_ACCEPTANCE](ECHOMIND_TRAVEL_LIVE_ACCEPTANCE.md) | 原真实3/21失败／18暂停及旧L02计划缺陷保留；最新第8节为零调用终止补修、保存输出重放、回归和面试说明，不是新真实通过或网站切换 |
 | [ECHOMIND_TRAVEL_ACCEPTANCE_PLAN](ECHOMIND_TRAVEL_ACCEPTANCE_PLAN.md) | 最新第7节为受控计数钩子／原ASGI＋临时MySQL首发捕获及独立续冻；132相关项通过、真实0、live模式关闭。既定7模型＋7本地／21建议上限不是授权，实际live上下文及payload仍待准入 |
 | [ECHOMIND_CHAT_INTEGRATION](ECHOMIND_CHAT_INTEGRATION.md) | 第4步显式接线与受控闭环；最新第6节为零调用原生预初始化／退出补修，保留旧挂起／证据缺口，默认网站未切换，真实语义及生产待验 |

@@ -15,6 +15,12 @@ dependencies = [
 # Full reference core is an offline candidate, not imported by the application.
 # Keep its service dependencies opt-in; no Redis/Chroma server starts at install.
 [project.optional-dependencies]
+# Only the standard MCP client and schema validation for opt-in POI search.
+# Does not install or start Redis/Chroma or enable another model path.
+amap-mcp = [
+    "jsonschema==4.26.0",
+    "mcp==1.26.0",
+]
 echomind = [
     "chromadb==0.5.23",
     "jsonschema==4.26.0",

@@ -18,7 +18,10 @@ from memory.chat_storage import ChatError
 from core.business_usage import UsageError
 from core.config import Settings, get_settings
 from tooling.providers.amap import AmapError, AmapTimeoutError
+# Keep the former module export for existing internal callers/test seams;
+# construction for both transports goes exclusively through the factory.
 from tooling.providers.chat_places import ChatPlacesClient, ChatPlacesError
+from tooling.providers.chat_places_factory import chat_places_configured, create_chat_places_client
 from tooling.providers.qwen import QwenError, strict_json
 from tooling.providers.qwen_chat_places import QwenChatPlaceClient
 from core.schemas.chat import Identifier
@@ -155,10 +158,9 @@ async def command(conversation_id: Identifier, raw: Request, store: Store, user:
                         return await finish(clarification="city_confirmation_required")
                     arguments = SearchArguments(city_id=workspace.city_id, keyword=request.keyword, role=request.role)
                 await current()
-                key = settings.amap_web_key.get_secret_value().strip()
-                if not key:
+                if not chat_places_configured(settings):
                     return await finish(error_code="places_not_configured")
-                places = await ChatPlacesClient(client, key).search(arguments.keyword, arguments.city_id)
+                places = await create_chat_places_client(settings, client, before_send=current).search(arguments.keyword, arguments.city_id)
                 await current()
                 batch = Batch(id=str(uuid4()), city_id=arguments.city_id, keyword=arguments.keyword,
                     role=arguments.role, queried_at=datetime.now(timezone.utc).isoformat(), places=places)

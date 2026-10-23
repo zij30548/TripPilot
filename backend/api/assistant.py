@@ -30,6 +30,7 @@ from memory.chat_places_storage import ChatPlacesStore, SearchBatchCarry
 from memory.chat_storage import ChatError, ChatStore
 from core.config import Settings, get_settings
 from tooling.providers.chat_places import ChatPlacesClient
+from tooling.providers.chat_places_factory import chat_places_configured, create_chat_places_client
 from core.schemas.chat import Conversation, Identifier, Intent, Selection, SubmitTurn
 from core.schemas.chat_places import Batch, SearchArguments
 from core.schemas.dialogue import DialogueAction, SubmitDialogueTurn
@@ -334,9 +335,24 @@ async def assistant_turn(conversation_id: Identifier, raw: Request, store: Store
                                 "multiple_requests": "请先明确这次要执行的一项操作。"}[arguments["reason"]],
                     "reason": arguments["reason"]}
 
+        async def search_current() -> dict:
+            """Bind discovery and actual search to both persisted versions.
+
+            Starting this chat turn makes a places view stale against the new
+            conversation revision by design. Check its captured persisted
+            identity instead of rejecting that expected stale presentation.
+            """
+            await current()
+            latest = await db_call(places.get, user.id, conversation_id)
+            if any(latest[field] != place_before[field]
+                   for field in ("revision", "intent_revision", "city_id")):
+                raise RuntimeFailure("context_changed")
+            await current()
+            return latest
+
         async def search(arguments: dict) -> dict:
             nonlocal pending_batch, search_started
-            await current()
+            await search_current()
             checked = SearchArguments.model_validate(arguments)
             if search_started:
                 raise RuntimeFailure("search_limit")
@@ -345,12 +361,11 @@ async def assistant_turn(conversation_id: Identifier, raw: Request, store: Store
             city = legacy_city_id(intent.destination_id) or intent.destination_id
             if place_before["city_id"] is None or checked.city_id != place_before["city_id"] or checked.city_id != city:
                 return {"message": "请先在地点卡确认本次城市；尚未发送高德查询。", "status": "city_confirmation_required"}
-            key = settings.amap_web_key.get_secret_value().strip()
-            if not key:
+            if not chat_places_configured(settings):
                 return {"message": "地点搜索尚未配置，未发送请求。", "status": "places_not_configured"}
             search_started = True
-            found = await ChatPlacesClient(client, key).search(checked.keyword, checked.city_id)
-            await current()
+            found = await create_chat_places_client(settings, client, before_send=search_current).search(checked.keyword, checked.city_id)
+            await search_current()
             pending_batch = Batch(id=str(uuid4()), city_id=checked.city_id, keyword=checked.keyword,
                                   role=checked.role, queried_at=datetime.now(timezone.utc).isoformat(), places=found).model_dump(mode="json")
             return {"message": "已取得真实候选，请在地点卡预览地址并明确确认；同名命中不等于身份已核实。",

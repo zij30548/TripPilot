@@ -31,6 +31,11 @@ class ChatPlacesError(AmapError):
             "chat_place_response_limit": "地点结果超过安全处理范围，本次搜索未采用。",
             "chat_place_upstream_error": "地点搜索服务暂不可用，本次未取得可确认结果。",
             "chat_place_invalid_query": "请选择明确的目录城市并输入1～80个字的地点关键词。",
+            "places_not_configured": "地点搜索尚未配置，本次没有发送查询。",
+            "chat_place_mcp_unavailable": "MCP 地点搜索依赖尚未准备；没有自动改用其他查询方式。",
+            "chat_place_mcp_protocol": "MCP 地点搜索协议或工具版本不兼容，本次未取得可确认结果。",
+            "chat_place_mcp_result": "MCP 地点结果缺少必要字段或格式无效，本次未采用；没有自动补查。",
+            "chat_places_busy": "地点搜索处理容量已满；本次没有排队或发送，请稍后主动操作。",
         }.get(code, "地点数据格式或必要字段无效，本次搜索未采用。")
         super().__init__(message)
 
@@ -65,6 +70,25 @@ def _place(poi: object, city_id: str) -> LocatedPlace:
                             source="amap", region=region)
     except (ValueError, TypeError):
         raise ChatPlacesError() from None
+
+
+def normalize_places(rows: object, city_id: str) -> list[LocatedPlace]:
+    """Shared REST/MCP projection; returned region is evidence, query is not.
+
+    Keep all-or-nothing rejection and identity checks at the same boundary.
+    Only an actual empty POI list is an empty search, not missing data.
+    """
+    if not isinstance(rows, list):
+        raise ChatPlacesError()
+    if len(rows) > MAX_PLACES:
+        raise ChatPlacesError("chat_place_response_limit")
+    places: dict[str, LocatedPlace] = {}
+    for row in rows:
+        place = _place(row, city_id)
+        if place.id in places and places[place.id] != place:
+            raise ChatPlacesError()
+        places.setdefault(place.id, place)
+    return list(places.values())
 
 
 class ChatPlacesClient:
@@ -108,15 +132,4 @@ class ChatPlacesClient:
             raise ChatPlacesError() from None
         if not isinstance(data, dict) or data.get("status") != "1":
             raise ChatPlacesError("chat_place_upstream_error")
-        rows = data.get("pois")
-        if not isinstance(rows, list):
-            raise ChatPlacesError()
-        if len(rows) > MAX_PLACES:
-            raise ChatPlacesError("chat_place_response_limit")
-        places: dict[str, LocatedPlace] = {}
-        for row in rows:
-            place = _place(row, city_id)
-            if place.id in places and places[place.id] != place:
-                raise ChatPlacesError()
-            places.setdefault(place.id, place)
-        return list(places.values())
+        return normalize_places(data.get("pois"), city_id)

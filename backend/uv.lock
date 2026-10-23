@@ -277,6 +277,10 @@ dependencies = [
 ]
 
 [package.optional-dependencies]
+amap-mcp = [
+    { name = "jsonschema" },
+    { name = "mcp" },
+]
 echomind = [
     { name = "chromadb" },
     { name = "jsonschema" },
@@ -298,7 +302,9 @@ requires-dist = [
     { name = "chromadb", marker = "extra == 'echomind'", specifier = "==0.5.23" },
     { name = "fastapi", extras = ["standard"], specifier = ">=0.141.1" },
     { name = "httpx", specifier = ">=0.28.1" },
+    { name = "jsonschema", marker = "extra == 'amap-mcp'", specifier = "==4.26.0" },
     { name = "jsonschema", marker = "extra == 'echomind'", specifier = "==4.26.0" },
+    { name = "mcp", marker = "extra == 'amap-mcp'", specifier = "==1.26.0" },
     { name = "mcp", marker = "extra == 'echomind'", specifier = "==1.26.0" },
     { name = "pillow", specifier = "==12.3.0" },
     { name = "prometheus-client", marker = "extra == 'echomind'", specifier = "==0.21.1" },
@@ -307,7 +313,7 @@ requires-dist = [
     { name = "redis", marker = "extra == 'echomind'", specifier = "==5.2.1" },
     { name = "sqlmodel", specifier = ">=0.0.42" },
 ]
-provides-extras = ["echomind"]
+provides-extras = ["amap-mcp", "echomind"]
 
 [package.metadata.requires-dev]
 echomind-test = [

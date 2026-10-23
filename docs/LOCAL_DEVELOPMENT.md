@@ -27,6 +27,7 @@
 | 独立迁移环境`TRIPPILOT_ASSISTANT_COPY_TARGET_URL` | 仅助手扩展复制工具使用的新空隔离MySQL目标，不是应用自动切库设置，不填写到前端 |
 | 后端`AUTH_COOKIE_SECURE`／`AUTH_ALLOWED_ORIGINS` | 沿用配置名约束工作区Cookie和精确页面Origin；仅本地HTTP明确Secure=false，生产保持true。匿名会话期限为30天、私有恢复seed为1年，旧`AUTH_SESSION_SECONDS`不控制此新协议 |
 | 后端`AMAP_WEB_KEY` | 真实POI、路线、天气服务；未配置则明确失败 |
+| 后端`CHAT_PLACES_TRANSPORT`／`AMAP_MCP_KEY` | 聊天地点搜索可选`rest`默认／`amap_mcp`；后者独立Key、需`amap-mcp`选装组、无自动兜底；真实服务未验，当前运行配置未改，见[接入说明](AMAP_MCP_SEARCH.md) |
 | 后端`AMAP_JS_KEY`／`AMAP_JS_SECURITY_CODE`／`AMAP_ALLOWED_PAGE_ORIGINS` | 固定安全代理与SDK页面来源，安全码不进浏览器；不等于任意代理或CORS放开 |
 | 后端`QWEN_API_KEY`／`QWEN_BASE_URL`／`QWEN_MODEL` | 当前受支持Flash、北京官方HTTPS固定路径；不静默换模型／地域，见[QWEN_SETUP](QWEN_SETUP.md) |
 | 后端`QWEN_VISION_MODEL` | 独立`qwen3-vl-plus`；未明确识别不调用，历史授权不可复用 |

@@ -59,6 +59,10 @@ class Settings(BaseSettings):
     amap_web_key: SecretStr = SecretStr("")
     amap_js_key: SecretStr = SecretStr("")
     amap_js_security_code: SecretStr = SecretStr("")
+    # Trusted server-only choice for chat POI preparation. Legacy route,
+    # candidate, weather and map adapters retain their existing REST contracts.
+    chat_places_transport: Literal["rest", "amap_mcp"] = "rest"
+    amap_mcp_key: SecretStr = SecretStr("")
     # SDK appname metadata is checked against these server-configured page
     # origins. This does not widen CORS or change the fixed AMap upstream.
     amap_allowed_page_origins: tuple[str, ...] = DEFAULT_AMAP_PAGE_ORIGINS

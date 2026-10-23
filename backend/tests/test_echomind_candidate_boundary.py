@@ -25,7 +25,7 @@ class CandidateBoundaryTests(unittest.TestCase):
                                 check=True, capture_output=True, text=True, timeout=10)
         self.assertEqual(json.loads(result.stdout), {"enabled": False, "loaded": []})
 
-    def test_active_application_only_has_one_guarded_lazy_candidate_import_and_no_anthropic(self) -> None:
+    def test_active_application_only_has_explicit_lazy_candidate_and_mcp_admission(self) -> None:
         paths = [BACKEND / "main.py"]
         for name in ("api", "agents", "core", "tooling", "memory", "monitor", "evaluation"):
             paths.extend((BACKEND / name).rglob("*.py"))
@@ -43,6 +43,15 @@ class CandidateBoundaryTests(unittest.TestCase):
                     [node.module or ""] if isinstance(node, ast.ImportFrom) else []
                 )
                 if any(name.split(".")[0] == "echomind_core" for name in names):
+                    if path == BACKEND / "tooling/providers/amap_mcp.py":
+                        self.assertIsInstance(node, ast.ImportFrom)
+                        expected_imports = {
+                            "echomind_core.diagnostics": ["quarantine_upstream_logging"],
+                            "echomind_core.upstream.tooling.mcp_client": ["MCPServerConfig", "StandardMCPClient", "tool_alias"],
+                        }
+                        self.assertIn(node.module, expected_imports)
+                        self.assertEqual([item.name for item in node.names], expected_imports[node.module])
+                        continue
                     self.assertEqual(path, BACKEND / "api/assistant.py")
                     self.assertIsInstance(node, ast.ImportFrom)
                     self.assertEqual(node.module, "echomind_core.integration")
@@ -57,6 +66,23 @@ class CandidateBoundaryTests(unittest.TestCase):
                                         for item in ancestors))
                 self.assertFalse(any(name.split(".")[0] == "anthropic" for name in names),
                                  path.relative_to(BACKEND).as_posix())
+
+    def test_mcp_provider_is_only_lazily_imported_after_server_rest_selection(self) -> None:
+        source = ast.parse((BACKEND / "tooling/providers/chat_places_factory.py").read_text())
+        function = next(node for node in source.body if isinstance(node, ast.FunctionDef)
+                        and node.name == "create_chat_places_client")
+        branches = [node for node in function.body if isinstance(node, ast.If)]
+        rest = next(node for node in branches if isinstance(node.test, ast.Compare))
+        expected = ast.parse('settings.chat_places_transport == "rest"', mode="eval").body
+        self.assertEqual(ast.dump(rest.test), ast.dump(expected))
+        self.assertIsInstance(rest.body[0], ast.Return)
+        self.assertEqual(rest.body[0].value.func.id, "ChatPlacesClient")
+        imports = [node for node in ast.walk(source) if isinstance(node, ast.ImportFrom)
+                   and node.module == "tooling.providers.amap_mcp"]
+        self.assertEqual(len(imports), 1)
+        self.assertEqual([node.name for node in imports[0].names], ["ChatPlacesMCPClient"])
+        self.assertTrue(any(isinstance(node, ast.Try) and imports[0] in node.body for node in function.body))
+        self.assertGreater(imports[0].lineno, rest.end_lineno)
 
     def test_default_application_import_does_not_load_candidate_optional_services(self) -> None:
         script = (
