@@ -19,6 +19,7 @@
 
 | 文档 | 什么时候读 |
 | --- | --- |
+| [ECHOMIND_FULL_MIGRATION](ECHOMIND_FULL_MIGRATION.md) | 最新完整迁移第1步：完整核心保真、千问桥接、离线对照；候选尚未切换到产品 |
 | [ANONYMOUS_WORKSPACE](ANONYMOUS_WORKSPACE.md) | 当前无登录入口、Cookie隔离、数据保留、额度和验证边界 |
 | [TRAVEL_DIALOGUE_INTEGRATION](TRAVEL_DIALOGUE_INTEGRATION.md) | 当前dialogue-v2的38项受限动作、明确确认、原领域控制器、程序事实／缺证说明及本地状态边界；新真实语义待验 |
 | [THREE_SURFACE_UI](THREE_SURFACE_UI.md) | 三主导航设计及原dialogue-v1交付记录；顶部最新状态与下方历史范围分开 |

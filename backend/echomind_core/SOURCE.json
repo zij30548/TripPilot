@@ -1,0 +1,416 @@
+{
+  "schema_version": "echomind-core-provenance-v1",
+  "source_commit": "ef847eb5b719ef98be9d5673f3429e62cd88109e",
+  "source_repository": "User-provided EchoMind reference; license/redistribution permission requires separate confirmation.",
+  "scope": "Complete Python core in agents/core/tooling/memory/monitor/evaluation; original Skill Markdown and portable upstream unit tests. Not the original API/auth/environment/data/launchers.",
+  "transform_allowlist": [
+    "rebase_internal_from_imports",
+    "rebase_internal_module_imports",
+    "bind_anthropic_messages_to_qwen_adapter",
+    "rebase_upstream_test_helper_imports",
+    "rebase_two_test_importlib_module_names"
+  ],
+  "files": [
+    {
+      "path": "__init__.py",
+      "source_path": null,
+      "source_sha256": null,
+      "delivered_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "transformations": []
+    },
+    {
+      "path": "agents/__init__.py",
+      "source_path": null,
+      "source_sha256": null,
+      "delivered_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "transformations": []
+    },
+    {
+      "path": "agents/agent_orchestrator.py",
+      "source_path": "agents/agent_orchestrator.py",
+      "source_sha256": "54e89800c01af6eefe40fec8ef9006cb3ff03ad24b274dd6af8386b28e25df08",
+      "delivered_sha256": "af9ffcd98bfa9183d45b4d7581346cef4d5dc2fe3be6ab0eeb2265b7c4b5f1b6",
+      "transformations": [
+        "rebase_internal_from_imports",
+        "bind_anthropic_messages_to_qwen_adapter"
+      ]
+    },
+    {
+      "path": "agents/tools.py",
+      "source_path": "agents/tools.py",
+      "source_sha256": "0392280b3ff8c84f6ce4c07179f4dde2f4fe596984adfc1a59867ec540138793",
+      "delivered_sha256": "6dc4a03d4ea3ffe9eaf03a2562107b13d9e46beeb0bfeb42412911db203b89fd",
+      "transformations": [
+        "rebase_internal_from_imports"
+      ]
+    },
+    {
+      "path": "core/__init__.py",
+      "source_path": null,
+      "source_sha256": null,
+      "delivered_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "transformations": []
+    },
+    {
+      "path": "core/access.py",
+      "source_path": "core/access.py",
+      "source_sha256": "58cd6d00536c27c549726cff790ee191a34adb3bcc49f479850fa2c71f038327",
+      "delivered_sha256": "58cd6d00536c27c549726cff790ee191a34adb3bcc49f479850fa2c71f038327",
+      "transformations": []
+    },
+    {
+      "path": "core/concurrency.py",
+      "source_path": "core/concurrency.py",
+      "source_sha256": "25b90fff7dc29497a02cff56c1ebb117ba8467653b3d9b0dcdfa33353e9120e8",
+      "delivered_sha256": "25b90fff7dc29497a02cff56c1ebb117ba8467653b3d9b0dcdfa33353e9120e8",
+      "transformations": []
+    },
+    {
+      "path": "core/conversation_state.py",
+      "source_path": "core/conversation_state.py",
+      "source_sha256": "fbdd0923e9818d53893155fbf939db84117ff9a30ad33afe739665fba6e7555e",
+      "delivered_sha256": "fbdd0923e9818d53893155fbf939db84117ff9a30ad33afe739665fba6e7555e",
+      "transformations": []
+    },
+    {
+      "path": "core/intent_embedding.py",
+      "source_path": "core/intent_embedding.py",
+      "source_sha256": "4a2cda1a5960d612a3cea04aad56601338518182ea89d61513ddfa988e2dd38b",
+      "delivered_sha256": "4a2cda1a5960d612a3cea04aad56601338518182ea89d61513ddfa988e2dd38b",
+      "transformations": []
+    },
+    {
+      "path": "core/intent_recognizer.py",
+      "source_path": "core/intent_recognizer.py",
+      "source_sha256": "0888b018e6f621c2898567a8aa134a38cf8c538b28fcf90c148a50f87fbe3a35",
+      "delivered_sha256": "bc46ff17eab6b2883706dd16e5cdb681c56d60bc7f9aa1ce7655a771aaaed500",
+      "transformations": [
+        "rebase_internal_from_imports",
+        "bind_anthropic_messages_to_qwen_adapter"
+      ]
+    },
+    {
+      "path": "core/llm_utils.py",
+      "source_path": "core/llm_utils.py",
+      "source_sha256": "8f7dbda693b254ec5779a3ee6186b6c9cdc0f82a7705ac7a664cfc1e4a58047b",
+      "delivered_sha256": "8f7dbda693b254ec5779a3ee6186b6c9cdc0f82a7705ac7a664cfc1e4a58047b",
+      "transformations": []
+    },
+    {
+      "path": "core/redaction.py",
+      "source_path": "core/redaction.py",
+      "source_sha256": "b7e4a065e28d835a0815fe74f6ab5facdacc0cfef959729a2f59e4b539d918e8",
+      "delivered_sha256": "b7e4a065e28d835a0815fe74f6ab5facdacc0cfef959729a2f59e4b539d918e8",
+      "transformations": []
+    },
+    {
+      "path": "core/skill_loader.py",
+      "source_path": "core/skill_loader.py",
+      "source_sha256": "26618d02cde5592955bd45b7a6752e6fbfa3e06de76ed325658f5257f142aaaf",
+      "delivered_sha256": "26618d02cde5592955bd45b7a6752e6fbfa3e06de76ed325658f5257f142aaaf",
+      "transformations": []
+    },
+    {
+      "path": "evaluation/__init__.py",
+      "source_path": null,
+      "source_sha256": null,
+      "delivered_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "transformations": []
+    },
+    {
+      "path": "evaluation/evaluator.py",
+      "source_path": "evaluation/evaluator.py",
+      "source_sha256": "b183a860864a3fc820554d911e55e190426aa558bc95be01209898d2a81f4a1b",
+      "delivered_sha256": "0014edf196dd62ceba9f5833aea0b38781434e11966d1e6c943712aacd3ee905",
+      "transformations": [
+        "rebase_internal_from_imports",
+        "bind_anthropic_messages_to_qwen_adapter"
+      ]
+    },
+    {
+      "path": "evaluation/few_shot.py",
+      "source_path": "evaluation/few_shot.py",
+      "source_sha256": "49c711cda541f1e28642ddce1fbdd40bca793a285917651f22065124da6865ae",
+      "delivered_sha256": "49c711cda541f1e28642ddce1fbdd40bca793a285917651f22065124da6865ae",
+      "transformations": []
+    },
+    {
+      "path": "evaluation/jobs.py",
+      "source_path": "evaluation/jobs.py",
+      "source_sha256": "0eca1d5025e1d8b005113410598f47adc543396668ceaa519a5c9da59e580937",
+      "delivered_sha256": "0eca1d5025e1d8b005113410598f47adc543396668ceaa519a5c9da59e580937",
+      "transformations": []
+    },
+    {
+      "path": "memory/__init__.py",
+      "source_path": null,
+      "source_sha256": null,
+      "delivered_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "transformations": []
+    },
+    {
+      "path": "memory/conversation_memory.py",
+      "source_path": "memory/conversation_memory.py",
+      "source_sha256": "c4f91dbde1a0b5e033736d1eabb231a3ccf09ef8bf1497e60cae96a10c2f2355",
+      "delivered_sha256": "e7f510775969eb073ccdc027c9d7d0fa182551aee8c2bca0e75b38aa20277b03",
+      "transformations": [
+        "rebase_internal_from_imports",
+        "bind_anthropic_messages_to_qwen_adapter"
+      ]
+    },
+    {
+      "path": "monitor/__init__.py",
+      "source_path": null,
+      "source_sha256": null,
+      "delivered_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "transformations": []
+    },
+    {
+      "path": "monitor/performance_monitor.py",
+      "source_path": "monitor/performance_monitor.py",
+      "source_sha256": "54d2062cfe77f704c126faec382eb29d1db64279a45c41fc05bfe523d751185c",
+      "delivered_sha256": "54d2062cfe77f704c126faec382eb29d1db64279a45c41fc05bfe523d751185c",
+      "transformations": []
+    },
+    {
+      "path": "skills/README.md",
+      "source_path": "skills/README.md",
+      "source_sha256": "3c86fc493c3c73c79e1f01bb85067c874fba59b61f21bb7e9a1bd381235c9aa5",
+      "delivered_sha256": "3c86fc493c3c73c79e1f01bb85067c874fba59b61f21bb7e9a1bd381235c9aa5",
+      "transformations": []
+    },
+    {
+      "path": "skills/__init__.py",
+      "source_path": null,
+      "source_sha256": null,
+      "delivered_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "transformations": []
+    },
+    {
+      "path": "skills/billing_support/SKILL.md",
+      "source_path": "skills/billing_support/SKILL.md",
+      "source_sha256": "60baeba56cb91d2113d529f999f2d14da67425ba11efdc5175c9cf90fbb7223f",
+      "delivered_sha256": "60baeba56cb91d2113d529f999f2d14da67425ba11efdc5175c9cf90fbb7223f",
+      "transformations": []
+    },
+    {
+      "path": "skills/billing_support/__init__.py",
+      "source_path": null,
+      "source_sha256": null,
+      "delivered_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "transformations": []
+    },
+    {
+      "path": "skills/general_customer_service/SKILL.md",
+      "source_path": "skills/general_customer_service/SKILL.md",
+      "source_sha256": "840a45efc7e35abc75b97c37bd47703de53a73ec8844ca29f342f5babddbe037",
+      "delivered_sha256": "840a45efc7e35abc75b97c37bd47703de53a73ec8844ca29f342f5babddbe037",
+      "transformations": []
+    },
+    {
+      "path": "skills/general_customer_service/__init__.py",
+      "source_path": null,
+      "source_sha256": null,
+      "delivered_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "transformations": []
+    },
+    {
+      "path": "skills/technical_support/SKILL.md",
+      "source_path": "skills/technical_support/SKILL.md",
+      "source_sha256": "7e730fb06966314f6530f478debe81bd2a854501f168c5406465df674dcb9cb6",
+      "delivered_sha256": "7e730fb06966314f6530f478debe81bd2a854501f168c5406465df674dcb9cb6",
+      "transformations": []
+    },
+    {
+      "path": "skills/technical_support/__init__.py",
+      "source_path": null,
+      "source_sha256": null,
+      "delivered_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "transformations": []
+    },
+    {
+      "path": "tests/__init__.py",
+      "source_path": null,
+      "source_sha256": null,
+      "delivered_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "transformations": []
+    },
+    {
+      "path": "tests/mcp_fixture_server.py",
+      "source_path": "tests/mcp_fixture_server.py",
+      "source_sha256": "054c146fc73d53634abec35de65e88b52ff72b00ad9676bba1cb14a17d83f1c4",
+      "delivered_sha256": "054c146fc73d53634abec35de65e88b52ff72b00ad9676bba1cb14a17d83f1c4",
+      "transformations": []
+    },
+    {
+      "path": "tests/test_agent_orchestrator.py",
+      "source_path": "tests/test_agent_orchestrator.py",
+      "source_sha256": "d82bb2b6d2217b85de45012485766603eda9b878be4e3422d2cf069fe656feb4",
+      "delivered_sha256": "78233239692ceafc543539209cf179243ac8011dd2a66c1a694b2580ffb7afc1",
+      "transformations": [
+        "rebase_internal_from_imports"
+      ]
+    },
+    {
+      "path": "tests/test_audit_regressions.py",
+      "source_path": "tests/test_audit_regressions.py",
+      "source_sha256": "21bc8824f58e1e6dec3db412d61e541f45300a21fdacc3a4dfad2e4cb2bc9e88",
+      "delivered_sha256": "c6ee4ba4aab04b7fc8a64411323c2544d6440c53478773fc4510bb50aa56d163",
+      "transformations": [
+        "rebase_internal_from_imports",
+        "rebase_upstream_test_helper_imports"
+      ]
+    },
+    {
+      "path": "tests/test_concurrency.py",
+      "source_path": "tests/test_concurrency.py",
+      "source_sha256": "e03b33e09e446ad445b9d61cef9235b19c5e634e3cf0af4563434719a1e5fd25",
+      "delivered_sha256": "7a9721dfe7d1baced30f2dbf02044ad06459891b43bbbdde62d2cc2523d90f99",
+      "transformations": [
+        "rebase_internal_from_imports"
+      ]
+    },
+    {
+      "path": "tests/test_eval_jobs.py",
+      "source_path": "tests/test_eval_jobs.py",
+      "source_sha256": "be5a5a44f23c1d9f72bd9292a46fd68a8529c6ca8d759cbb1a272b7ca6b2e50b",
+      "delivered_sha256": "c896d253a81f68c151880271d748d6f2c93366942b80a708f6aaffc482cd0bd2",
+      "transformations": [
+        "rebase_internal_from_imports"
+      ]
+    },
+    {
+      "path": "tests/test_evaluator.py",
+      "source_path": "tests/test_evaluator.py",
+      "source_sha256": "eafaafa58bb6a1e63e3b4da9dfdd8edd02281900235d389229a56c9195a10b51",
+      "delivered_sha256": "28fba81d7e267674b9442d0472d949380dcb92a805ef9267be9623172a547814",
+      "transformations": [
+        "rebase_internal_from_imports",
+        "rebase_internal_module_imports"
+      ]
+    },
+    {
+      "path": "tests/test_intent_embedding.py",
+      "source_path": "tests/test_intent_embedding.py",
+      "source_sha256": "df4a90e14b5642316df7e95d0192246e6e2272e43834e3e49f4db58e02b46bfb",
+      "delivered_sha256": "94bad8016749dace22123312704d090f3b16ad32e4fa840afe3b00f22be3dcc4",
+      "transformations": [
+        "rebase_internal_from_imports"
+      ]
+    },
+    {
+      "path": "tests/test_intent_recognizer.py",
+      "source_path": "tests/test_intent_recognizer.py",
+      "source_sha256": "2978253bf724fbde77de046648e91090e1a11a2d409a1f31dcb483b021503ede",
+      "delivered_sha256": "e3a3f949ae670f454a5428110a43531446ae567d6b994ecb82e59421f6a719c7",
+      "transformations": [
+        "rebase_internal_from_imports"
+      ]
+    },
+    {
+      "path": "tests/test_knowledge_base.py",
+      "source_path": "tests/test_knowledge_base.py",
+      "source_sha256": "01c2567984b17ef3de837f02717f0e74800838815198a95308e4095a697828ca",
+      "delivered_sha256": "7e93a688826ef5b1e078653c93950bf42aa83e9fe09cfbdbd20392257e02e0ca",
+      "transformations": [
+        "rebase_internal_from_imports"
+      ]
+    },
+    {
+      "path": "tests/test_optimization_regressions.py",
+      "source_path": "tests/test_optimization_regressions.py",
+      "source_sha256": "02f4e5f1c02cf53aa6ab99174b9358c95d8a7ae39d1cc3539d11c13c67142f11",
+      "delivered_sha256": "a1650540717bace033f7cfc63b1445c4b09cae68b341c517c2a65190ddb94007",
+      "transformations": [
+        "rebase_internal_from_imports",
+        "rebase_internal_module_imports",
+        "rebase_two_test_importlib_module_names"
+      ]
+    },
+    {
+      "path": "tests/test_standard_mcp.py",
+      "source_path": "tests/test_standard_mcp.py",
+      "source_sha256": "e28a30301b24007a5823b54a032ed6612f1bc236c0b065e8f84c8fddfd0e5510",
+      "delivered_sha256": "d9797f97452a16359b378050f59fdad64d65deb70c52cceb46d4a0e304ba4f2e",
+      "transformations": [
+        "rebase_internal_from_imports"
+      ]
+    },
+    {
+      "path": "tests/test_tool_manager.py",
+      "source_path": "tests/test_tool_manager.py",
+      "source_sha256": "573a9ae49d8754cb1e9dab4a8d5ae805f413e2ea54b889be3ccb199431ae3b2f",
+      "delivered_sha256": "e5241b0ebba2d8f86a6187bfd75d0b5856c3fc758a722dbc777dd6f8a8956d09",
+      "transformations": [
+        "rebase_internal_from_imports"
+      ]
+    },
+    {
+      "path": "tooling/__init__.py",
+      "source_path": "tooling/__init__.py",
+      "source_sha256": "219e790ba196ff2d0002b5593d633f59dffae35c18b903fb88cdb3c5bf3338e9",
+      "delivered_sha256": "219e790ba196ff2d0002b5593d633f59dffae35c18b903fb88cdb3c5bf3338e9",
+      "transformations": []
+    },
+    {
+      "path": "tooling/knowledge_base.py",
+      "source_path": "tooling/knowledge_base.py",
+      "source_sha256": "7851805a9b636a27f1aa9f05dfdd370a9881270b5f2a2683617cba452e57429a",
+      "delivered_sha256": "7851805a9b636a27f1aa9f05dfdd370a9881270b5f2a2683617cba452e57429a",
+      "transformations": []
+    },
+    {
+      "path": "tooling/mcp_client.py",
+      "source_path": "tooling/mcp_client.py",
+      "source_sha256": "ef89ca6498d21ddca0b90275634e1338eab52b301ecc0d9ed7f28c103b118398",
+      "delivered_sha256": "272c703b10aec33cddeb435b8d4205aa0bdec96b9cfc1a0ae7db5daf1d3c3be3",
+      "transformations": [
+        "rebase_internal_from_imports"
+      ]
+    },
+    {
+      "path": "tooling/mcp_server.py",
+      "source_path": "tooling/mcp_server.py",
+      "source_sha256": "d48c1da2c05a49b18d83dd058dd8f761c7be62e0359ec2f499cc4669bf74d8b1",
+      "delivered_sha256": "d48c1da2c05a49b18d83dd058dd8f761c7be62e0359ec2f499cc4669bf74d8b1",
+      "transformations": []
+    },
+    {
+      "path": "tooling/tool_manager.py",
+      "source_path": "tooling/tool_manager.py",
+      "source_sha256": "43b74d45fd0fa90d50c7b80400c7573da2179ec61c2732713806aa5b9efca9b6",
+      "delivered_sha256": "60744314f3ae7405bebcd303ac397e79e29df24cb91edc8e1ba424cb811dc9aa",
+      "transformations": [
+        "rebase_internal_from_imports",
+        "bind_anthropic_messages_to_qwen_adapter"
+      ]
+    }
+  ],
+  "excluded_tests": [
+    {
+      "path": "tests/test_chat_reliability.py",
+      "source_sha256": "eb7907711f12c6700a760247f6517c65d245e71c2e53e025377805571c76d70d",
+      "reason": "Requires the original API, auth and chat transaction runtime; not a portable core unit test."
+    },
+    {
+      "path": "tests/verify_chat_atomic.py",
+      "source_sha256": "7c9e5fd762ce4260674697d6844873a03d494f98ef7bf9025bc846af6ce6d347",
+      "reason": "Standalone original API/Redis integration launcher; must not run against current services."
+    },
+    {
+      "path": "tests/verify_memory_concurrency.py",
+      "source_sha256": "d775908137f492d65ff8bf969038d7366917c75662c2b77b05066497e9c11ec7",
+      "reason": "Standalone original Redis integration launcher; requires a separately scoped isolated service test."
+    },
+    {
+      "path": "tests/verify_memory_keys.py",
+      "source_sha256": "6b51620ce73fe58e9f2d9f0f7b7650b25d3261339c14d5c79edcf59e9a2b1e70",
+      "reason": "Standalone original Redis integration launcher; requires a separately scoped isolated service test."
+    },
+    {
+      "path": "tests/verify_request_concurrency.py",
+      "source_sha256": "1eb73384eee8a52613b489e4baf5a45251a9e79bbd04dacd7cc5602e85cc524d",
+      "reason": "Standalone original API/Redis/Chroma integration launcher; must not run against current services."
+    }
+  ]
+}

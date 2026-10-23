@@ -4,6 +4,8 @@
 
 ## 当前版本：对话、知识库、Agent评测
 
+**2026-10-23：完整框架迁移已开始，第1步为独立核心候选。** 原EchoMind的编排、意图融合、MCP／检索、分层记忆、监控反馈、Judge及Skill实现与原测试已保真导入，并新增千问协议适配和离线对照；不是再次只借目录或同名简化类。现有产品尚未切换，Redis／Chroma服务、旅行专业角色和真实效果验收未完成。范围、检查、接入门槛与后续步骤见[完整迁移第1步](docs/ECHOMIND_FULL_MIGRATION.md)。下文描述的仍是当前正式运行路径。
+
 产品主导航仅三个界面：客服式纯聊天、可追溯资料知识库、Agent执行与技术核查。`dialogue-v2`以38个受限动作连接原地点、规划、费用、天气、调整、存档和偏好控制器，结果由程序用聊天文字展示；首页没有旅行卡片、规划面板或执行记录按钮，媒体、地图和需求编辑只在用户明确操作时打开轻量窗口。详见[旅行能力接入](docs/TRAVEL_DIALOGUE_INTEGRATION.md)及[三界面历史说明](docs/THREE_SURFACE_UI.md)。底层沿用EchoMind旅行适配的原生工具反馈、Skills和MySQL；线上不会随本机修改自动更新。
 
 当前产品已移除登录、注册、邀请码和账号菜单。打开页面自动建立独立的浏览器工作区，直接使用三页；聊天、偏好与存档按该工作区隔离。保留同一浏览器Cookie可以继续访问，清除Cookie／更换浏览器不能找回旧工作区。历史账号数据保留，不自动交给新工作区。机制和限制见[匿名工作区](docs/ANONYMOUS_WORKSPACE.md)。
@@ -89,6 +91,7 @@ TRIPPILOT_BACKEND_ORIGIN=http://127.0.0.1:8000 npm run dev -- --webpack
 - [PROJECT_CONTEXT](docs/PROJECT_CONTEXT.md)：产品事实与边界；[ROADMAP](docs/ROADMAP.md)：未来依赖；[PROGRESS](docs/PROGRESS.md)：当前状态和停止点。
 - [AGENTS](AGENTS.md)：开发约束；[Harness](docs/HARNESS_ENGINEERING.md)：12项必查与阶段证据。
 - [EchoMind迁移](docs/ECHOMIND_MIGRATION.md)：架构来源、旅行适配、显式MySQL扩展、验证边界和面试说明。
+- [EchoMind完整迁移第1步](docs/ECHOMIND_FULL_MIGRATION.md)：原核心保真、千问桥接、离线对照及尚未切换的边界。
 - [旅行能力聊天接入](docs/TRAVEL_DIALOGUE_INTEGRATION.md)：38项受限动作、明确确认、程序事实与本地状态边界；新真实语义待验。
 - [匿名工作区](docs/ANONYMOUS_WORKSPACE.md)：直接进入、浏览器隔离、数据保留及限制；[MySQL历史迁移](docs/MYSQL_REGISTRATION.md)、[Linux部署](docs/RELEASE_1F.md)须按版本另行核对，不自动执行。
 - [历史归档索引](docs/archive/README.md)：原进度、架构决策、旧演示与交付；不是当前操作说明或新调用授权。

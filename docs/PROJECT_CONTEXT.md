@@ -10,6 +10,8 @@ TripPilot 是面向个人及小团体的国内旅行助手：通过对话说清�
 
 ## 当前入口与实现范围
 
+**2026-10-23新的完整迁移工作**：用户要求完整保留EchoMind通用引擎再适配旅行，取代此前“只参考结构”的实施方式。第1步已独立导入20个核心模块、原Skill与原测试，新增千问消息／工具协议桥接及可重建来源清单；详见[ECHOMIND_FULL_MIGRATION](ECHOMIND_FULL_MIGRATION.md)。选装依赖在独立Python3.13环境验证，当前应用没有导入该候选；原运行服务、MySQL和界面不切换。原日志、Embedding直连、Judge重试／预算及Redis／Chroma生命周期仍须适配，不能写成正式多Agent／向量记忆已可用。以下仍是当前运行路径事实。
+
 用户已选择移除当前产品的登录、注册、邀请码与账号菜单。现在直接进入独立浏览器工作区，后台用不公开的Cookie承载归属与CSRF，不需要凭据。原账号／邀请／数据表保留作历史数据和兼容，不通过正式HTTP入口登录、兑换或自动认领。机制与限制见[ANONYMOUS_WORKSPACE](ANONYMOUS_WORKSPACE.md)；清除Cookie不能像账号登录那样找回旧数据。
 
 2026-10-22最新接入：主产品仍仅纯聊天、知识库、Agent评测三页；`dialogue-v2`用38项白名单动作连接原地点、规划、费用、天气、调整、存档、媒体与偏好能力，详见[TRAVEL_DIALOGUE_INTEGRATION](TRAVEL_DIALOGUE_INTEGRATION.md)。聊天首页没有旅行卡片、规划面板或执行记录按钮；媒体、地图和需求编辑在明确操作后打开轻量窗口。`dialogue-v1`及旧调用仍兼容；原三界面交付记录保留在[THREE_SURFACE_UI](THREE_SURFACE_UI.md)，不把旧验证拼成本轮真实语义成绩。
