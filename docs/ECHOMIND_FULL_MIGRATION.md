@@ -1,4 +1,6 @@
-# EchoMind 完整迁移：第1步，核心保真与千问适配
+# EchoMind 完整迁移：原核心、千问与安全依赖适配
+
+**当前：2026-10-23，第2步依赖／安全适配已完成离线及真实本地存储验证，产品入口仍未切换。** 本轮新增范围、复现命令、限制和停止点见[第9节](#9-第2步依赖计数与安全组合2026-10-23)。下方第1～8节是第1步原交付记录，其中“本步／当前”按当时理解，不覆盖本节及PROGRESS最新摘要。
 
 更新：2026-10-23。开发基线 `1d5a8e3d4a1a870dbc94461ee43db18cdd1047db`。
 
@@ -101,3 +103,85 @@ UV_PROJECT_ENVIRONMENT="$ECHO_ENV" uv sync --python .venv/bin/python --frozen --
 - **为什么还不能直接上线？** 原日志、自动评分重试、直连Embedding、默认身份和存储生命周期尚需适配；本步刻意不暴露HTTP入口。
 
 Harness交付卡：H01范围／H02来源版本／H03协议／H04预算／H08安全／H09计数／H11受控评测／H12隔离与依赖有本步代码检查；H05旅行正式提交、H06记忆同意、H07持久任务恢复及H10完整运行监控保留为后续准入，不能用原类存在判为通过。模型及外部业务API调用均0。
+
+## 9. 第2步：依赖、计数与安全组合（2026-10-23）
+
+### 9.1 范围与实际数据流
+
+开发基线 `main / cc38d0e99a344abf186e7f8cfc5db7692c71344f`。用户要求仔细实施第2步，本轮只处理独立Redis／Chroma、千问Embedding与原核心的安全组合。**没有旅行角色替换、HTTP开放、前端修改或产品切换；当前3110／8804及旧服务未重启，MySQL和原数据未迁移。** 真实模型、高德及外部业务API调用均 **0**。
+
+组合入口为 [runtime.py](../backend/echomind_core/runtime.py)：显式 `StorageConfig`＋服务端owner／会话／独立session／单调input_version → 私有Redis与Chroma → 受限本地只读检索工具 → 原编排器。打开资源不请求Embedding、不导默认文档、不生成画像。调用必须同时绑定当前执行门禁和已有持久额度上下文；owner与conversation路径不符，即便只是读缓存也拒绝。模板索引、工作缓存写入是可信调用方显式操作，不是模型可执行的写工具。
+
+| 文件／能力 | 本轮适配 | 未实现或不作为本轮结论 |
+| --- | --- | --- |
+| [embedding.py](../backend/echomind_core/embedding.py)、provider.py | 固定千问 `text-embedding-v4`／1024维，显式异步向量，严格索引／维度／有限数／JSON校验，与聊天共享计数和截止 | 未真实发送或衡量中文语义检索；未开放自动模板准备 |
+| [storage.py](../backend/echomind_core/storage.py) | 真Redis工作缓存与版本屏障、真Chroma知识／情景／明确同意偏好索引；复用原分块、更新、检索与上下文组装 | 缓存不是MySQL主数据，不是完整任务断点恢复；不自动猜偏好或从模型正文提取同意 |
+| [execution.py](../backend/echomind_core/execution.py) | 原融合／路由／并行／合成及检索链外包裹可信工具、请求捕获、预算、作用域、取消与单次Judge | 原客服角色／话术尚未适配旅行，不能直接把生成正文作为可靠旅行事实 |
+| [diagnostics.py](../backend/echomind_core/diagnostics.py) | 原候选日志命名空间进入空sink；新事件只允许阶段／枚举码／数量／耗时／固定模型 | 不是完整生产监控平台；可信注册代码仍不可自行安装泄露正文的新日志handler |
+| core/usage_runtime.py | 仅合法assistant-turns上下文中的北京官方 `/embeddings` 计入原 `qwen_text` | 不新增／重置业务额度；次数不是人民币费用上限 |
+
+`upstream/**`、`SOURCE.json`、原测试及原Skill **0修改**，原算法仍可作对照；本轮是明确的适配层，不是删掉原实现后写同名简化类。选装依赖和锁文件未改变，复用第1步的独立Python3.13环境；正式venv未安装新包。
+
+### 9.2 存储职责、持久性与资源边界
+
+- **MySQL仍唯一权威**：用户同意、会话、业务任务、存档和额度不转交Redis／Chroma。当前候选只接受可信调用方传入的来源版本，内部一致性不等于已查询MySQL核验；与现有MySQL读取／提交的自动接线属于第3步。
+- Redis只连当前用户私有目录的Unix socket；读取配置核验 `port=0`、AOF开启、`appendfsync=always`、`noeviction`、正数且不超过64MiB的maxmemory、私有数据目录。不设置已有服务、不连默认6379、不回退其他库。AOF重启仍保留版本／撤回屏障；故障时失败，不当作空画像继续。
+- Chroma为本地 `PersistentClient`，不是新增网络服务。显式向量且 `embedding_function=None`，禁默认下载与种子内容；注入无导出的遥测组件，不只依赖“关闭匿名遥测”布尔值。namespace＋owner哈希、存储版本、模型和维度绑定集合与强制过滤；不匹配拒绝复用。
+- 每owner最多知识128片段、情景128条、偏好32项（含pending／撤回屏障）；工作缓存64会话（含非过期版本屏障）／每会话20条消息；输入与结果正文／上下文状态投影64KiB，非整个Python对象的线缆序列化承诺。工作正文TTL为1～86400秒，版本屏障不随正文过期，撤回／正文过期不自动释放身份容量。生产清理须另定权威版本与保留策略。原500字符主题分块保留；一次最多10个不同文本，不自动拆成额外付费批次。
+- 显式用户偏好写入与撤回使用Redis持久pending／generation和Chroma版本交叉检查。中断或结果不明会阻止读取／同版重放，须从权威状态明确协调，**不是Redis与Chroma跨库事务**。撤回是当前检索逻辑失效，不宣称物理擦除WAL或备份。
+- Chroma同步操作在线程执行，取消后等待实际退出再释放Redis租约；重复取消不遗弃线程。`aclose()`排空操作并关闭Redis连接，不调用共享Chroma私有 `_system.stop()`伤害其他owner。Chroma0.5没有公共close，原生句柄随隔离进程退出释放；因此长期服务的进程生命周期、磁盘容量／清理、备份与Linux低内存验收仍是开放前门槛。
+
+### 9.3 发送、取消、预算和原机制的取舍
+
+Embedding采用官方[当前规格](https://help.aliyun.com/zh/model-studio/embedding)及[OpenAI兼容接口](https://help.aliyun.com/en/model-studio/embedding-interfaces-compatible-with-openai)：每批最多10条；本地进一步限定单条8000字符且8000 UTF-8字节、整请求48000字节、响应2MiB、单次20秒／整任务45秒。字节上限不是Token用量或价格保证。返回索引／数量／非零有限向量不符就拒绝，不截断、补零或切换本地模型。
+
+模型、Embedding、改写、重排、子Agent、合成和Judge共用**最多3次模型／4次实际工具／45秒／6144最大输出Token预约**。Embedding每批占1次模型与1次持久`qwen_text`尝试，输出Token预约为0不代表免费；实际输入用量未知就记未知。实际传输前原子持久预记，失败、取消、dispatching不确定均不返额；传输无自动重试或重定向。Judge只尝试1次、最多1024输出Token；非法评分保留未评分，不修复循环。
+
+这里存在实际成本约束：原54条意图模板冷启动至少6批Embedding，再加查询，不可能塞进3次任务。现在先核验全部文本／预算，**发送前报 `embedding_preparation_required`**；支持有owner／revision／模型／维度／指纹的显式已准备向量加载，但本轮未调用模型生成这些向量。即便已准备，完整融合的LLM＋查询Embedding已占2次，Agent首答占第3次；再做工具反馈、改写或合成可能明确超限。组件能力保留不等于所有复杂组合都能在3次内完成，后续按旅行任务选择必要路径，不能暗加额度。
+
+原 `learn()` 改全局模板，有跨用户污染风险；安全候选暂拒绝该入口，原算法不删。需要显式owner隔离、审核和模板版本发布后才能启用。远端MCP原SDK／测试保留，但本候选只注册可信有限的本地只读工具，不接受模型URL、任意代码或副作用；标为read-only是注册者责任，不是程序能证明任意函数绝无副作用。
+
+原始Request在首个await前白名单深拷贝；缓存绑定owner／conversation／session，输入版本只增不退，A→B→A不恢复旧资格。失效会取消模型／工具和直接存储准备任务，发送后取消不能保证供应商停止处理或计费。同步工具取消也须等线程退出。原框架捕获异常后的词法／检索降级，不得掩盖任务预算或模型错误成为假成功。
+
+### 9.4 本机复现与配置（不切换现有服务）
+
+本机已存在 `/opt/homebrew/bin/redis-server`，检查版本为8.10.2；未安装或重配系统服务。每项存储测试在私有临时目录启动独立Unix socket Redis，结束时停止；Chroma使用另一私有子目录。测试实际连接、AOF重启、独立进程重新读取索引，但所有向量及聊天HTTP均受控，不代表真实语义效果。
+
+第1步独立venv安装命令仍适用。下列为**离线验证**，不会调用付费模型；需本机已有Redis可执行文件，缺失明确跳过／不可用，不自动安装：
+
+```sh
+cd backend
+# ECHO_ENV 指向按第5节创建的仓库外专用venv，不能使用运行服务的venv替换它。
+"$ECHO_ENV/bin/python" -B tools/echomind_core_manifest.py
+"$ECHO_ENV/bin/python" -B -m unittest tests.test_echomind_core_manifest tests.test_echomind_candidate_boundary tests.test_echomind_core_behaviors tests.test_echomind_provider tests.test_echomind_embedding tests.test_echomind_execution tests.test_echomind_storage tests.test_echomind_runtime -q
+"$ECHO_ENV/bin/python" -B -m pytest echomind_core/upstream/tests -q -p no:cacheprovider
+uv lock --check --offline
+```
+
+如需开发独立存储，以下是非敏感参数示例，**不是正式应用配置或自动启用开关**。用`mktemp -d`新建私有目录并以`pwd -P`得到真实绝对路径；不使用现有数据路径。Redis前台参数为：
+
+```sh
+ECHO_ROOT="$(mktemp -d /tmp/trippilot-echo-store.XXXXXX)"
+ECHO_ROOT="$(cd "$ECHO_ROOT" && pwd -P)"
+redis-server --port 0 --unixsocket "$ECHO_ROOT/redis.sock" --unixsocketperm 700 \
+  --dir "$ECHO_ROOT" --appendonly yes --appendfsync always \
+  --maxmemory 64mb --maxmemory-policy noeviction --save '' --logfile "$ECHO_ROOT/redis.log"
+```
+
+可信组合层显式传入 `StorageConfig("echo-stage2-lab", Path(root)/"redis.sock", Path(root)/"chroma", "text-embedding-v4", 1024, ttl_seconds=3600)`；模型沿用既有后端配置和北京地址校验，不新建Key、不修改环境文件。手工调用仍须明确真实调用授权、现有持久owner上下文及执行门禁；启动本地Redis或产品有余额并非模型调用许可。测试会自行准备和回收资源，不需要先运行这个示例。
+
+### 9.5 本轮检查、证据、停止点
+
+最终检查结果见PROGRESS最新摘要；证据目录 `/Users/zijing/projects/trippilot-evidence/echomind-core-stage2-20261023.FoAscI/`，保存检查结果和保护哈希，不提交临时库／模型正文／日志。范围分为真实本机存储、受控HTTP／算法、现有应用回归，互不冒充真实模型或Chrome效果。未改前端，不重复构建或浏览器验收；本轮未启动／重启当前产品或云端。
+
+**停止于第2步依赖与安全候选，不进入第3步旅行意图／Agent／Skill接入或正式切换。** 真实Embedding语义检索、当前中文旅行意图／答案、多Agent收益、生产磁盘／备份／隔离与远端MCP仍待分别设计和验收。知识库生成问答保持停用，所有旧失败／台账和调用额度保持独立。
+
+面试简述：完整保留原引擎后，不直接让它拿环境变量任意发请求；由受信任组合层把身份、输入版本、工具权限和同一份任务预算注入。MySQL管事实与额度，Redis管可丢的工作缓存及一致性屏障，Chroma管可重建索引。原测试验证机制保真，真实本地存储验证隔离／重启，MockHTTP验证协议与计数；三者都不能证明旅行回答质量。
+
+- **为什么不直接开放原始类？** 原自动下载、直连、全局学习、日志及评分重试不符合现有权限／费用边界；适配包裹而非删除原算法。
+- **Redis重启为什么不恢复额度？** 硬额度仍在已有持久存储，Redis不是额度库；AOF只保护候选缓存的版本／撤回屏障，不提供新调用许可。
+- **并行为什么不等于免费加速？** 所有子任务共享3次上限，实际发送前竞争同一持久额度；预算不足就停止，不看哪个先成功来拼答案。
+- **取消为什么要等线程？** Python取消不能杀掉已执行的同步Chroma操作；提前释放租约可能让旧写覆盖新写，必须等回收后再放行。
+- **还有哪些未证明？** 真实语义质量、偏好被旅行约束满足、复杂链在预算内完成以及生产长生命周期；未将受控测试写成已经上线或全面智能。
+
+Harness本轮：H01～H04范围／版本／契约／预算、H06同意／撤回机制、H08隐私／权限、H09持久尝试、H11分层受控检查和H12选装依赖均有具体测试；H05旅行正式提交仍用旧产品、H07完整任务恢复和H10生产追踪／告警未因此完成。原版权许可缺口与第1步归属保留。

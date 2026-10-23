@@ -73,6 +73,11 @@ class TaskBudget:
     def counts(self) -> tuple[int, int, int]:
         return self._models, self._tools, self._tokens
 
+    @property
+    def stopped(self) -> bool:
+        """Read-only failure latch for trusted runners, never a resume switch."""
+        return self._stopped
+
     async def reserve_model(self, max_tokens: int) -> None:
         async with self._lock:
             if self._stopped:
@@ -84,6 +89,21 @@ class TaskBudget:
                 raise ProviderError("task_budget")
             self._models += 1
             self._tokens += max_tokens
+
+    async def reserve_embedding(self) -> None:
+        """One remote embedding batch is one model attempt, with no output tokens.
+
+        Embedding input usage is returned by the provider separately; zero here
+        is not a claim of free usage or a refund of persistent attempt quotas.
+        """
+        async with self._lock:
+            if self._stopped:
+                raise ProviderError("task_stopped")
+            if not self.remaining_seconds:
+                raise ProviderError("task_deadline")
+            if self._models >= self.model_limit:
+                raise ProviderError("task_budget")
+            self._models += 1
 
     async def reserve_tool(self) -> None:
         async with self._lock:

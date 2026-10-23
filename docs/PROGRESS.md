@@ -1,5 +1,18 @@
 # TripPilot Progress
 
+## 最新摘要（2026-10-23，EchoMind完整迁移第2步：独立依赖、Embedding与执行安全）
+
+- **范围／基线**：`main / cc38d0e99a344abf186e7f8cfc5db7692c71344f`，开工与origin同步。按用户要求仔细实施依赖与安全步骤；真实模型、高德及其他外部业务API **0次**。没有切换聊天入口、改前端、重启现有3110／8804或旧服务、操作云端或迁用户MySQL；原框架upstream／SOURCE／Skill／原测试0修改，旧评分／台账不变。详见[完整迁移第9节](ECHOMIND_FULL_MIGRATION.md#9-第2步依赖计数与安全组合2026-10-23)。
+- **实现**：新增`embedding.py`、`storage.py`、`execution.py`、`diagnostics.py`、`runtime.py`及4份对应测试；provider只增加Embedding共享计数／停止状态，现有usage分类仅把合法assistant-turns北京`/embeddings`计入原`qwen_text`。固定v4／1024维／批10，显式向量不下载模型；真实私有Unix-socket Redis AOF＋本地Chroma，owner／版本过滤和有界缓存。可信只读工具、Request白名单深拷贝、session／单调版本、ABA、取消后线程排空、单次1024Token Judge、原日志空sink与有限安全事件；无原始提示／参数日志。
+- **预算与边界**：所有模型路径含Embedding／改写／重排／子Agent／合成／Judge共用3模型／4工具／45秒／6144最大输出预约，不增额度。原54模板冷准备超限时发送前明确拒绝，提供严格已准备索引加载；未真实生成索引。完整融合已占2次，Agent首答第3次后不能再任意反馈／合成，复杂链可能明确停止，不能冒称全流程都可在3次完成。原全局learn和自动画像／压缩暂不开放；只注册可信本地只读工具，远端MCP仍须单独准入，不删原能力或放开任意URL。
+- **存储与限制**：MySQL继续权威；Redis／Chroma是显式输入的缓存／索引，不是自动任务恢复或另一份偏好主库。Redis要求port0／私有socket／AOF always／noeviction／≤64MiB；知识128片段、情景128、偏好32、工作64会话×20消息／64KiB，有明确TTL／版本屏障。偏好pending／撤回逻辑拒绝旧写复活，但不是跨库事务或物理擦除。Chroma0.5没有公共close，关闭owner不停止共享System；长期进程／磁盘／备份和Linux资源仍待验。
+- **实际检查**：独立选装Python3.13环境完整候选 **123项通过**（包括原47与本轮76，不与早期子集相加）；真实本机存储部分使用受控向量，模型HTTP全部MockTransport，实际持久计数用独立临时库。交叉复核补上“首次偏好在Chroma落盘前失败但有pending”读取漏检，21项存储测试含该回归及注册容量检查。原核心pytest **124项通过**，来源36文件／11命名空间完整重建、`uv lock --check --offline`通过，锁文件及原生产依赖版本未改。现有应用相关回归 **165项发现、148执行通过／17独立MySQL条件跳过**；保留既有弃用、Chroma原生SQLite ResourceWarning、原受控故障日志，不把它们称上游故障。无前端变化，不重复构建／Chrome；不产生真实模型质量成绩。
+- **证据／保护／停止**：`/Users/zijing/projects/trippilot-evidence/echomind-core-stage2-20261023.FoAscI/`保存必要检查／保护哈希；私有Redis测试进程结束回收，未留下新常驻服务。原五缓存、两SQLite／额度锚8哈希及原EchoMind保持；既有PROGRESS手工说明与浏览器日志不暂存。**停在第2步依赖与安全候选**；下一步旅行意图／专业Agent／Skill及MySQL权威接线未自动实施，真实语义、完整复杂链、生产切换仍须各自准入和明确调用授权。知识库生成式问答继续停用。
+
+当前导航：[本轮机制、复现与面试](ECHOMIND_FULL_MIGRATION.md#9-第2步依赖计数与安全组合2026-10-23) → [当前仍运行的聊天路径](TRAVEL_DIALOGUE_INTEGRATION.md) → [无登录使用](ANONYMOUS_WORKSPACE.md)。下方第1步及旧“最新”均保留当轮历史，不覆盖本摘要。
+
+---
+
 ## 最新摘要（2026-10-23，EchoMind完整迁移第1步：核心保真与千问适配）
 
 - **授权／基线**：`main / 1d5a8e3d4a1a870dbc94461ee43db18cdd1047db`。用户明确要求完整复用原框架，而非只借目录或同名简化类，并同意按实施方案开始。第1步只交付独立核心、千问桥接及离线对照；未切换正式产品、改前端、启动新服务、操作云端或迁用户数据。真实模型、高德及其他外部业务API **0次**；旧台账／失败／剩余额度保持，不以安装依赖视为业务验收。

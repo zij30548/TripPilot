@@ -121,6 +121,14 @@ def _service(request: httpx.Request) -> Service:
         return _AMAP_PATHS[url.path]
     beijing = url.host == "dashscope.aliyuncs.com" or re.fullmatch(
         r"[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?\.cn-beijing\.maas\.aliyuncs\.com", url.host)
+    if (request.method == "POST" and beijing
+            and url.path == "/compatible-mode/v1/embeddings" and not url.query
+            and re.fullmatch(
+                r"/chat/conversations/[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}/assistant-turns",
+                context.request_path)):
+        # Candidate-only embeddings conservatively share the existing qwen_text
+        # attempt class. No schema, public quota version or allowance is reset.
+        return "qwen_text"
     if request.method == "POST" and beijing and url.path == "/compatible-mode/v1/chat/completions" and not url.query:
         if context.request_path == "/media/landmark":
             return "qwen_vision"
