@@ -6,13 +6,13 @@ import { CONTROLLED_ENDPOINTS, MIB, SYNTHETIC_AUTH_HEADERS, startControlledBacke
 
 const digest = (body) => createHash("sha256").update(body).digest("hex");
 
-test("all current resources include identity and usage; authentication transport evidence contains only booleans", async () => {
+test("current resources include cookie-scoped workspace bootstrap and usage without account routes; transport evidence contains only booleans", async () => {
   const identityAndUsage = [
-    ["GET", "/auth/session"], ["POST", "/auth/login"], ["POST", "/auth/register"],
-    ["POST", "/auth/logout"], ["GET", "/usage"],
+    ["GET", "/workspace/session"], ["POST", "/workspace/session"], ["GET", "/usage"],
   ];
-  assert.equal(CONTROLLED_ENDPOINTS.length, 35);
-  assert.equal(new Set(CONTROLLED_ENDPOINTS.map(([method, path]) => `${method} ${path}`)).size, 35);
+  assert.equal(CONTROLLED_ENDPOINTS.length, 33);
+  assert.equal(new Set(CONTROLLED_ENDPOINTS.map(([method, path]) => `${method} ${path}`)).size, 33);
+  assert.equal(CONTROLLED_ENDPOINTS.some(([, path]) => path.startsWith("/auth/")), false);
   assert.ok(CONTROLLED_ENDPOINTS.some(([method, path]) => method === "POST" && path.endsWith("/turns")));
   assert.ok(CONTROLLED_ENDPOINTS.some(([method, path]) => method === "GET" && path === "/chat/cities"));
   for (const method of ["GET", "POST"]) assert.ok(CONTROLLED_ENDPOINTS.some(([verb, path]) => verb === method && path.endsWith("/places")));
@@ -20,15 +20,17 @@ test("all current resources include identity and usage; authentication transport
   const backend = await startControlledBackend({ port: 0 });
   try {
     for (const [method, path] of identityAndUsage) {
-      const response = await fetch(`http://127.0.0.1:${backend.port}${path}`, { method, headers: SYNTHETIC_AUTH_HEADERS });
+      const body = method === "POST" ? "{}" : undefined;
+      const response = await fetch(`http://127.0.0.1:${backend.port}${path}`, { method, body, headers: SYNTHETIC_AUTH_HEADERS });
       assert.equal(response.status, 200);
       const result = await response.json();
       assert.equal(result.method, method);
       assert.equal(result.path, path);
+      assert.equal(result.sha256, digest(body ?? ""));
       assert.deepEqual(result.authentication_headers, { cookie_matches: true, origin_matches: true, csrf_matches: true });
     }
     const unexpected = "private-value-must-not-be-recorded";
-    const response = await fetch(`http://127.0.0.1:${backend.port}/auth/session`, {
+    const response = await fetch(`http://127.0.0.1:${backend.port}/workspace/session`, {
       headers: { cookie: unexpected, origin: "http://different.invalid", "x-csrf-token": unexpected },
     });
     assert.deepEqual((await response.json()).authentication_headers, { cookie_matches: false, origin_matches: false, csrf_matches: false });
@@ -70,6 +72,25 @@ test("assistant and dialogue readback transport retains version header and auth 
     assert.equal(serialized.includes("private-unrecognized-surface"), false);
     assert.equal(serialized.includes("核对当前行程"), false);
     for (const secret of Object.values(SYNTHETIC_AUTH_HEADERS)) assert.equal(serialized.includes(secret), false);
+  } finally { await backend.close(); }
+});
+
+test("cancelled workspace bootstrap sends one empty command with Origin/CSRF/cookie preserved and never retries", async () => {
+  const backend = await startControlledBackend({ port: 0 });
+  try {
+    const req = request(`http://127.0.0.1:${backend.port}/workspace/session?probe_wait_ms=40000`, {
+      method: "POST", headers: { ...SYNTHETIC_AUTH_HEADERS, "content-type": "application/json" },
+    });
+    req.on("error", () => {});
+    req.end("{}");
+    const record = await until(() => backend.records.find(row => row.completed_upload), "workspace command did not reach controlled backend");
+    req.destroy();
+    await until(() => record.response_close_count === 1, "backend did not observe workspace cancellation");
+    assert.equal(record.response_finished, false);
+    assert.equal(record.sha256, digest("{}"));
+    assert.equal(record.bytes, 2);
+    assert.deepEqual(record.authentication_headers, { cookie_matches: true, origin_matches: true, csrf_matches: true });
+    assert.deepEqual(backend.records.map(row => [row.method, row.path]), [["POST", "/workspace/session"]]);
   } finally { await backend.close(); }
 });
 

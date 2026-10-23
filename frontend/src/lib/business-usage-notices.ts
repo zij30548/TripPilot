@@ -41,7 +41,7 @@ export function recordBusinessUsageNotice(response: Response, epoch: number): vo
 }
 export function businessUsageNoticeText(value: BusinessUsageNotice): string {
   const service = value.service ? BUSINESS_SERVICE_LABELS[value.service] : "业务调用";
-  const scope = value.scope === "global" ? "服务整体" : "当前账号";
+  const scope = value.scope === "global" ? "服务整体" : "当前浏览器工作区";
   if (value.code === "business_usage_unavailable") return "调用额度暂时无法核验，已阻止新增外部调用或媒体处理。请联系管理员；只读历史仍可使用。";
   if (value.code === "business_service_disabled") return `${service}暂未开放调用额度，请联系管理员；不会自动重试。`;
   const reason = value.code === "business_rate_limited" ? "短时调用过于频繁" : `${service}的当日调用额度已用完`;

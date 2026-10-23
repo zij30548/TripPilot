@@ -29,8 +29,7 @@ export const SYNTHETIC_AUTH_HEADERS = Object.freeze({
   "x-csrf-token": "controlled-not-a-csrf-token",
 });
 export const CONTROLLED_ENDPOINTS = [
-  ["GET", "/auth/session"], ["POST", "/auth/login"], ["POST", "/auth/register"],
-  ["POST", "/auth/logout"], ["GET", "/usage"],
+  ["GET", "/workspace/session"], ["POST", "/workspace/session"], ["GET", "/usage"],
   ["GET", "/places/search"], ["POST", "/places/candidates"],
   ["POST", "/trips/schedule-preview"], ["POST", "/weather/forecast"],
   ["POST", "/trips/schedule-explanation"], ["POST", "/trips/adjustment-intent"],
@@ -202,8 +201,9 @@ export async function verifyForwarding(backend, origin = FRONTEND_ORIGIN) {
   };
   for (const [index, [method, path]] of CONTROLLED_ENDPOINTS.entries()) {
     const id = `endpoint-${index + 1}`;
+    const body = method === "POST" ? JSON.stringify(path === "/workspace/session" ? {} : { controlled: true }) : undefined;
     const response = await probe(id, `/api${path}${path === "/knowledge/search" ? "?probe_echo=1" : ""}`, {
-      method, body: method === "POST" ? JSON.stringify({ controlled: true }) : undefined,
+      method, body,
       status: path === "/knowledge/answer" ? 503 : 200,
       headers: path.endsWith("/assistant-turns") ? { "x-trippilot-surface": "dialogue-v2" } : {},
     });
@@ -211,7 +211,7 @@ export async function verifyForwarding(backend, origin = FRONTEND_ORIGIN) {
     const record = backend.records.find((x) => x.id === id);
     assert.equal(record.path, path);
     assert.equal(record.method, method);
-    if (method === "POST") assert.equal(record.sha256, hash(JSON.stringify({ controlled: true })));
+    if (method === "POST") assert.equal(record.sha256, hash(body));
     if (path === "/knowledge/answer") assert.equal(result.detail.code, "knowledge_answer_disabled");
     if (path.endsWith("/assistant-turns")) assert.equal(record.dialogue_surface, "dialogue-v2");
     checks.push({ id, method, path, status: response.status, authentication_headers_verified: true });
@@ -247,7 +247,8 @@ export async function verifyForwarding(backend, origin = FRONTEND_ORIGIN) {
   assert.equal(backend.records.some((x) => x.path === "/controlled-redirect-target"), false);
   checks.push({ id: "redirect", status: 302, server_followed: false });
   const before = backend.records.length;
-  const rejectedPaths = ["/api/not-allowed", "/_AMapService/v3/place/text", `/api/saved-trips/${"g".repeat(32)}`,
+  const rejectedPaths = ["/api/not-allowed", "/api/auth/session", "/api/auth/login", "/api/auth/register", "/api/auth/logout",
+    "/api/workspace/session/reset", "/_AMapService/v3/place/text", `/api/saved-trips/${"g".repeat(32)}`,
     "/api/chat/conversations/not-a-uuid/places", `/api/chat/conversations/${CHAT_ID}/places/unapproved`, "/api/chat/cities/unapproved",
     "/api/chat/conversations/not-a-uuid/dialogue-action", `/api/chat/conversations/${CHAT_ID}/dialogue-action/execute`,
     `/api/chat/conversations/${CHAT_ID}/dialogue-actions`];
@@ -256,8 +257,13 @@ export async function verifyForwarding(backend, origin = FRONTEND_ORIGIN) {
     assert.equal(res.status, 404, `unlisted path ${path}`);
     await res.arrayBuffer();
   }
+  for (const action of ["login", "register", "logout"]) {
+    const res = await fetch(`${origin}/api/auth/${action}`, { method: "POST", body: "{}", redirect: "manual" });
+    assert.equal(res.status, 404, `removed account action ${action}`);
+    await res.arrayBuffer();
+  }
   assert.equal(backend.records.length, before, "unlisted routes reached backend");
-  checks.push({ id: "allowlist", rejected_paths: rejectedPaths.length });
+  checks.push({ id: "allowlist", rejected_paths: rejectedPaths.length, removed_account_posts: 3 });
   for (const [id, path, size] of [
     ["photo-limit", "/api/media/landmark", 5 * MIB],
     ["video-limit", "/api/media/video-frames", 20 * MIB],

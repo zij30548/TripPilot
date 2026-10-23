@@ -30,7 +30,7 @@ class UsageAcceptanceHarness(unittest.TestCase):
         self.values = json.loads(self.credentials.read_text())
         self.stdout = output.getvalue()
         self.enterContext(patch.dict(os.environ, environment(self.database, self.usage)))
-        from main import app
+        from tests.legacy_identity_app import app
         self.app = app
         self.previous = dict(app.dependency_overrides)
         self.receipt = folder / "receipt.jsonl"

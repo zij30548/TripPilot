@@ -29,7 +29,7 @@ export function parseBusinessUsage(value: unknown): BusinessUsage {
 /** The small own-account response is bounded independently of route/media bodies. */
 export async function queryBusinessUsage(signal: AbortSignal): Promise<BusinessUsage> {
   const response = await apiFetch(API_ENDPOINTS.usage, { signal });
-  if (!response.ok) throw new Error(response.status === 503 ? "调用额度暂时无法核验，请联系管理员。" : "无法读取当前账号额度，请稍后手动重试。");
+  if (!response.ok) throw new Error(response.status === 503 ? "调用额度暂时无法核验，请联系管理员。" : "无法读取当前浏览器工作区额度，请稍后手动重试。");
   if (!response.body) throw invalid();
   const reader = response.body.getReader();
   const chunks: Uint8Array[] = [];

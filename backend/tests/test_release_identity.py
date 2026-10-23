@@ -1,4 +1,4 @@
-"""Full production ASGI stack: identity, ownership and early execution boundary."""
+"""Historical login ASGI stack: ownership and early execution boundary."""
 import os
 from pathlib import Path
 import tempfile
@@ -14,7 +14,7 @@ from memory.identity_models import SessionRow
 from memory.saved_trips import SavedTripRow, canonical
 from core.schemas.saved_trip import SaveTrip
 from memory.storage import engine_for
-from main import app
+from tests.legacy_identity_app import app
 from tests.test_saved_trips import payload
 
 ORIGIN = "http://127.0.0.1:3000"

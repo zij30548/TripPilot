@@ -406,7 +406,7 @@ class RuntimeHTTPBoundaryTests(unittest.TestCase):
             if request.url.path.startswith("/auth/"):
                 auth_calls.append((request.method, request.url.path))
         def client(**kwargs):
-            from main import app
+            from tests.legacy_identity_app import app
             return original_client(transport=httpx.ASGITransport(app=app),
                 event_hooks={"request": [observe]}, **kwargs)
         with patch.object(runtime, "LiveGate", return_value=gate), patch.object(runtime, "ORIGIN", chat_fixture.ORIGIN), \
@@ -420,7 +420,7 @@ class RuntimeHTTPBoundaryTests(unittest.TestCase):
             # must stop before its business request, not silently log in again.
             cached = json.loads((private / "api-session.json").read_text())
             async def revoke_cached_session():
-                from main import app
+                from tests.legacy_identity_app import app
                 async with original_client(transport=httpx.ASGITransport(app=app), base_url=runtime.API) as logout_client:
                     logout_client.cookies.update(cached["cookies"])
                     response = await logout_client.post("/auth/logout", headers={"Origin": chat_fixture.ORIGIN,

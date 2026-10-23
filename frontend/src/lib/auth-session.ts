@@ -1,6 +1,7 @@
 import { API_ENDPOINTS } from "./api-endpoints";
 import { clearBusinessUsageNotice, recordBusinessUsageNotice } from "./business-usage-notices";
 
+/** Internal browser-workspace identity; no account/password sign-in surface. */
 export type AuthSession = {
   authenticated: boolean;
   user: { id: string; username: string } | null;
@@ -29,6 +30,8 @@ let operation: AbortController | null = null;
 let expiryTimer: ReturnType<typeof setTimeout> | null = null;
 let channel: BroadcastChannel | null = null;
 
+class WorkspaceConnectionError extends Error {}
+
 function record(value: unknown): value is Record<string, unknown> {
   return !!value && typeof value === "object" && !Array.isArray(value);
 }
@@ -40,7 +43,7 @@ function exact(value: Record<string, unknown>, fields: string[]): boolean {
 export function parseAuthSession(value: unknown): AuthSession {
   if (!record(value) || !exact(value, ["authenticated", "user", "csrf_token", "expires_at", "session_id"]) ||
       typeof value.authenticated !== "boolean" || typeof value.csrf_token !== "string" ||
-      !/^[A-Za-z0-9_-]{20,128}$/.test(value.csrf_token)) throw new Error("登录状态响应无效，请重新检查。");
+      !/^[A-Za-z0-9_-]{20,128}$/.test(value.csrf_token)) throw new Error("工作区状态响应无效，请重新检查。");
   if (value.authenticated) {
     if (!record(value.user) || !exact(value.user, ["id", "username"]) ||
         typeof value.user.id !== "string" || !/^[A-Za-z0-9_-]{1,80}$/.test(value.user.id) ||
@@ -48,9 +51,9 @@ export function parseAuthSession(value: unknown): AuthSession {
         /[\u0000-\u001f\u007f]/.test(value.user.username) ||
         typeof value.session_id !== "string" || !/^[A-Za-z0-9_-]{20,128}$/.test(value.session_id) ||
         typeof value.expires_at !== "string" || value.expires_at.length > 40 ||
-        !/(?:Z|[+-]\d{2}:\d{2})$/.test(value.expires_at) || !Number.isFinite(Date.parse(value.expires_at))) throw new Error("登录状态响应无效，请重新检查。");
+        !/(?:Z|[+-]\d{2}:\d{2})$/.test(value.expires_at) || !Number.isFinite(Date.parse(value.expires_at))) throw new Error("工作区状态响应无效，请重新检查。");
   } else if (value.user !== null || value.session_id !== null || value.expires_at !== null) {
-    throw new Error("登录状态响应无效，请重新检查。");
+    throw new Error("工作区状态响应无效，请重新检查。");
   }
   return value as AuthSession;
 }
@@ -94,11 +97,12 @@ function armExpiry(session: AuthSession): void {
   if (!session.authenticated || !session.expires_at) return;
   const identity = session.session_id;
   expiryTimer = setTimeout(() => {
-    if (state.session?.session_id === identity && expired()) {
-      operationVersion += 1;
-      operation?.abort();
-      clearIdentity("登录已过期，请重新登录；未保存的工作已清除。");
-    }
+    if (state.session?.session_id !== identity) return;
+    // Browser timers cap at ~24.8 days; a 30-day workspace needs another arm.
+    if (!expired()) { armExpiry(session); return; }
+    operationVersion += 1;
+    operation?.abort();
+    clearIdentity("工作区已过期，请重新连接；未保存的工作已清除。");
   }, Math.max(0, Math.min(2_147_483_647, Date.parse(session.expires_at) - Date.now())));
 }
 
@@ -119,16 +123,32 @@ function broadcast(type: "invalidate" | "changed"): void {
 }
 
 async function authRequest(endpoint: string, controller: AbortController, init?: RequestInit): Promise<AuthSession> {
-  const timer = setTimeout(() => controller.abort(), AUTH_TIMEOUT_MS);
+  let timedOut = false;
+  const timer = setTimeout(() => { timedOut = true; controller.abort(); }, AUTH_TIMEOUT_MS);
   try {
     const response = await fetch(endpoint, { ...init, credentials: "same-origin", cache: "no-store", signal: controller.signal });
     if (!response.ok) {
-      if (response.status === 401) throw new Error("账号或密码不正确，或登录已失效。");
-      if (response.status === 429) throw new Error("登录尝试过于频繁，请稍后再试。");
-      if (response.status === 403) throw new Error("登录安全校验失败，请重新检查登录状态后再试。");
-      throw new Error("登录服务暂时不可用，请稍后重试。");
+      if (response.status === 401) throw new WorkspaceConnectionError("工作区会话已失效，请重新连接。");
+      if (response.status === 429) {
+        const value = response.headers?.get("Retry-After");
+        const wait = value && /^\d{1,3}$/.test(value) ? Number(value) : null;
+        throw new WorkspaceConnectionError(wait !== null && wait >= 1 && wait <= 300 ?
+          `工作区连接过于频繁，请至少等待${wait}秒后手动重试。` : "工作区连接过于频繁，请稍后手动重试。");
+      }
+      if (response.status === 403) throw new WorkspaceConnectionError("工作区安全校验失败，请重新连接。");
+      throw new WorkspaceConnectionError("工作区服务暂时不可用，请稍后手动重试。");
     }
-    return parseAuthSession(await response.json());
+    let session: AuthSession;
+    try { session = parseAuthSession(await response.json()); }
+    catch { throw new WorkspaceConnectionError("工作区状态响应无效，请手动重试。"); }
+    if (timedOut) throw new WorkspaceConnectionError("工作区连接已超时，请手动重试。");
+    if (controller.signal.aborted) throw new DOMException("工作区连接已取消。", "AbortError");
+    return session;
+  } catch (error) {
+    if (timedOut) throw new WorkspaceConnectionError("工作区连接已超时，请手动重试。");
+    if (controller.signal.aborted) throw new DOMException("工作区连接已取消。", "AbortError");
+    if (error instanceof WorkspaceConnectionError) throw error;
+    throw new WorkspaceConnectionError("无法连接工作区，请检查连接后手动重试。");
   } finally { clearTimeout(timer); }
 }
 
@@ -137,16 +157,32 @@ export async function checkSession(): Promise<void> {
   operation?.abort();
   const controller = new AbortController();
   operation = controller;
+  if (expired()) clearIdentity("工作区已过期，请重新连接；未保存的工作已清除。", "checking");
   publish({ ...state, verifying: true, message: state.phase === "error" ? null : state.message });
   try {
-    const session = await authRequest(API_ENDPOINTS.authSession, controller);
+    let session = await authRequest(API_ENDPOINTS.workspaceSession, controller);
     if (version !== operationVersion) return;
-    if (controller.signal.aborted) throw new Error("登录状态查询已超时。");
-    acceptSession(session, !session.authenticated && state.session?.authenticated ? "登录已失效，请重新登录；未保存的工作已清除。" : state.message);
-  } catch {
+    if (controller.signal.aborted) throw new WorkspaceConnectionError("工作区连接已取消或超时，请手动重试。");
+    if (!session.authenticated) {
+      // A server-side expiry/revocation is a boundary even if seed recovery later
+      // returns the same public session ID. Invalidate old business work first.
+      if (state.session?.authenticated) {
+        clearIdentity(null, "checking");
+        publish({ ...state, verifying: true });
+      }
+      session = await authRequest(API_ENDPOINTS.workspaceSession, controller, {
+        method: "POST", headers: { "Content-Type": "application/json", "X-CSRF-Token": session.csrf_token },
+        body: "{}",
+      });
+      if (version !== operationVersion) return;
+      if (controller.signal.aborted || !session.authenticated) throw new WorkspaceConnectionError("工作区尚未建立，请手动重试。");
+    }
+    acceptSession(session);
+  } catch (error) {
     if (version !== operationVersion) return;
     // Fail closed; never expose the previous identity while verification failed.
-    clearIdentity("无法验证登录状态，请检查连接后重试。", "error");
+    clearIdentity(error instanceof WorkspaceConnectionError ? error.message :
+      controller.signal.aborted ? "工作区连接已取消或超时，请手动重试。" : "无法连接工作区，请检查连接后手动重试。", "error");
   } finally {
     if (version === operationVersion) {
       operation = null;
@@ -155,127 +191,16 @@ export async function checkSession(): Promise<void> {
   }
 }
 
-export async function login(username: string, password: string, expectedEpoch = state.epoch): Promise<boolean> {
-  const csrf = state.session?.csrf_token;
-  if (!csrf || operation || state.phase !== "anonymous" || expectedEpoch !== state.epoch) return false;
-  const version = ++operationVersion;
-  const controller = new AbortController();
-  operation = controller;
-  clearIdentity(null, "checking");
-  try {
-    const session = await authRequest(API_ENDPOINTS.authLogin, controller, {
-      method: "POST", headers: { "Content-Type": "application/json", "X-CSRF-Token": csrf },
-      body: JSON.stringify({ username, password }),
-    });
-    if (version !== operationVersion) return false;
-    if (controller.signal.aborted) throw new Error("登录等待超时，请重新检查登录状态。");
-    if (!session.authenticated) throw new Error("登录未完成，请重新检查登录状态。");
-    acceptSession(session);
-    broadcast("changed");
-    return true;
-  } catch (error) {
-    if (version !== operationVersion) return false;
-    // Preserve only the pre-login CSRF bootstrap; credentials are never retained.
-    publish({ ...state, phase: "anonymous", session: { authenticated: false, user: null, csrf_token: csrf, expires_at: null, session_id: null },
-      message: error instanceof Error ? error.message : "登录失败，请重试。" });
-    return false;
-  } finally { if (version === operationVersion) operation = null; }
-}
-
-/** One explicit registration attempt. No session acceptance, automatic login or retry. */
-export async function registerAccount(
-  username: string, password: string, invitationCode: string,
-  { signal, expectedEpoch }: { signal: AbortSignal; expectedEpoch: number },
-): Promise<void> {
-  const csrf = state.session?.csrf_token;
-  if (!csrf || operation || state.verifying || state.phase !== "anonymous" || expectedEpoch !== state.epoch || signal.aborted) {
-    throw new DOMException("注册状态已变化，请重新检查登录状态。", "AbortError");
-  }
-  const version = ++operationVersion;
-  const controller = new AbortController();
-  operation = controller;
-  const current = () => version === operationVersion && expectedEpoch === state.epoch &&
-    state.phase === "anonymous" && !state.verifying && state.session?.csrf_token === csrf && !controller.signal.aborted;
-  const cancel = () => {
-    controller.abort();
-    // Release the operation slot immediately, even if an old transport ignores abort.
-    if (version === operationVersion) { operationVersion += 1; operation = null; }
-  };
-  signal.addEventListener("abort", cancel, { once: true });
-  let timedOut = false;
-  const timer = setTimeout(() => { timedOut = true; controller.abort(); }, AUTH_TIMEOUT_MS);
-  try {
-    const response = await fetch(API_ENDPOINTS.authRegister, {
-      method: "POST", credentials: "same-origin", cache: "no-store", signal: controller.signal,
-      headers: { "Content-Type": "application/json", "X-CSRF-Token": csrf },
-      body: JSON.stringify({ username, password, invitation_code: invitationCode }),
-    });
-    if (timedOut) throw new Error("timeout");
-    if (!current()) throw new DOMException("注册请求已失效。", "AbortError");
-    if (!response.ok) {
-      if (response.status === 429) throw new Error("注册尝试过于频繁或服务正忙，请稍后再试；不会自动重试。");
-      if (response.status === 403) throw new Error("注册安全校验失败，请重新检查登录状态后再试。");
-      if ([400, 409].includes(response.status)) throw new Error("账号或邀请码无法用于注册，请检查后再试或联系管理员。");
-      if ([413, 422].includes(response.status)) throw new Error("注册信息格式不正确，请检查账号、密码和邀请码。");
-      if ([408, 499].includes(response.status)) throw new Error("注册结果尚未确认，请先尝试登录；不要连续提交注册。");
-      throw new Error("注册服务暂不可用，请联系管理员或稍后手动重试。");
-    }
-    let result: unknown;
-    try { result = await response.json(); }
-    catch { throw new Error("注册结果响应无效，尚未确认注册结果；请先尝试登录。"); }
-    if (timedOut) throw new Error("timeout");
-    if (!current()) throw new DOMException("注册请求已失效。", "AbortError");
-    if (!record(result) || !exact(result, ["registered"]) || result.registered !== true) {
-      throw new Error("注册结果响应无效，尚未确认注册结果；请先尝试登录。");
-    }
-  } catch (error) {
-    if (timedOut) throw new Error("注册等待超时，服务端可能已创建账号。请先尝试登录；不会自动重试。");
-    if (!current()) throw new DOMException("注册请求已失效。", "AbortError");
-    if (error instanceof TypeError || !(error instanceof Error)) {
-      throw new Error("连接中断，注册结果尚未确认。请先尝试登录；不会自动重试。");
-    }
-    throw error;
-  } finally {
-    clearTimeout(timer);
-    signal.removeEventListener("abort", cancel);
-    if (version === operationVersion) operation = null;
-  }
-}
-
-export async function logout(expectedEpoch = state.epoch): Promise<void> {
-  if (expectedEpoch !== state.epoch || state.phase !== "authenticated") return;
-  const csrf = state.session?.csrf_token;
-  const version = ++operationVersion;
-  operation?.abort();
-  const controller = new AbortController();
-  operation = controller;
-  clearIdentity("正在退出，未保存的工作已清除。", "checking");
-  broadcast("invalidate");
-  try {
-    if (!csrf) throw new Error("登录安全状态已失效。");
-    const session = await authRequest(API_ENDPOINTS.authLogout, controller, {
-      method: "POST", headers: { "X-CSRF-Token": csrf },
-    });
-    if (version !== operationVersion) return;
-    if (controller.signal.aborted) throw new Error("退出等待超时。");
-    acceptSession(session, "已退出登录；未保存的工作已清除。");
-    broadcast("changed");
-  } catch {
-    if (version !== operationVersion) return;
-    clearIdentity("本机工作已清除，但尚未确认服务端退出。请恢复连接后重新检查登录状态并退出。", "error");
-  } finally { if (version === operationVersion) operation = null; }
-}
-
 export function startAuthLifecycle(): () => void {
   active = true;
   if (typeof BroadcastChannel !== "undefined") {
-    channel = new BroadcastChannel("trippilot-identity");
+    channel = new BroadcastChannel("trippilot-workspace");
     channel.onmessage = event => {
       if (!record(event.data) || !["invalidate", "changed"].includes(String(event.data.type))) return;
       operationVersion += 1;
       operation?.abort();
       operation = null;
-      clearIdentity("其他标签页的登录状态已变化；原身份工作已清除。");
+      clearIdentity("其他标签页的工作区已变化；旧工作区的临时内容已清除。");
       if (event.data.type === "changed") void checkSession();
     };
   }
@@ -303,7 +228,7 @@ export function startAuthLifecycle(): () => void {
 /** Auth-aware transport only; callers retain their own timeout/AbortController. */
 export async function apiFetch(input: string, init: RequestInit = {}): Promise<Response> {
   if (active && (state.verifying || state.phase !== "authenticated" || expired())) {
-    if (expired()) clearIdentity("登录已过期，请重新登录；未保存的工作已清除。");
+    if (expired()) clearIdentity("工作区已过期，请重新连接；未保存的工作已清除。");
     throw new DOMException("身份已失效或正在校验", "AbortError");
   }
   const epoch = state.epoch;
@@ -332,9 +257,9 @@ export async function apiFetch(input: string, init: RequestInit = {}): Promise<R
       operationVersion += 1;
       operation?.abort();
       operation = null;
-      clearIdentity("登录已失效，请重新登录；未保存的工作已清除。");
+      clearIdentity("工作区会话已失效，请重新连接；未保存的工作已清除。");
       broadcast("invalidate");
-      throw new DOMException("登录已失效", "AbortError");
+      throw new DOMException("工作区已失效", "AbortError");
     }
     // Read allowlisted metadata only, never consume/clone a media or error body.
     // The identity check above rejects old-account notices before publication.

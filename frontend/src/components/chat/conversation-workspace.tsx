@@ -106,7 +106,7 @@ export default function ConversationWorkspace() {
         <ul className="space-y-1">{state.items.map(item => <li key={item.id}><button type="button" aria-current={current?.id === item.id ? "page" : undefined} onClick={() => choose(item.id)} title={item.title} className={`block min-h-11 w-full truncate rounded-lg px-3 py-3 text-left text-xs leading-5 transition ${current?.id === item.id ? "bg-[#e7eeea] font-medium text-[#294e43]" : "text-[#68756f] hover:bg-[#edf0ee]"} ${focus}`}>{item.title}</button></li>)}</ul>
         {state.nextOffset !== null && <button type="button" disabled={state.listing} onClick={() => void chat.loadMore()} className={`mt-3 min-h-11 w-full rounded-lg text-xs text-[#74817c] disabled:opacity-40 ${focus}`}>加载更多对话</button>}
       </nav>
-      <p className="mt-4 border-t border-[#e4e9e5] px-2 pt-4 text-[10px] leading-5 text-[#8b9690]">对话保存在当前账号。请勿发送证件或支付信息。</p>
+      <p className="mt-4 border-t border-[#e4e9e5] px-2 pt-4 text-[10px] leading-5 text-[#8b9690]">对话保存在当前浏览器工作区；清除Cookie后将无法找回。请勿发送证件或支付信息。</p>
     </aside>
 
     <section aria-label="旅行助手对话" className="flex min-w-0 flex-1 flex-col">

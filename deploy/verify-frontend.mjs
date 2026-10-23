@@ -84,12 +84,14 @@ export async function sourceHash(frontend) {
 export async function checkRewrites(frontend, manifest) {
   const source = await readFile(join(frontend, 'src/lib/api-endpoints.ts'), 'utf8');
   const api = [...source.matchAll(/:\s*"(\/api\/[a-z/-]+)"/g)].map(match => match[1]);
-  // Four reviewed additive versions only, including already-staged releases.
-  // Chat cities and /places form one increment, never an arbitrary proxy.
+  // Keep every reviewed historical allowlist, including already-staged releases.
+  // Anonymous workspace bootstrap is one explicit replacement version: account
+  // routes cannot be mixed back into it, and chat cities/places stay together.
   const increments = [[], ['/api/auth/register'], ['/api/auth/register', '/api/chat/conversations'],
     ['/api/auth/register', '/api/chat/conversations', '/api/chat/cities']];
   const chat = api.includes('/api/chat/conversations');
   const chatPlaces = api.includes('/api/chat/cities');
+  const workspace = api.includes('/api/workspace/session');
   let assistant = false, dialogue = false;
   try {
     const routing = await readFile(join(frontend, 'src/lib/server/backend-routing.ts'), 'utf8');
@@ -102,10 +104,18 @@ export async function checkRewrites(frontend, manifest) {
     // original fixed list. Other read failures are never version bypasses.
     if (error?.code !== 'ENOENT') throw error;
   }
-  if (new Set(api).size !== api.length || !increments.some(increment => {
+  const legacyAllowed = increments.some(increment => {
     const expected = [...LEGACY_API_PATHS, ...increment];
     return api.length === expected.length && expected.every(path => api.includes(path));
-  })) fail('endpoint_allowlist_changed');
+  });
+  const workspaceExpected = [
+    '/api/workspace/session',
+    ...LEGACY_API_PATHS.filter(path => !path.startsWith('/api/auth/')),
+    '/api/chat/conversations', '/api/chat/cities',
+  ];
+  const workspaceAllowed = workspace && assistant && dialogue &&
+    api.length === workspaceExpected.length && workspaceExpected.every(path => api.includes(path));
+  if (new Set(api).size !== api.length || !(legacyAllowed || workspaceAllowed)) fail('endpoint_allowlist_changed');
   const expected = api.map(path => ({ source: path, destination: ORIGIN + path.slice(4) }));
   expected.push(
     { source: '/api/health', destination: `${ORIGIN}/health` },
@@ -287,8 +297,8 @@ export async function stopChild(child) {
 }
 
 export function staticLink(html) {
-  // Authentication is client-driven; this check deliberately does not claim a
-  // real session/login test, and must not run scripts or call /auth/session.
+  // Workspace bootstrap is client-driven. This check never runs browser scripts
+  // or requests an identity/session endpoint, on current or historical builds.
   const text = html.toString('utf8');
   if (!/<title>TripPilot(?:[^<]*)<\/title>/.test(text)) fail('smoke_application_shell_missing');
   const link = text.match(/(?:src|href)="(\/_next\/static\/[a-zA-Z0-9_./%-]+\.(?:js|css))"/)?.[1];

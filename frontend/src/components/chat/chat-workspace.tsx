@@ -153,7 +153,7 @@ export default function ChatWorkspace() {
           {state.nextOffset !== null && <button disabled={state.listing} type="button" className={`mt-3 min-h-11 w-full rounded-xl text-xs text-[#6d7a65] ${focus}`} onClick={() => void chat.loadMore()}>加载更多对话</button>}
         </nav>
         <div className="mt-7 border-t border-[#dce1d4] pt-5">
-          <p className="text-xs leading-5 text-[#7c8676]">对话和需求卡保存于你的账号，直到你主动删除。不要发送证件、支付信息或其他敏感内容。</p>
+          <p className="text-xs leading-5 text-[#7c8676]">对话和需求保存在当前浏览器工作区；清除Cookie后将无法找回。不要发送证件、支付信息或其他敏感内容。</p>
           <div className="mt-4 flex flex-wrap gap-x-4 gap-y-3 text-xs text-[#76866c]"><a href="/knowledge" target="_blank" rel="noopener noreferrer" className={`underline underline-offset-4 ${focus}`}>官方资料检索</a></div>
         </div>
       </aside>

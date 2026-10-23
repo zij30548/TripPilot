@@ -104,11 +104,13 @@ def _source_rows_valid(table: str, row: dict[str, object]) -> None:
     if table == "accounts":
         if re.fullmatch(r"[a-z0-9_.-]{3,48}", str(row["username"])) is None or row["disabled"] not in (0, 1):
             raise Refused("migration_source_account")
-        try:
-            if extract_parameters(row["password_hash"]).type is not Type.ID:
-                raise Refused("migration_source_password_format")
-        except (InvalidHashError, TypeError):
-            raise Refused("migration_source_password_format") from None
+        from core.workspace_contract import workspace_fields
+        if not workspace_fields(row["id"], row["username"], row["password_hash"]):
+            try:
+                if extract_parameters(row["password_hash"]).type is not Type.ID:
+                    raise Refused("migration_source_password_format")
+            except (InvalidHashError, TypeError):
+                raise Refused("migration_source_password_format") from None
     elif table == "auth_sessions":
         if (re.fullmatch(r"[0-9a-f]{32}", str(row["user_id"])) is None
                 or re.fullmatch(r"[0-9a-f]{64}", str(row["token_hash"])) is None

@@ -18,7 +18,7 @@ from core import auth
 from core.business_usage import SERVICES, UsageSettings, UsageStore, UsageError
 from core.config import Settings, get_settings
 from memory.storage import engine_for
-from main import app
+from tests.legacy_identity_app import app
 from tests.test_saved_trips import payload
 
 ORIGIN = "http://127.0.0.1:3000"

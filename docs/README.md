@@ -1,5 +1,7 @@
 # 文档导航
 
+当前使用方式已改为[匿名浏览器工作区](ANONYMOUS_WORKSPACE.md)：打开即用，无登录／注册／邀请码／账号菜单。旧身份专题与验收记录保留历史用途，不能再将其当当前使用前提。
+
 当前界面仍为纯聊天／知识库／Agent评测；最新[旅行能力聊天接入](TRAVEL_DIALOGUE_INTEGRATION.md)以38项有限动作复用原控制器，不挂载旅行卡片。媒体／地图／需求编辑仅主动打开轻量窗口；资料覆盖、技术核查及未实现范围见专题。[原三界面交付](THREE_SURFACE_UI.md)和旧成绩保留。
 
 默认只读当前入口；历史证据按任务查阅，不把每轮报告都当开工前置。文档齐全不代表能力已实现，旧“当前／下一步／额度”只在其当时版本成立。
@@ -17,6 +19,7 @@
 
 | 文档 | 什么时候读 |
 | --- | --- |
+| [ANONYMOUS_WORKSPACE](ANONYMOUS_WORKSPACE.md) | 当前无登录入口、Cookie隔离、数据保留、额度和验证边界 |
 | [TRAVEL_DIALOGUE_INTEGRATION](TRAVEL_DIALOGUE_INTEGRATION.md) | 当前dialogue-v2的38项受限动作、明确确认、原领域控制器、程序事实／缺证说明及本地状态边界；新真实语义待验 |
 | [THREE_SURFACE_UI](THREE_SURFACE_UI.md) | 三主导航设计及原dialogue-v1交付记录；顶部最新状态与下方历史范围分开 |
 | [ECHOMIND_MIGRATION](ECHOMIND_MIGRATION.md) | 后端分层、有界原生工具回路、任务收据／明确偏好、此前规划面板接入、独立空目标迁移及历史真实复验 |
@@ -36,7 +39,7 @@
 | 文档 | 内容 |
 | --- | --- |
 | [LOCAL_DEVELOPMENT](LOCAL_DEVELOPMENT.md) | 本机配置、启动、检查命令及隔离测试边界 |
-| [MYSQL_REGISTRATION](MYSQL_REGISTRATION.md) | 注册、私有MySQL、额度、原迁移与备份边界；新增assistant扩展／空目标复制另看ECHOMIND_MIGRATION |
+| [MYSQL_REGISTRATION](MYSQL_REGISTRATION.md) | 历史注册、私有MySQL、额度、原迁移与备份边界；当前无登录使用看ANONYMOUS_WORKSPACE，助手扩展复制看ECHOMIND_MIGRATION |
 | [QWEN_SETUP](QWEN_SETUP.md) | 既有千问服务端配置；不是新的调用授权 |
 | [RELEASE_1C](RELEASE_1C.md) | 同源转发、上传／取消及可信后端origin |
 | [RELEASE_1D](RELEASE_1D.md)／[1E](RELEASE_1E.md) | 身份隔离和实际发送前的持久额度 |

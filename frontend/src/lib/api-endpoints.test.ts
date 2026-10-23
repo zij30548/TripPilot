@@ -6,7 +6,7 @@ afterEach(() => vi.unstubAllEnvs());
 describe("fixed same-origin browser endpoints", () => {
   it("covers every business client, including demo and disabled knowledge answers", () => {
     expect(API_ENDPOINTS).toEqual({
-      authSession: "/api/auth/session", authLogin: "/api/auth/login", authRegister: "/api/auth/register", authLogout: "/api/auth/logout",
+      workspaceSession: "/api/workspace/session",
       chatConversations: "/api/chat/conversations",
       chatCities: "/api/chat/cities",
       usage: "/api/usage",

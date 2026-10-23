@@ -19,8 +19,8 @@ from api.knowledge_answer_disabled import router as knowledge_answer_router
 from api.itinerary_query import router as itinerary_query_router
 from api.photo import router as photo_router
 from api.video import router as video_router
-from api.auth import router as auth_router
-from core.auth import AuthenticationMiddleware
+from api.workspace import router as workspace_router
+from core.workspace_identity import WorkspaceMiddleware
 from api.usage import router as usage_router
 from api.chat import router as chat_router
 from api.chat_places import router as chat_places_router
@@ -39,10 +39,10 @@ app.add_middleware(
     allow_methods=["GET", "POST"],
     allow_headers=["Content-Type"],
 )
-# Authentication runs before routing/body parsing/upstream dependency creation.
-# A session is mandatory even when this API is reached without the Next proxy.
-app.add_middleware(AuthenticationMiddleware)
-app.include_router(auth_router)
+# Browser workspaces replace login/registration. The isolated opaque session and
+# CSRF gate still run before body parsing, media work or upstream construction.
+app.add_middleware(WorkspaceMiddleware)
+app.include_router(workspace_router)
 app.include_router(trips_router)
 app.include_router(places_router)
 app.include_router(amap_proxy_router)

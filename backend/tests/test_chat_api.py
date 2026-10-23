@@ -29,7 +29,7 @@ from core.config import Settings, get_settings
 from core.schemas.chat import Conversation, Intent
 from memory.storage import engine_for
 from core.usage_runtime import MeteredAsyncClient
-from main import app
+from tests.legacy_identity_app import app
 from tools.chat_storage import provision_chat_extension
 
 

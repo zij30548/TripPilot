@@ -1,5 +1,7 @@
 # 旅行能力接入纯聊天：实现、边界与验证
 
+> 后续入口变更（2026-10-22）：当前产品已移除登录／注册，改为[独立匿名工作区](ANONYMOUS_WORKSPACE.md)。下文账号与测试记录是原接入轮证据，业务owner／epoch／CSRF边界由当前工作区承接，不重写本报告原成绩。
+
 更新：2026-10-22。本文描述本轮 `dialogue-v2` 接入，不改写 [EchoMind 迁移](ECHOMIND_MIGRATION.md)、[旧 chat 验收](CHAT_ACCEPTANCE.md)或媒体的历史成绩。交付状态和最终全量检查以 [PROGRESS](PROGRESS.md) 本轮记录为准。
 
 ## 1. 用户问题与这次解决的范围

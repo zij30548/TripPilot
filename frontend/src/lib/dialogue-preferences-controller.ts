@@ -22,7 +22,7 @@ export function useDialoguePreferences(conversationId: string | null) {
   useEffect(() => { alive.current = true; const clock = version, work = active; return () => { alive.current = false; clock.current++; work.current?.controller.abort(); work.current = null; }; }, []);
   async function execute(action: DialoguePlaceAction, confirmed = false): Promise<DialoguePlaceReply> {
     if (!alive.current || binding.current !== context || epoch !== authSnapshot().epoch || !conversationId || active.current)
-      return { text: "偏好请求尚未完成或会话已经变化，请先核对当前身份。" };
+      return { text: "偏好请求尚未完成或会话已经变化，请先重新连接当前工作区。" };
     const writing = action.name !== "read_preferences";
     if (!["read_preferences", "save_preference", "delete_preference"].includes(action.name)) return { text: "这个偏好操作暂不支持。" };
     if (writing && !confirmed) return { text: "只有你明确同意后，才会保存或删除长期偏好。" };

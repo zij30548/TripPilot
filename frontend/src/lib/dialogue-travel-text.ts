@@ -100,7 +100,7 @@ export function weatherCheckDialogueText(report: WeatherScheduleReport | null, v
 export function historyDialogueText(value: SavedList | SavedDetail): string {
   if ("items" in value) {
     const page = Math.floor(value.offset / value.limit) + 1, next = value.offset + value.limit;
-    if (!value.items.length) return value.offset === 0 ? "当前账号没有已保存行程。" : `历史第${page}页没有记录；可回复“查看历史”返回第一页。`;
+    if (!value.items.length) return value.offset === 0 ? "当前浏览器工作区没有已保存行程。" : `历史第${page}页没有记录；可回复“查看历史”返回第一页。`;
     const more = value.has_more ? [value.limit === 10 && next % 10 === 0 && isDialogueAction({ name: "list_saved", arguments: { offset: next } })
       ? `还有下一页，请回复“查看第${page + 1}页历史”。` : "还有历史记录，但已达到本聊天入口分页范围；不会自动继续读取。"] : [];
     return [`历史快照第${page}页（未重新核验；编号只对应本页）：`, ...value.items.map((item, index) => `${index + 1}. ${item.name} · ${item.start_date}—${item.end_date} · ${item.transport_mode === "walking" ? "步行" : "公交／地铁"} · 保存于 ${item.saved_at} · 记录 ${item.id}`), ...more].join("\n");

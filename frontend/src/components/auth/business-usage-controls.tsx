@@ -80,15 +80,15 @@ export function BusinessUsageControls({ epoch, disabled = false }: { epoch: numb
     </div>}
     {open && <div id="business-usage-panel" className="mt-3 rounded-xl border bg-white p-4">
       <div className="flex flex-wrap items-center justify-between gap-3">
-        <h2 className="font-semibold">当前账号调用额度</h2>
+        <h2 className="font-semibold">当前浏览器工作区调用额度</h2>
         <div className="flex gap-3"><button type="button" className="underline disabled:opacity-50" disabled={disabled || loading} onClick={() => void refresh()}>刷新额度</button><button type="button" className="underline" onClick={close}>{loading ? "取消查询并关闭" : "关闭额度"}</button></div>
       </div>
       <p className="mt-2 text-xs text-slate-600">这里只读取自己的计数，不发起高德、模型或媒体处理。额度按调用尝试计，不是精确人民币费用上限；已发送失败或取消仍可能计数，不会自动重试业务。</p>
       {loading && <p role="status" className="mt-3">正在读取调用额度…</p>}
       {message && <p role="alert" className="mt-3 text-amber-900">{message}</p>}
       {usage && <>
-        <p className="mt-3">账号短窗口：{usage.rate.used} / {usage.rate.limit} 次，窗口 {usage.rate.window_seconds} 秒。</p>
-        <p className="mt-1 text-xs text-slate-600">数据时间 {shanghaiTime(usage.now)}；当日额度于 {shanghaiTime(usage.reset_at)} 重置（上海时间）。服务整体也有限额；账号有剩余不保证本次可调用。</p>
+        <p className="mt-3">工作区短窗口：{usage.rate.used} / {usage.rate.limit} 次，窗口 {usage.rate.window_seconds} 秒。</p>
+        <p className="mt-1 text-xs text-slate-600">数据时间 {shanghaiTime(usage.now)}；当日额度于 {shanghaiTime(usage.reset_at)} 重置（上海时间）。服务整体也有限额；工作区有剩余不保证本次可调用。</p>
         <ul className="mt-3 grid gap-2 sm:grid-cols-2">{BUSINESS_SERVICES.map(service => <li key={service} className="rounded-lg bg-slate-50 p-3">
           <span className="font-medium">{BUSINESS_SERVICE_LABELS[service]}</span>
           <p>所示日期已计 {usage.services[service].used} / {usage.services[service].limit}，剩余 {usage.services[service].remaining}{usage.services[service].limit === 0 ? "（未开放）" : ""}</p>

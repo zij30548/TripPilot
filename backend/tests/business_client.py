@@ -16,7 +16,7 @@ class BusinessTestClient(TestClient):
         from memory.identity_models import AccountRow
 
         isolated = copy(app)
-        isolated.user_middleware = [m for m in app.user_middleware if m.cls.__name__ != "AuthenticationMiddleware"]
+        isolated.user_middleware = [m for m in app.user_middleware if m.cls.__name__ not in {"AuthenticationMiddleware", "WorkspaceMiddleware"}]
         isolated.middleware_stack = None
         self.usage_fixture = UsageFixture()
 

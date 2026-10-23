@@ -8,10 +8,36 @@ import { fileURLToPath } from 'node:url';
 import { linuxOnly, treeHash, inspectBuild, writeReceipt, checkRewrites, checkGit, ORIGIN, stopChild, staticLink, compareBuild, gitArgumentsForSource } from './verify-frontend.mjs';
 
 const repository = fileURLToPath(new URL('../', import.meta.url));
+// Fixed historical source fixture. Reading today's endpoint file here would
+// silently turn old-release compatibility assertions into current-only checks.
+const LEGACY_ENDPOINT_SOURCE = `export const API_ENDPOINTS = {
+  authSession: "/api/auth/session",
+  authLogin: "/api/auth/login",
+  authRegister: "/api/auth/register",
+  authLogout: "/api/auth/logout",
+  chatConversations: "/api/chat/conversations",
+  chatCities: "/api/chat/cities",
+  usage: "/api/usage",
+  places: "/api/places/search",
+  candidates: "/api/places/candidates",
+  schedule: "/api/trips/schedule-preview",
+  weather: "/api/weather/forecast",
+  explanation: "/api/trips/schedule-explanation",
+  adjustment: "/api/trips/adjustment-intent",
+  itineraryQuery: "/api/trips/itinerary-query",
+  photo: "/api/media/landmark",
+  video: "/api/media/video-frames",
+  savedTrips: "/api/saved-trips",
+  knowledgeSearch: "/api/knowledge/search",
+  knowledgeAnswer: "/api/knowledge/answer",
+  walking: "/api/routes/walking",
+  transit: "/api/routes/transit",
+  plan: "/api/trips/plan",
+};`;
 async function fixture(run) {
   const root = await mkdtemp(join(tmpdir(), 'trippilot-artifact-test-'));
   try {
-    const source = await readFile(join(repository, 'frontend/src/lib/api-endpoints.ts'), 'utf8');
+    const source = LEGACY_ENDPOINT_SOURCE;
     const endpoints = [...source.matchAll(/:\s*"(\/api\/[a-z/-]+)"/g)].map(m => m[1]);
     const rules = endpoints.map(path => ({ source: path, destination: ORIGIN + path.slice(4) }));
     rules.push({ source: '/api/health', destination: ORIGIN + '/health' },
@@ -163,6 +189,60 @@ test('registration is an explicit additive resource; old allowlist remains verif
       current.replace(/^.*authRegister:.*\n/m, '')]) {
       await writeFile(file, invalid);
       await assert.rejects(checkRewrites(root, manifest), /endpoint_allowlist_changed/);
+    }
+  });
+});
+
+test('anonymous workspace is one exact replacement allowlist and cannot reinstate account routes or weaken receipts', async () => {
+  await fixture(async (root, historical) => {
+    const originalBuild = await inspectBuild(root);
+    const oldReceipt = { schema_version: 'frontend-release-v1', platform: 'linux', architecture: 'x64',
+      commit: 'a'.repeat(40), provenance: 'operator-attested-existing-build', ...originalBuild };
+    const source = await readFile(join(repository, 'frontend/src/lib/api-endpoints.ts'), 'utf8');
+    const routing = await readFile(join(repository, 'frontend/src/lib/server/backend-routing.ts'), 'utf8');
+    assert.ok(source.includes('"/api/workspace/session"'));
+    assert.equal(source.includes('/api/auth/'), false);
+    const endpoints = [...source.matchAll(/:\s*"(\/api\/[a-z/-]+)"/g)].map(match => match[1]);
+    const current = structuredClone(historical);
+    current.rewrites.beforeFiles = [
+      ...endpoints.map(path => ({ source: path, destination: ORIGIN + path.slice(4) })),
+      ...historical.rewrites.beforeFiles.filter(rule => rule.source === '/api/health' || rule.source.includes(':id')),
+      ...['/assistant-turns', '/assistant-state', '/assistant-preferences', '/dialogue-action'].map(suffix => ({
+        source: `/api/chat/conversations/:id([0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12})${suffix}`,
+        destination: `${ORIGIN}/chat/conversations/:id${suffix}`,
+      })),
+      historical.rewrites.beforeFiles.at(-1),
+    ];
+    const file = join(root, 'src/lib/api-endpoints.ts');
+    await writeFile(file, source);
+    await mkdir(join(root, 'src/lib/server'), { recursive: true });
+    await writeFile(join(root, 'src/lib/server/backend-routing.ts'), routing);
+    await checkRewrites(root, current);
+    await assert.rejects(checkRewrites(root, historical), /backend_rewrites_mismatch/);
+    await writeFile(join(root, '.next/routes-manifest.json'), JSON.stringify(current));
+    const currentBuild = await inspectBuild(root);
+    assert.notEqual(currentBuild.source_sha256, originalBuild.source_sha256);
+    assert.throws(() => compareBuild(oldReceipt, currentBuild), /artifact_mismatch_source_sha256/);
+    for (const invalid of [
+      source.replace('/api/workspace/session', '/api/workspace/unreviewed'),
+      source.replace('/api/workspace/session', '/api/auth/session'),
+      source.replace('workspaceSession:', 'authLogin: "/api/auth/login", workspaceSession:'),
+      source.replace('workspaceSession:', 'duplicateSession: "/api/workspace/session", workspaceSession:'),
+      source.replace(/^.*chatCities:.*\n/m, ''),
+    ]) {
+      await writeFile(file, invalid);
+      await assert.rejects(checkRewrites(root, current), /endpoint_allowlist_changed|assistant_allowlist_incomplete/);
+    }
+    await writeFile(file, source);
+    for (const change of [
+      { source: '/api/workspace/:path*' },
+      { source: '/api/workspace/session/reset' },
+      { destination: ORIGIN + '/auth/session' },
+      { destination: 'http://untrusted.invalid/workspace/session' },
+    ]) {
+      const invalid = structuredClone(current);
+      Object.assign(invalid.rewrites.beforeFiles.find(rule => rule.source === '/api/workspace/session'), change);
+      await assert.rejects(checkRewrites(root, invalid), /backend_rewrites_mismatch/);
     }
   });
 });
@@ -323,7 +403,8 @@ test('spawn failure cleanup does not wait forever for a nonexistent process', as
   await stopChild({ pid: undefined, exitCode: null, signalCode: null });
 });
 
-test('smoke accepts SSR shell while auth is loading, but no unrelated HTML or external static URL', () => {
+test('smoke accepts current workspace loading and historical auth shells, but no unrelated HTML or external static URL', () => {
+  assert.equal(staticLink(Buffer.from('<title>TripPilot</title><p>正在准备旅行工作区…</p><script src="/_next/static/chunks/app.js"></script>')), '/_next/static/chunks/app.js');
   assert.equal(staticLink(Buffer.from('<title>TripPilot｜单城旅行规划助手</title><p>正在核对登录状态…</p><script src="/_next/static/chunks/app.js"></script>')), '/_next/static/chunks/app.js');
   assert.throws(() => staticLink(Buffer.from('<title>Other service</title><script src="/_next/static/app.js"></script>')), /smoke_application_shell_missing/);
   assert.throws(() => staticLink(Buffer.from('<title>TripPilot</title><script src="https://example.invalid/evil.js"></script>')), /smoke_static_link_missing/);

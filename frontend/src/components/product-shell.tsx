@@ -15,7 +15,7 @@ function Mark({ name }: { name: string }) {
 export default function ProductShell({ children }: { children: ReactNode }) {
   const pathname = usePathname();
   const supported = pages.some(page => page.href === pathname);
-  // One stable instance per authenticated identity. Navigation changes visibility,
+  // One stable instance per browser workspace. Navigation changes visibility,
   // not the controller: unsent text and in-flight cancellation IDs stay intact.
   if (!supported) return children;
   return <div className="min-h-dvh bg-white text-[#17211f]">

@@ -133,7 +133,7 @@ export default function EvaluationWorkspace({ active = true }: { active?: boolea
         {view.nextOffset !== null && <button type="button" className={`${button} mt-3 text-[#294e43]`} disabled={!!view.pending} onClick={() => void load(true)}>加载更多</button>}
       </aside>
       <div className="min-w-0">
-        {!view.selected && <div className="py-12 sm:py-16"><p className="text-lg font-medium">每一次执行，都有迹可循。</p><p className="mt-3 max-w-md text-sm leading-7 text-[#71807a]">这里只读取当前账号的任务回执。不会调用模型、重新执行工具或修改旅行数据。</p></div>}
+        {!view.selected && <div className="py-12 sm:py-16"><p className="text-lg font-medium">每一次执行，都有迹可循。</p><p className="mt-3 max-w-md text-sm leading-7 text-[#71807a]">这里只读取当前浏览器工作区的任务回执。不会调用模型、重新执行工具或修改旅行数据。</p></div>}
         {view.selected && !view.pending && view.receipt && <>
           <div className="flex flex-wrap items-start justify-between gap-4"><div className="min-w-0"><h2 className="break-words text-lg font-medium">{view.selected.title}</h2><p className="mt-2 text-xs text-[#71807a]">会话版本 {view.receipt.revision} · 最新任务回执</p></div><button type="button" className={`${button} border border-[#d9e1dc] text-[#294e43]`} onClick={() => void select(view.selected!)}>重新读取</button></div>
           {!view.receipt.migration_ready && <p role="status" className="mt-7 text-sm leading-7 text-[#945746]">任务存储尚未准备好，请联系管理员。没有替代或虚构执行记录。</p>}

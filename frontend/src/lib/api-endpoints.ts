@@ -1,10 +1,7 @@
 // Browser requests always stay on the page's origin. The Next.js server alone
 // chooses the trusted backend target; public environment values cannot override it.
 export const API_ENDPOINTS = Object.freeze({
-  authSession: "/api/auth/session",
-  authLogin: "/api/auth/login",
-  authRegister: "/api/auth/register",
-  authLogout: "/api/auth/logout",
+  workspaceSession: "/api/workspace/session",
   chatConversations: "/api/chat/conversations",
   chatCities: "/api/chat/cities",
   usage: "/api/usage",

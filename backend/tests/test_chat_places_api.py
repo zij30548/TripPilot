@@ -15,7 +15,7 @@ import httpx
 from api.chat_places import get_chat_places_store
 from core.business_usage import UsageError
 from memory.chat_places_storage import ChatPlacesStore
-from main import app
+from tests.legacy_identity_app import app
 from tests import test_chat_api as chat_fixture
 from tests.test_chat_places_tools import envelope
 from tools.chat_places_storage import provision_chat_places_extension

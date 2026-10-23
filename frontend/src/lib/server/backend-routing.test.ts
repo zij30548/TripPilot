@@ -24,7 +24,7 @@ describe("trusted server-only same-origin forwarding", () => {
   it("has an explicit resource allowlist, never a user-supplied URL or catch-all", () => {
     const target = "http://127.0.0.1:18081";
     const rules = backendRewrites(target);
-    expect(Object.keys(API_ENDPOINTS)).toHaveLength(22);
+    expect(Object.keys(API_ENDPOINTS)).toHaveLength(19);
     expect(new Set(rules.map(r => r.source)).size).toBe(rules.length);
     for (const source of Object.values(API_ENDPOINTS)) {
       expect(source.startsWith("/api/")).toBe(true);
@@ -43,16 +43,17 @@ describe("trusted server-only same-origin forwarding", () => {
     expect(FORWARDING_BODY_BYTES).toBeGreaterThan(20 * 1024 * 1024);
     expect(FORWARDING_TIMEOUT_MS).toBeGreaterThan(60_000);
   });
-  it("adds only a UUID-scoped dialogue receipt path and leaves identity, CSRF and legacy endpoints on the same trusted origin", () => {
+  it("keeps workspace CSRF and UUID-scoped receipts on the trusted origin without forwarding removed credential endpoints", () => {
     const target = "http://127.0.0.1:18081", rules = backendRewrites(target);
     const dialogue = rules.filter(rule => rule.source.includes("dialogue"));
     expect(dialogue).toEqual([{
       source: "/api/chat/conversations/:id([0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12})/dialogue-action",
       destination: `${target}/chat/conversations/:id/dialogue-action`,
     }]);
-    for (const path of ["/auth/session", "/auth/login", "/auth/register", "/auth/logout", "/knowledge/answer", "/media/landmark", "/media/video-frames", "/trips/schedule-preview"]) {
+    for (const path of ["/workspace/session", "/knowledge/answer", "/media/landmark", "/media/video-frames", "/trips/schedule-preview"]) {
       expect(rules).toContainEqual({ source: `/api${path}`, destination: `${target}${path}` });
     }
+    expect(rules.some(rule => rule.source.startsWith("/api/auth/"))).toBe(false);
     const missing = { rewrites: { beforeFiles: rules.filter(rule => !rule.source.endsWith("/dialogue-action")) } };
     expect(() => assertBuiltBackend(missing, rules)).toThrow("重新构建");
     for (const source of ["/api/chat/conversations/:id/dialogue-action", "/api/chat/conversations/:path*", "/api/dialogue-action"]) {

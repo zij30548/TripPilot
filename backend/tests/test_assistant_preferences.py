@@ -16,7 +16,7 @@ from memory.storage import engine_for
 from memory.assistant_store import AssistantStore
 from tools.chat_storage import provision_chat_extension
 from tools.assistant_storage import provision_assistant_extension
-from main import app
+from tests.legacy_identity_app import app
 
 
 class PreferencesAPI(unittest.TestCase):
