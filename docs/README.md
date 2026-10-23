@@ -19,6 +19,7 @@
 
 | 文档 | 什么时候读 |
 | --- | --- |
+| [ECHOMIND_TRAVEL_ACCEPTANCE_PLAN](ECHOMIND_TRAVEL_ACCEPTANCE_PLAN.md) | 最新零调用小型方案：7模型参与提交＋7本地操作，14预计／21建议硬上限不是授权；仅场景／评分／源码冻结，实际执行门和payload待准备 |
 | [ECHOMIND_CHAT_INTEGRATION](ECHOMIND_CHAT_INTEGRATION.md) | 第4步显式接线与受控闭环；最新第6节为零调用原生预初始化／退出补修，保留旧挂起／证据缺口，默认网站未切换，真实语义及生产待验 |
 | [ECHOMIND_FULL_MIGRATION](ECHOMIND_FULL_MIGRATION.md) | 完整核心保真与第2步：千问Embedding、隔离Redis／Chroma、安全执行和历史受控验证；本轮原生退出限制见顶部指针 |
 | [ECHOMIND_TRAVEL_ADAPTATION](ECHOMIND_TRAVEL_ADAPTATION.md) | 第3步旅行意图／角色／只读及提议工具、规则捕获与16条离线场景准备；历史未接线状态由最新第4步补充，不改旧成绩 |

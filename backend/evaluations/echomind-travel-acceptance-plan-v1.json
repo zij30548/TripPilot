@@ -1,0 +1,413 @@
+{
+  "schema_version": "echomind-travel-acceptance-plan-v1",
+  "baseline_commit": "c042cce3200531aa4453963dbc209af724f42593",
+  "preparation": "offline_plan_only",
+  "authorization": {
+    "real_model_calls": 0,
+    "real_amap_calls": 0,
+    "automatic_retry": false
+  },
+  "runtime": {
+    "model": "qwen3.7-flash-2026-07-15",
+    "mode": "direct_tools",
+    "max_tokens": 900,
+    "temperature": 0.1,
+    "stream": false,
+    "enable_thinking": false,
+    "parallel_tool_calls": false,
+    "task_model_limit": 3,
+    "task_tool_limit": 4,
+    "task_seconds": 45,
+    "active_product_cutover": false
+  },
+  "prior_manifest": {
+    "path": "backend/evaluations/echomind-travel-v1.json",
+    "sha256": "2efda6ce4a21b9c92bf7660eefa8c05c5d6a50f7c6aecad06cb9f57c18bf61ed"
+  },
+  "fixtures": [
+    {
+      "id": "empty",
+      "specification": [
+        "独立匿名测试工作区和空会话；无已确认需求、地点、正式草案、预览或费用",
+        "不得读取用户库或旧会话凑前提；不发送任何真实业务查询"
+      ]
+    },
+    {
+      "id": "requirements",
+      "specification": [
+        "与empty分开的独立空会话；m02→m03→l01→l02连续使用本次真实结果，不伪造上一轮助手回复",
+        "m02/03只记录文本需求；本fixture不搜索地点、不准备规划或生成草案；失败的依赖不可通过注入成功结果补齐"
+      ]
+    },
+    {
+      "id": "formal",
+      "specification": [
+        "与需求纠正会话分开；仅合成业务fixture，不能写成真实高德行程",
+        "通过原接口/控制器准备已确认的上海2026-11-01至02、2人、全程预算3000、walking",
+        "复用tools/echomind_travel_controlled.py中受控住宿甲controlled-hotel、受控景点甲controlled-visit及可选受控公园甲controlled-park；地址均明确合成测试；不得将合成POI作为真实服务结果",
+        "同原两方向受控WalkingRoute，每次参考360秒、每必去/可选停留60分钟、09:00-18:00、午餐关闭、每日住宿往返；首日已安排景点和公园，第二天空日，必去完整；如实际重放不符合，先离线查明，不修改返回凑前提",
+        "候选仅受控公园甲，没有可替代新地点；排除后首日只剩必去且第二日仍为空；地图日期固定2026-11-01，不初始化外站SDK",
+        "费用原始输入：controlled-visit门票='0'，controlled-park门票=''，2026-11-01餐饮='100'，2026-11-02餐饮=''，住宿=''，其他=''；交通walking参考0；均为全部旅客用户估算",
+        "所有合成搜索/候选/排程准备走隔离的受控业务transport，逐次记Mock次数；真实高德、天气、视觉、Embedding、Judge均0；不调用受控脚本模拟本批模型回答"
+      ]
+    }
+  ],
+  "operations": [
+    {
+      "id": "m01",
+      "group": "clarification",
+      "branch": "native_candidate",
+      "fixture_id": "empty",
+      "depends_on": [],
+      "text": "给我安排一个轻松的旅行，具体去哪和哪天我还没决定。",
+      "allowed_tools": [
+        "inspect_trip",
+        "travel_clarify"
+      ],
+      "expected_action": null,
+      "expected": [
+        "选择destination_missing或date_missing之一先澄清；一次固定提示不必同时问全所有字段",
+        "保留轻松只是用户表达，不声称已满足排程偏好；不搜索、不生成"
+      ],
+      "blocking": [
+        "擅自确定城市、日期或用旧草案回答",
+        "不得生成真实POI、交通耗时、价格或自由事实正文",
+        "不得未经确认修改正式需求、地点、草案、费用、候选或存档",
+        "无隐藏重试、额外模型、跨工作区读取或扩大任务额度"
+      ]
+    },
+    {
+      "id": "m02",
+      "group": "requirements",
+      "branch": "native_candidate",
+      "fixture_id": "requirements",
+      "depends_on": [],
+      "text": "先考虑上海，两个人，总预算3000元，步行；日期还没确定，先记录，不查地点。",
+      "allowed_tools": [
+        "inspect_trip",
+        "update_trip_requirements"
+      ],
+      "expected_action": "update_trip_requirements",
+      "expected": [
+        "提议上海、2人、全程预算3000元、walking，日期保持未知",
+        "sources来自本轮原话，新增需求为待确认草稿，不自动确认或查询；先读取当前输入也允许"
+      ],
+      "blocking": [
+        "擅自补旅行日期或把总预算再乘人数",
+        "仅询问日期却未完成明确要求的需求记录",
+        "不得生成真实POI、交通耗时、价格或自由事实正文",
+        "不得未经确认修改正式需求、地点、草案、费用、候选或存档",
+        "无隐藏重试、额外模型、跨工作区读取或扩大任务额度"
+      ]
+    },
+    {
+      "id": "m03",
+      "group": "requirements",
+      "branch": "native_candidate",
+      "fixture_id": "requirements",
+      "depends_on": [
+        "m02"
+      ],
+      "text": "改去杭州，日期是2026-11-01到2026-11-03，仍是两人、总预算3000元、步行；先记录，不查地点。",
+      "allowed_tools": [
+        "inspect_trip",
+        "update_trip_requirements"
+      ],
+      "expected_action": "update_trip_requirements",
+      "expected": [
+        "在同一会话实际m02结果之后补充和纠正，不注入标准助手历史",
+        "新需求提议改为杭州、2026-11-01至03、2人、预算3000、walking；未指定的住宿和必去不编造",
+        "旧上海不残留为当前目的地；仍待确认；没有地点、路线或天气请求"
+      ],
+      "blocking": [
+        "忽视本轮城市纠正或自动确认新需求",
+        "不得生成真实POI、交通耗时、价格或自由事实正文",
+        "不得未经确认修改正式需求、地点、草案、费用、候选或存档",
+        "无隐藏重试、额外模型、跨工作区读取或扩大任务额度"
+      ]
+    },
+    {
+      "id": "l01",
+      "group": "requirements",
+      "branch": "local_confirmation",
+      "fixture_id": "requirements",
+      "depends_on": [
+        "m03"
+      ],
+      "text": "确认需求",
+      "allowed_tools": [],
+      "expected_action": "confirm_requirements",
+      "expected": [
+        "仅由本地命令准备当前需求确认，显示待确认操作",
+        "服务端确认写入仍为0；无模型请求"
+      ],
+      "blocking": [
+        "未回复下一步确认就写成已确认",
+        "不得生成真实POI、交通耗时、价格或自由事实正文",
+        "不得未经确认修改正式需求、地点、草案、费用、候选或存档",
+        "无隐藏重试、额外模型、跨工作区读取或扩大任务额度"
+      ]
+    },
+    {
+      "id": "l02",
+      "group": "requirements",
+      "branch": "local_confirmation",
+      "fixture_id": "requirements",
+      "depends_on": [
+        "l01"
+      ],
+      "text": "确认",
+      "allowed_tools": [],
+      "expected_action": "confirm_requirements",
+      "expected": [
+        "消费当前待确认token，按当前revision确认杭州需求",
+        "确认后的confirmed_revision匹配当前revision；没有模型、高德或排程请求"
+      ],
+      "blocking": [
+        "确认旧revision或生成草案",
+        "不得生成真实POI、交通耗时、价格或自由事实正文",
+        "不得未经确认修改正式需求、地点、草案、费用、候选或存档",
+        "无隐藏重试、额外模型、跨工作区读取或扩大任务额度"
+      ]
+    },
+    {
+      "id": "m04",
+      "group": "day",
+      "branch": "native_candidate",
+      "fixture_id": "formal",
+      "depends_on": [],
+      "text": "看看第二天怎么安排，只查询，不切换地图日期。",
+      "allowed_tools": [
+        "inspect_trip",
+        "travel_schedule"
+      ],
+      "expected_action": "read_schedule",
+      "expected": [
+        "工具action=read_schedule；day=2且date=null，或date=2026-11-02且day=null；两者不能同时填写",
+        "浏览器读取正式草案2026-11-02，明确空日；不借用第一天、历史或预览活动",
+        "查询前后地图日期、草案、费用及候选不变；后端提议回执不冒称已经执行"
+      ],
+      "blocking": [
+        "返回第一天或捏造第二天活动",
+        "修改地图日期或新增排程/路线请求",
+        "不得生成真实POI、交通耗时、价格或自由事实正文",
+        "不得未经确认修改正式需求、地点、草案、费用、候选或存档",
+        "无隐藏重试、额外模型、跨工作区读取或扩大任务额度"
+      ]
+    },
+    {
+      "id": "m05",
+      "group": "budget",
+      "branch": "native_candidate",
+      "fixture_id": "formal",
+      "depends_on": [
+        "m04"
+      ],
+      "text": "全程费用目前能算多少？还有哪些没填？",
+      "allowed_tools": [
+        "inspect_trip",
+        "travel_budget"
+      ],
+      "expected_action": "read_budget",
+      "expected": [
+        "action=read_budget，由浏览器复用calculateScheduleCosts，不由模型报价格或后端另算",
+        "交通已知0、用户估算已填100、当前可计算小计100元；必去门票明确0不是核实免费",
+        "列出可选门票、2026-11-02餐饮、全程住宿和其他未知；3000减100的差额带缺项限定，不称自由余额",
+        "原始空白、0和100不变；正式状态不改，无领域外部请求"
+      ],
+      "blocking": [
+        "遗漏未知项、把未知当零、把100元声称为完整总价或承诺预算充足",
+        "不得生成真实POI、交通耗时、价格或自由事实正文",
+        "不得未经确认修改正式需求、地点、草案、费用、候选或存档",
+        "无隐藏重试、额外模型、跨工作区读取或扩大任务额度"
+      ]
+    },
+    {
+      "id": "m06",
+      "group": "preview",
+      "branch": "native_candidate",
+      "fixture_id": "formal",
+      "depends_on": [
+        "m05"
+      ],
+      "text": "先给我预览排除当前已安排的可选地点受控公园甲，不要采用。",
+      "allowed_tools": [
+        "inspect_trip",
+        "travel_adjustment"
+      ],
+      "expected_action": "preview_exclusion",
+      "expected": [
+        "action=preview_exclusion，selector唯一指向controlled-park或受控公园甲",
+        "仅提出当前已安排可选的排除预览并等待确认；此时不请求排程、不改变正式排除集合",
+        "必去受控景点甲保留；不从名称猜另一个公园"
+      ],
+      "blocking": [
+        "直接采用、普通排除或跳过必去",
+        "未明确确认就生成预览或修改正式草案",
+        "不得生成真实POI、交通耗时、价格或自由事实正文",
+        "不得未经确认修改正式需求、地点、草案、费用、候选或存档",
+        "无隐藏重试、额外模型、跨工作区读取或扩大任务额度"
+      ]
+    },
+    {
+      "id": "l03",
+      "group": "preview",
+      "branch": "local_confirmation",
+      "fixture_id": "formal",
+      "depends_on": [
+        "m06"
+      ],
+      "text": "确认",
+      "allowed_tools": [],
+      "expected_action": "preview_exclusion",
+      "expected": [
+        "确认当前提议后，仅一次原排程预览接口，路线仅用明确标记的受控上游",
+        "得到ready预览并展示实际差异；原正式草案含公园、候选排除和费用仍保持",
+        "该准备只计受控业务请求，不冒称真实高德"
+      ],
+      "blocking": [
+        "把尚未采用预览放进正式地图或预算",
+        "不得生成真实POI、交通耗时、价格或自由事实正文",
+        "不得未经确认修改正式需求、地点、草案、费用、候选或存档",
+        "无隐藏重试、额外模型、跨工作区读取或扩大任务额度"
+      ]
+    },
+    {
+      "id": "l04",
+      "group": "preview",
+      "branch": "local_confirmation",
+      "fixture_id": "formal",
+      "depends_on": [
+        "l03"
+      ],
+      "text": "取消预览",
+      "allowed_tools": [],
+      "expected_action": "cancel_preview",
+      "expected": [
+        "本地取消当前预览；原正式草案、费用、候选及原解读保持",
+        "取消不新增排程、路线、模型；取消/采用自然语言泛化不由本地命令证明"
+      ],
+      "blocking": [
+        "取消反而采用或回滚用户主动输入的费用",
+        "不得生成真实POI、交通耗时、价格或自由事实正文",
+        "不得未经确认修改正式需求、地点、草案、费用、候选或存档",
+        "无隐藏重试、额外模型、跨工作区读取或扩大任务额度"
+      ]
+    },
+    {
+      "id": "m07",
+      "group": "preview",
+      "branch": "native_candidate",
+      "fixture_id": "formal",
+      "depends_on": [
+        "l04"
+      ],
+      "text": "先给我预览排除当前已安排的可选地点受控公园甲，不要采用。",
+      "allowed_tools": [
+        "inspect_trip",
+        "travel_adjustment"
+      ],
+      "expected_action": "preview_exclusion",
+      "expected": [
+        "预先计划的新主动请求，独立operation ID，不是m06失败重试；仅在前置链成功时执行",
+        "同一目标再次仅提议排除预览，仍等用户确认，不复活旧预览"
+      ],
+      "blocking": [
+        "复用旧op或自动重发失败场景",
+        "不得生成真实POI、交通耗时、价格或自由事实正文",
+        "不得未经确认修改正式需求、地点、草案、费用、候选或存档",
+        "无隐藏重试、额外模型、跨工作区读取或扩大任务额度"
+      ]
+    },
+    {
+      "id": "l05",
+      "group": "preview",
+      "branch": "local_confirmation",
+      "fixture_id": "formal",
+      "depends_on": [
+        "m07"
+      ],
+      "text": "确认",
+      "allowed_tools": [],
+      "expected_action": "preview_exclusion",
+      "expected": [
+        "只确认m07当前token，再生成一次新ready预览",
+        "保存所见预览内容/版本和正式基线摘要供后续比较，原正式状态仍不变"
+      ],
+      "blocking": [
+        "用旧取消预览或历史结果代替新预览",
+        "不得生成真实POI、交通耗时、价格或自由事实正文",
+        "不得未经确认修改正式需求、地点、草案、费用、候选或存档",
+        "无隐藏重试、额外模型、跨工作区读取或扩大任务额度"
+      ]
+    },
+    {
+      "id": "l06",
+      "group": "preview",
+      "branch": "local_confirmation",
+      "fixture_id": "formal",
+      "depends_on": [
+        "l05"
+      ],
+      "text": "采用预览",
+      "allowed_tools": [],
+      "expected_action": "adopt_preview",
+      "expected": [
+        "本地准备采用当前所见预览，明确展示待确认",
+        "此时尚未提交正式变更，没有新排程或模型请求"
+      ],
+      "blocking": [
+        "采用命令后跳过最终确认",
+        "不得生成真实POI、交通耗时、价格或自由事实正文",
+        "不得未经确认修改正式需求、地点、草案、费用、候选或存档",
+        "无隐藏重试、额外模型、跨工作区读取或扩大任务额度"
+      ]
+    },
+    {
+      "id": "l07",
+      "group": "preview",
+      "branch": "local_confirmation",
+      "fixture_id": "formal",
+      "depends_on": [
+        "l06"
+      ],
+      "text": "确认",
+      "allowed_tools": [],
+      "expected_action": "adopt_preview",
+      "expected": [
+        "重新核对草案/输入/预览版本及硬约束，沿原采用入口提交一次，结果等于l05所见预览",
+        "采用后移除公园并同步对应排除项，必去保留；无新增排程/路线/模型/保存",
+        "费用使用同一输入重算：100元小计不变，移除公园门票缺项，其他未知和已填费用不擅减；旧检查与解读按原规则失效"
+      ],
+      "blocking": [
+        "采用过期版本、重复提交、另查一份结果再冒称所见预览",
+        "不得生成真实POI、交通耗时、价格或自由事实正文",
+        "不得未经确认修改正式需求、地点、草案、费用、候选或存档",
+        "无隐藏重试、额外模型、跨工作区读取或扩大任务额度"
+      ]
+    }
+  ],
+  "limits": {
+    "planned_native_tasks": 7,
+    "planned_local_submissions": 7,
+    "recommended_model_send_cap": 21,
+    "expected_model_sends": 14,
+    "real_amap_calls": 0
+  },
+  "live_prerequisites": [
+    "另获明确新模型授权，本轮0授权和旧ledger均不得改为可消费额度；21是预算建议不是许可",
+    "为当前严格MeteredAsyncClient准入单独准备受控的实际发送计数适配并验证持久预记、并发、重启、失败、取消和未知占额；不能直接套旧GatedMeteredAsyncClient或删type检查",
+    "执行前实际准备隔离匿名工作区/新临时MySQL和合成前置状态，并冻结初始HTTP请求及真实服务端/浏览器snapshot；受控fixture说明不等于已存在有效草案",
+    "按当前localDialogueAction和confirmationReply离线复核m01-m07不命中本地，l01-l07只走本地；不能用HTTP200或本地命令冒称真实tool_calls",
+    "验证首发实际provider参数为本清单900/.1/非思考/非流式；2048只是通用单次上限，不套旧验收脚本参数",
+    "冻结真实首发payload并只向模型发送用户原话/实际有限历史/必要业务标签；题号、期望、评分和合成fixture准备说明不进入请求",
+    "后续tool_calls ID、工具结果和反馈payload由实际前一步产生；每次发送前验证来源和绑定并记录实际hash，不预造反馈，不把模板hash当实际payload",
+    "使用同一新明确授权批次持久台账，操作ID含固定计划ID及模型发送序号；任务3模型/4工具/45秒不扩额；失败/已发取消/未知占额，不自动重试",
+    "保留旧16份ledger的hash和停止记录，仅只读关联；不重置、借额或重新初始化历史授权",
+    "语义/结构失败原样记录；依赖链失败则后续标未执行，不造成功前提；独立组仅在没有执行安全异常时继续",
+    "计数/冻结版本/权限/鉴权/额度/限流/网络/超时/取消或未经确认写入出现异常时暂停，不自动恢复",
+    "逐项保存原生tool_calls→后端提议→浏览器执行及最终状态证据；Cookie/CSRF/密钥/原始私密日志不保存；用量和实际返回模型未知时记未知",
+    "本批只评协调者direct-tools与现有领域链，不证明专业并行、三路融合、全国执行、知识问答或生产上线；现有服务/云端不自动切换",
+    "冻结后不改问题、规则、候选、prompt/Schema/检索/模型和前提来追求通过；发送工具改动先另存授权执行协议关联本离线protocol，不能覆盖旧hash"
+  ]
+}
