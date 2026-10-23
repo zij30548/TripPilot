@@ -1,5 +1,19 @@
 # TripPilot Progress
 
+## 最新摘要（2026-10-23，受控验收准备：持久计数钩子与原接口首发捕获）
+
+- **范围／基线**：实际`main / f3d035bdaab1030b5c679fd309be000fb57e97bf`。用户同意按建议继续离线准备，未新增付费额度；本轮模型、高德及其他外部业务API **0次**。没有改候选／业务／前端／提示／Schema／模型／原参数、数据库结构／用户库／环境／现有服务或云端；原7模型＋7本地固定计划不变。详见[验收准备第7节／原理与面试](ECHOMIND_TRAVEL_ACCEPTANCE_PLAN.md#7-后续离线准备精确客户端计数适配与首发捕获)。
+- **计数适配**：新增`tools/echomind_travel_trial_{ledger,transport}.py`及测试。仅controlled模式，0600／0700、flock／逐条fsync／hashchain；m01～07顺序、每项3／共21受控尝试不扩额。exact `MeteredAsyncClient`＋request/response hooks，保留生产取额、不继承旧计数子类、不放宽准入；只内建MockTransport、合成认证、trust_env=false，无live/URL/真实Key入口。首发全payload与后续native反馈、固定参数／Schema和绑定均检查；失败、取消、未知不退款，HTTP200／received不等于语义通过。
+- **主审边界**：补齐claim前参数／版本／计数异常持久pause，吞异常／重启也不能继续下一题；已有在途finish可如实落盘，但暂停不解除。并发／进程竞争、锁／存储故障、部分写、取消排空、重启／未知、压缩／超限、反馈错链及200坏结构分开验证。hook在产品预记后，直接防御测试第4次被拒可出现“产品保守4／受控发送3”；正常候选另有外层TaskBudget3，不能把保守占额叫真实外部超发或计费。
+- **实际首发捕获**：新增`trial_capture.py`及测试；独立空临时MySQL＋正常匿名Cookie／CSRF／ASGI／CAS构造m01，Mock捕获**1次**后故意503，API502、turn/task为failed，需求未确认／未改。安全receipt仅hash、参数、大小／工具／版本；实际payload hash `fdb65b84d3f632964989aef57daeabbd4c27c76175997f98a4c883aae8bd3202`。这不是模型结果、未连接真实发送器，也不是未来真实会话的payload凭证；成功后只清理本helper新建的随机测试库，原库不动。
+- **独立续冻**：新增`trial_prepare.py`及测试，链接原protocol `2ddbf306…ac352e`，**原485文件及清单完全不变**，只允许新增4验收工具；新489源文件和4测试冻结。首份`execution.json` hash `5cca7bdf…10ebdb`原样保留；末审发现工具Schema引用可能触发jsonschema远程取回，仅新验收工具构造时有界拒绝所有ref，0取回回归及实际16工具兼容通过。另建最终`execution-v2.json` hash `9d2448b181eefa4e18e3af0e41d73f5de10e949f969166e562de76a724a73404`，旧v1继续正确拒绝这次新增工具改动，不覆盖旧件。原Agent默认15秒／provider20秒／task45秒冻结，非默认环境值拒绝而不覆盖或打印。16历史ledger只读关联，无可消费live台账、未借旧额度。
+- **实际检查**：既有选装Python3.13＋独立临时MySQL，相关新旧工具、原准入及原HTTP回归最终组合 **132项／11.367秒通过，无跳过、exit0**；此前130／131是末审前版本，不相加、不替代最终。普通venv新工具发现46项，44执行通过／2明确条件跳过，0.904秒。初次直接组合缺jsonschema及末审交叉测试首跑漏import的失败保留，已修正后验证，无新依赖／业务改动；来源36文件／11namespace重建通过。旧freeze拒绝／新v2续件verify、语法／本地链接／敏感信息／diff及保护核对完成。无业务或前端变更，不机械重跑全量业务、Webpack或Chrome，不启动TCP业务服务。
+- **证据／停止点**：`/Users/zijing/projects/trippilot-evidence/echomind-travel-readiness-20261023.gdDE12/`保留受控捕获、续件、脚本及检查／保护收据；旧16台账、原五缓存／库／锚、原协议／评分和工作区未提交说明均保留，3110／8804／8000／MySQL PID未改。**停止在受控计数适配和首发捕获完成，live模式仍关闭、真实语义未验。** 下一步需新的明确授权（建议最多21模型发送／预计14，高德0）及真实执行准入／实际动态上下文冻结；当前续件`live_ready=false`、`full_live_payload_frozen=false`，不能把受控回执拼成真实成绩或自动切网站。知识问答、专业并行、完整恢复及生产准入未开放。
+
+当前导航：[受控准备机制与待办](ECHOMIND_TRAVEL_ACCEPTANCE_PLAN.md#7-后续离线准备精确客户端计数适配与首发捕获) → [固定问题／评分／预算](ECHOMIND_TRAVEL_ACCEPTANCE_PLAN.md) → [第4步接线](ECHOMIND_CHAT_INTEGRATION.md)。下方旧停止点和失败保持历史含义，不覆盖本次0授权／0调用。
+
+---
+
 ## 最新摘要（2026-10-23，小型旅行验收方案准备：零调用、尚未真实验收）
 
 - **范围／基线**：实际`main / c042cce3200531aa4453963dbc209af724f42593`，开工与origin同步。用户同意开始上一轮提出的零调用方案准备，不是新模型／高德授权。本轮模型、高德及其他外部业务API **0次**；不改候选、正式提示／Schema／参数／模型、数据库／环境、运行服务或云端。旧未提交手工试用说明、浏览器日志、原五缓存、原库及全部旧台账保留。

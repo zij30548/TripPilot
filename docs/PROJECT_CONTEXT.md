@@ -10,7 +10,7 @@ TripPilot 是面向个人及小团体的国内旅行助手：通过对话说清�
 
 ## 当前入口与实现范围
 
-**最新准备状态**：[小型验收方案](ECHOMIND_TRAVEL_ACCEPTANCE_PLAN.md)已将4类任务拆为7次模型参与提交和7次本地确认／取消／采用；未来建议上限21次模型发送，当前授权和实际均0。固定业务前提为合成输入／受控高德、真实高德计划0；不把本地命令算模型选材通过。本轮只做离线清单／评分／源码冻结；新执行门、真实上下文及首发payload尚未就绪，不改业务／默认服务，真实语义仍未验收。
+**最新准备状态**：[小型验收方案第7节](ECHOMIND_TRAVEL_ACCEPTANCE_PLAN.md#7-后续离线准备精确客户端计数适配与首发捕获)新增受控journal、精确客户端event hook、原ASGI＋独立临时MySQL首发捕获及加法续冻。相关132项通过，模型／高德实际0；capture故意受控503后程序保留failed，不是模型成绩。原485源文件及清单不变，只加4个验收工具；没有live模式、实际授权／动态上下文准入仍待完成。既定7模型提交＋7本地操作、未来建议最多21发送／预计14均不改；当前授权0，合成业务不冒称真实高德，不切默认服务。
 
 **最新离线补修**：在第4步后核对Chroma导入即加载ONNX的原生路径，候选外层采用官方`ORT_DISABLE_TELEMETRY=1`预初始化保护，自身不导入可选库；冲突／已初始化失败关闭。相关294项及macOS子进程自然退出、取消排空检查通过。旧挂起没有稳定复现，旧exit130／证据缺口不改判；真实语义、Linux／长期生命周期和生产切换仍待验。见[稳定性补修](ECHOMIND_CHAT_INTEGRATION.md#6-原生依赖稳定性补修2026-10-23零调用)，本轮模型／外部业务调用0。
 
@@ -76,4 +76,4 @@ TripPilot 是面向个人及小团体的国内旅行助手：通过对话说清�
 
 依次读[README](../README.md)→本文件→[ROADMAP](ROADMAP.md)→[PROGRESS](PROGRESS.md)，遵守[AGENTS](../AGENTS.md)。Agent／架构／评测工作再读[Harness约定](HARNESS_ENGINEERING.md)；具体阶段只在[CHAT_REBUILD_PLAN](CHAT_REBUILD_PLAN.md)维护，原理见[AGENT_EVOLUTION](AGENT_EVOLUTION.md)。
 
-**当前停止在零调用小型验收方案冻结：显式接线、受控闭环和稳定性补修保留，默认／运行服务未切换。** 本组问题／评分／源码固定，实际执行计数适配和首发payload仍待准备；未来21次只是上限建议，当前0授权，不能借旧额度发送。旧挂起本轮未复现，不能声称其内部根因已完全证明；真实语义、Linux／长期生命周期、完整恢复和专业协作仍待验。检查见PROGRESS、[验收计划](ECHOMIND_TRAVEL_ACCEPTANCE_PLAN.md)及[ECHOMIND_CHAT_INTEGRATION第6节](ECHOMIND_CHAT_INTEGRATION.md#6-原生依赖稳定性补修2026-10-23零调用)。原迁移实际5/8及旧chat-1／2累计9/12分别保留，不合并、不追加，不自动发送或部署。
+**当前停止在受控计数适配／原ASGI首发捕获完成，真实发送仍关闭。** 显式接线、受控闭环、稳定性及原问题／评分冻结保持；原485源文件不变，新工具独立续冻。受控capture不是未来实际会话凭证，动态历史／反馈还需真实发送前绑定，21次只是建议、当前0授权，不借旧额度。旧挂起内部因果、真实语义、Linux／长期生命周期、完整恢复和专业协作仍待验。检查见PROGRESS、[验收准备第7节](ECHOMIND_TRAVEL_ACCEPTANCE_PLAN.md#7-后续离线准备精确客户端计数适配与首发捕获)及[ECHOMIND_CHAT_INTEGRATION第6节](ECHOMIND_CHAT_INTEGRATION.md#6-原生依赖稳定性补修2026-10-23零调用)。原迁移5/8及旧9/12分别保留，不合并、不追加，不自动部署或发送。
