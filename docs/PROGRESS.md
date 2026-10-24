@@ -1,5 +1,18 @@
 # TripPilot Progress
 
+## 最新摘要（2026-10-24，语义召回三臂与固定准备：离线完成，真实质量待验）
+
+- **范围／基线**：实际`main / 98d192fb593c6d6fdb93a56d122387597ed8ae86`，开工与origin同步。用户要求继续解决检索问题；按此前先召回再相关性／弃答的分层建议，完成第一步离线三臂与精确准备，**模型／Embedding／高德及其他业务外部调用0次**。仅读官方Embedding接口说明确认既有参数，无新场馆采集／语料编辑、付费脚本、环境／用户库／服务或云端切换。旧3/21已用／18暂停、媒体／知识问答台账、两批60题和全部失败不改；没有新额度。
+- **实现／文件**：新增`tooling/travel/knowledge_semantic.py`（`knowledge-semantic-candidate-v1`）、`tools/knowledge_semantic_evaluation.py`、`tools/knowledge_embedding_plan.py`、三份合成测试及`evaluations/knowledge-semantic-v1.json`，共7份后端文件。A委托旧BM25，B纯余弦，C委托旧RRF；独立离线响应不放宽旧exact消费者。完整来源／条件保留，向量与语料／单元／模型／维度绑定，查询附件绑定五字段request和原问题hash；防御复制、非法／零／非有限／bool伪装数值／溢出及附加字段拒绝。没有公开端点／生产开关，不修改原排序、模型或语料。新缺失／子问标签只是评审，**运行时主体理解、自动多问分解及相关性弃答尚未新增**。
+- **先验冻结**：新40题在候选创建前冻结，开发／验证各20（各12有／部分依据＋8无资料）；覆盖9城12馆40单元，84子问中59有据／25缺失，9道limited列真实缺口，4个另馆主体问题。题目SHA`9072bd7f…c60fe0`，输入收据SHA`07b988fa…24b268`；执行者逐条对照摘要，候选开发者只看合成资料，不称独立人类盲测／全国泛化。最终29文件严格计划版冻结SHA`fab13ca9d8e94b8b3cc864f45444372adc60913b54d839fbc88b11984a417b51`，不制造真实题向量、不运行新40质量评分。原语料仍`2026-10-24.1`／`27a1e072…f23a56`。
+- **未来预算不是授权**：最终严格版完整payload计划SHA`4f887b3f0eee0370be5abfd2ef22e5c47391b3998cc8dab303334503f9e5be22`已导出／verify：40主题4批＋40原问题4批，合计**拟最多8次Embedding**，三臂复用同一批向量，不乘3；每批10条、规范化body1211～3939字节。保持现有`text-embedding-v4`／1024维／float、单条8000字／字节、body48000字节、响应2MiB／20秒，无聊天／重排调用。8份payload与原适配器`_payload`逐份离线相等。标签、题号、预期引用和URL不进模型body；`authorized_attempts=0`、`actual_model_calls=0`、`sender_available=false`。真实发送还需另获明确额度和持久预记／录制，不扩大原聊天3次上限、不借旧余额；Token／RMB／权限／真实模型结果未知。
+- **检查与边界**：最终知识库相关`python -B -m unittest discover -s tests -p 'test_knowledge*.py' -q` **233项／5.670秒通过，无跳过**，含新17＋23＋11项合成检查；129定向及较早232是中间／子集，不相加。合成端到端保留弱相似误命中，报告强制mechanism-only／quality-not-assessed，不拿正余弦当支持或“全通过”。候选入口已补exact/raw检查；计划首10项7错误因安全解析不接受既有字节上限整数乘法，补有界乘积后通过，不用eval／可选原生导入。首次freeze后另发现字典相等漏检False/0、浮点/整数类型变化，新回归先1失败再修为规范化JSON类型hash比较；原freeze／plan／补修前源码保持，旧verify正确拒绝漂移，另存strict-plan最终件，8份body／hash／顺序／题目不变，不重复算成绩。源保真36文件／11namespace、132包offline锁、旧／最终freeze、语法／链接／敏感信息／diff及保护完成。Starlette/httpx弃用和受控async慢任务提示保留。无前端或正式API变更，不机械重跑全量业务／Webpack／Chrome；没有真实语义质量或新浏览器成绩。
+- **证据／保护／停止点**：`/Users/zijing/projects/trippilot-evidence/knowledge-semantic-20261024.omRK60/`含保护、输入／代码收据、未来payload与检查记录，不提交。原五缓存／用户旧库／锚、16旧台账、旧知识文件、19基线源、前两轮检索证据和暂停journal不变；PROGRESS原未提交末尾试用说明及浏览器日志保留不暂存。**离线接线完成，真实质量问题尚未验证解决；正式仍BM25，知识问答停用，当前网站不变。** 停在本步；下一步须另获新Embedding额度，补审计录制后一次固定召回消融，再独立评估相关性／弃答，不自动调题、发送模型或进入新功能。
+
+当前导航：[第9节三臂／标准／预算／面试](KNOWLEDGE_NATIONAL.md) → [新40题／逐子问标签](../backend/evaluations/knowledge-semantic-v1.json) → [离线准备工具](../backend/tools/knowledge_embedding_plan.py) → [三臂工具](../backend/tools/knowledge_semantic_evaluation.py)。下方两轮旧失败与分数独立保留，不用机制测试覆盖真实质量。
+
+---
+
 ## 最新摘要（2026-10-24，口语召回／误相关离线对照：候选失败，生产不替换）
 
 - **范围／基线**：实际`main / 9f07046e656eda34c5ba52b95b719685724a9d20`，开工与origin同步。用户同意继续处理上一轮漏召回与无资料误命中；本轮仅新增独立离线候选、先冻结新题的配对工具与失败报告，**千问／Embedding／高德及其他业务外部调用均0**。未重新读取来源、修改旧语料／日期／算法／评测、正式API／前端／模型／提示、实际环境／用户库／服务或云端。旧3/21已用和18暂停、全部历史成绩／台账保持。

@@ -19,7 +19,7 @@
 
 | 文档 | 什么时候读 |
 | --- | --- |
-| [KNOWLEDGE_NATIONAL](KNOWLEDGE_NATIONAL.md) | 首批9城12场馆／乐园的来源与检索；最新第8节为新60题离线相关性A/B，候选减噪但漏依据、未准入，生产仍BM25。真实模型／Embedding0，不等于全国全覆盖或高答案准确率 |
+| [KNOWLEDGE_NATIONAL](KNOWLEDGE_NATIONAL.md) | 第8节保留相关性候选失败；最新第9节为语义召回三臂／新40题／子问依据及8次建议预算，只有离线实现，实际Embedding0且无授权，不是质量改善，生产仍BM25／问答停用 |
 | [AMAP_MCP_SEARCH](AMAP_MCP_SEARCH.md) | 最新高德MCP只读搜索接线、标准协议／持久计量、配置和受控验证；默认REST，真实服务待验，不接路线天气或恢复知识问答 |
 | [ECHOMIND_TRAVEL_LIVE_ACCEPTANCE](ECHOMIND_TRAVEL_LIVE_ACCEPTANCE.md) | 原真实3/21失败／18暂停及旧L02计划缺陷保留；最新第8节为零调用终止补修、保存输出重放、回归和面试说明，不是新真实通过或网站切换 |
 | [ECHOMIND_TRAVEL_ACCEPTANCE_PLAN](ECHOMIND_TRAVEL_ACCEPTANCE_PLAN.md) | 最新第7节为受控计数钩子／原ASGI＋临时MySQL首发捕获及独立续冻；132相关项通过、真实0、live模式关闭。既定7模型＋7本地／21建议上限不是授权，实际live上下文及payload仍待准入 |
