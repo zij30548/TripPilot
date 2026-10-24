@@ -49,7 +49,7 @@ def requirement_text(intent: Intent, *, changed: bool) -> str:
         lines.append("本次偏好：" + "；".join(intent.preferences) + "（未承诺已转成排程约束）")
     missing = []
     for key, label in (("destination_id", "目的地"), ("start_date", "出发日期"), ("end_date", "结束日期"),
-                       ("travelers", "人数"), ("budget_cny", "总预算")):
+                       ("travelers", "人数"), ("budget_cny", "总预算"), ("accommodation_hint", "住宿参考位置")):
         if getattr(intent, key) is None:
             missing.append(label)
     if missing:

@@ -130,9 +130,33 @@ const ERROR_MESSAGES: Record<string, string> = {
   conversation_limit: "已达到50份会话上限，可删除不再需要的会话后新建。",
   message_limit: "这份会话已达到40条消息上限，请新建会话继续。",
 };
+
+// Only these reviewed literals may be shown as diagnostic reason codes. Never
+// interpolate an arbitrary server code, message, validator input or raw detail.
+const EXECUTION_ERROR_MESSAGES: Record<string, string> = {
+  tool_arguments: "模型选择的操作参数未通过校验，未执行该操作。",
+  requirements_invalid: "需求提议与当前输入或本轮原话依据不一致，未应用该提议。",
+  model_structure: "模型回复未通过原生工具结构校验，未应用该回复。",
+  ungrounded_answer: "模型没有返回本次需要的受控工具，未把自由回复当作业务结果。",
+  tool_not_allowed: "模型选择的操作不在当前允许范围内，未执行该操作。",
+  tool_schema: "工具契约检查未通过，本轮已停止，请联系管理员核对。",
+  travel_requirements_invalid: "需求提议与当前输入或本轮原话依据不一致，未应用该提议。",
+  travel_tool_required: "模型没有返回本次需要的旅行工具，未把自由回复当作业务结果。",
+  travel_multiple_tools: "模型一次提出了多项工具调用，本次未派发这些操作。",
+  travel_tool_failed: "旅行工具结果未通过校验，未发布为有效业务结果。",
+  travel_role_arguments: "旅行角色选择的操作参数未通过校验，未执行该操作。",
+  travel_role_forbidden: "这项操作不属于当前旅行角色的权限，未执行该操作。",
+  intent_structure: "意图分类回复未通过结构校验，本轮已停止。",
+};
+
 export function chatErrorMessage(code: string | null): string {
   const normalized = code?.startsWith("chat_") ? code.slice(5) : code;
-  return code && (ERROR_MESSAGES[code] || normalized && ERROR_MESSAGES[normalized]) || "本次对话未完成，请重新读取会话核对状态；不会自动重试。";
+  const reason = code && Object.hasOwn(EXECUTION_ERROR_MESSAGES, code) ? code
+    : normalized && Object.hasOwn(EXECUTION_ERROR_MESSAGES, normalized) ? normalized : null;
+  if (reason) return `${EXECUTION_ERROR_MESSAGES[reason]}原因码：${reason}。不会自动重试。`;
+  return code && Object.hasOwn(ERROR_MESSAGES, code) ? ERROR_MESSAGES[code]
+    : normalized && Object.hasOwn(ERROR_MESSAGES, normalized) ? ERROR_MESSAGES[normalized]
+    : "本次对话未完成，请重新读取会话核对状态；不会自动重试。";
 }
 const MAX_BODY_BYTES = 384 * 1024;
 async function boundedJson(response: Response): Promise<unknown> {

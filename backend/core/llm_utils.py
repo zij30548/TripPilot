@@ -19,6 +19,9 @@ class RuntimeFailure(Exception):
     def __init__(self, code: str) -> None:
         self.code = code
         self.trace: dict[str, Any] = {}
+        # Only validate_arguments populates this bounded, schema-derived
+        # diagnostic. __str__, public code and existing trace stay compatible.
+        self.details: dict[str, Any] = {}
         super().__init__(code)
 
 
@@ -47,7 +50,7 @@ def bounded_json(value: Any, limit: int) -> str:
         raise RuntimeFailure("context_limit") from None
 
 
-def validate_arguments(value: Any, schema: dict[str, Any], depth: int = 0) -> None:
+def _validate_arguments(value: Any, schema: dict[str, Any], depth: int = 0) -> None:
     """Validate the finite JSON Schema subset used by registered travel tools.
 
     Unsupported schema keywords fail closed. This does not claim to implement
@@ -66,7 +69,7 @@ def validate_arguments(value: Any, schema: dict[str, Any], depth: int = 0) -> No
             raise RuntimeFailure("tool_schema")
         for choice in choices:
             try:
-                validate_arguments(value, choice, depth + 1)
+                _validate_arguments(value, choice, depth + 1)
                 return
             except RuntimeFailure as error:
                 if error.code == "tool_schema":
@@ -98,12 +101,12 @@ def validate_arguments(value: Any, schema: dict[str, Any], depth: int = 0) -> No
         if set(value) - set(properties) or any(key not in value for key in required) or len(value) > 32:
             raise RuntimeFailure("tool_arguments")
         for key, item in value.items():
-            validate_arguments(item, properties[key], depth + 1)
+            _validate_arguments(item, properties[key], depth + 1)
     elif kind == "array":
         if not schema.get("minItems", 0) <= len(value) <= schema.get("maxItems", 32):
             raise RuntimeFailure("tool_arguments")
         for item in value:
-            validate_arguments(item, schema.get("items", {}), depth + 1)
+            _validate_arguments(item, schema.get("items", {}), depth + 1)
     elif kind == "string":
         if not schema.get("minLength", 0) <= len(value) <= schema.get("maxLength", 4000):
             raise RuntimeFailure("tool_arguments")
@@ -120,6 +123,204 @@ def validate_arguments(value: Any, schema: dict[str, Any], depth: int = 0) -> No
     elif kind in {"integer", "number"}:
         if value < schema.get("minimum", -9_007_199_254_740_991) or value > schema.get("maximum", 9_007_199_254_740_991):
             raise RuntimeFailure("tool_arguments")
+
+
+ARGUMENT_DIAGNOSTIC_VERSION = "tool-argument-diagnostics-v1"
+_DIAGNOSTIC_FIELD = re.compile(r"[A-Za-z_][A-Za-z0-9_]{0,63}\Z")
+_DIAGNOSTIC_REASONS = frozenset({"type_mismatch", "enum_mismatch", "const_mismatch", "additional_fields",
+    "missing_required", "object_size", "array_length", "string_length", "pattern_mismatch",
+    "date_format", "number_range", "invalid_arguments"})
+
+
+def _argument_diagnostics(value: Any, schema: dict[str, Any], depth: int) -> dict[str, Any]:
+    """Describe rejection without copying an input value or an unknown key.
+
+    This is a separate bounded observer, not a replacement validator. It may
+    give a less specific diagnostic when capacity is exhausted; it can never
+    turn a rejection into acceptance. Paths only originate from registered
+    schema properties (safe identifiers), plus bounded array positions.
+    """
+    remaining, truncated = [256], [False]
+
+    def type_name(item: Any) -> str:
+        return {dict: "object", list: "array", str: "string", int: "integer", float: "number",
+                bool: "boolean", type(None): "null"}.get(type(item), "other")
+
+    def diagnostic(path: tuple, reason: str, **counts: Any) -> dict:
+        row: dict[str, Any] = {"path": list(path), "reason": reason}
+        for key in ("count", "limit"):
+            count = counts.get(key)
+            if type(count) is int and count >= 0:
+                row[key] = min(count, 1_000_000)
+        for key in ("expected_type", "actual_type"):
+            if counts.get(key) in {"object", "array", "string", "integer", "number", "boolean", "null", "other"}:
+                row[key] = counts[key]
+        return row
+
+    def child(path: tuple, key: Any) -> tuple:
+        if len(path) >= 12 or type(key) is str and _DIAGNOSTIC_FIELD.fullmatch(key) is None:
+            truncated[0] = True
+            return path
+        if type(key) is int and 0 <= key <= 1_000_000 or type(key) is str:
+            return path + (key,)
+        truncated[0] = True
+        return path
+
+    def affinity(item: Any, spec: dict) -> int:
+        """Prefer the server's matching discriminator, never print its value."""
+        score = int(spec.get("type") == type_name(item))
+        if type(item) is dict and type(spec.get("properties")) is dict:
+            for key, rule in spec["properties"].items():
+                if key not in item or type(rule) is not dict:
+                    continue
+                if "const" in rule:
+                    score += 2 if type(item[key]) is type(rule["const"]) and item[key] == rule["const"] else -2
+                elif type(rule.get("enum")) is list:
+                    score += 2 if any(type(item[key]) is type(option) and item[key] == option for option in rule["enum"]) else -2
+        return score
+
+    def walk(item: Any, spec: Any, level: int, path: tuple) -> list[dict]:
+        remaining[0] -= 1
+        if remaining[0] < 0 or level > 12 or type(spec) is not dict:
+            truncated[0] = True
+            return [diagnostic(path, "invalid_arguments")]
+        if "anyOf" in spec:
+            choices = spec["anyOf"]
+            if type(choices) is not list or not 1 <= len(choices) <= 8:
+                return [diagnostic(path, "invalid_arguments")]
+            failures = []
+            for index, choice in enumerate(choices):
+                errors = walk(item, choice, level + 1, path)
+                if not errors:
+                    return []
+                failures.append((affinity(item, choice) if type(choice) is dict else -100,
+                    max(len(row["path"]) for row in errors), -index, errors))
+            return max(failures, key=lambda row: row[:3])[3]
+        kind, actual = spec.get("type"), type_name(item)
+        matches = (actual == kind and (kind != "number" or math.isfinite(item))
+                   or kind == "number" and actual == "integer" and math.isfinite(item))
+        if not matches:
+            return [diagnostic(path, "type_mismatch", expected_type=kind, actual_type=actual)]
+        if "enum" in spec and not any(type(item) is type(option) and item == option for option in spec["enum"]):
+            return [diagnostic(path, "enum_mismatch")]
+        if "const" in spec and (type(item) is not type(spec["const"]) or item != spec["const"]):
+            return [diagnostic(path, "const_mismatch")]
+        if kind == "object":
+            properties, required = spec.get("properties", {}), spec.get("required", [])
+            errors = []
+            extra_count = len(set(item) - set(properties))
+            if extra_count:
+                errors.append(diagnostic(path, "additional_fields", count=extra_count))
+            missing = [key for key in required if key not in item]
+            for key in missing[:4 - len(errors)]:
+                errors.append(diagnostic(child(path, key), "missing_required"))
+            if len(missing) > 4 - int(bool(extra_count)):
+                truncated[0] = True
+            if len(item) > 32 and len(errors) < 4:
+                errors.append(diagnostic(path, "object_size", count=len(item), limit=32))
+            if errors:
+                return errors[:4]
+            for key, nested in item.items():
+                errors.extend(walk(nested, properties[key], level + 1, child(path, key)))
+                if len(errors) >= 4:
+                    truncated[0] = True
+                    return errors[:4]
+            return errors
+        if kind == "array":
+            if not spec.get("minItems", 0) <= len(item) <= spec.get("maxItems", 32):
+                return [diagnostic(path, "array_length", count=len(item))]
+            errors = []
+            for index, nested in enumerate(item):
+                errors.extend(walk(nested, spec.get("items", {}), level + 1, child(path, index)))
+                if len(errors) >= 4:
+                    truncated[0] = True
+                    return errors[:4]
+            return errors
+        if kind == "string":
+            if not spec.get("minLength", 0) <= len(item) <= spec.get("maxLength", 4000):
+                return [diagnostic(path, "string_length", count=len(item))]
+            if "pattern" in spec and re.search(spec["pattern"], item) is None:
+                return [diagnostic(path, "pattern_mismatch")]
+            if "format" in spec:
+                try:
+                    if spec["format"] != "date" or date.fromisoformat(item).isoformat() != item:
+                        raise ValueError()
+                except ValueError:
+                    return [diagnostic(path, "date_format")]
+        if kind in {"integer", "number"} and (
+                item < spec.get("minimum", -9_007_199_254_740_991) or item > spec.get("maximum", 9_007_199_254_740_991)):
+            return [diagnostic(path, "number_range")]
+        return []
+
+    try:
+        errors = walk(value, schema, depth, ())[:4]
+        if not errors or any(row.get("reason") not in _DIAGNOSTIC_REASONS for row in errors):
+            errors = [{"path": [], "reason": "invalid_arguments"}]
+        return {"schema_version": ARGUMENT_DIAGNOSTIC_VERSION, "errors": errors, "truncated": truncated[0]}
+    except Exception:
+        # Diagnostics may never replace the original validation failure or leak
+        # schema/input exception representations. No supplied data is copied.
+        return {"schema_version": ARGUMENT_DIAGNOSTIC_VERSION,
+                "errors": [{"path": [], "reason": "invalid_arguments"}], "truncated": True}
+
+
+def validate_arguments(value: Any, schema: dict[str, Any], depth: int = 0) -> None:
+    """Original strict validation plus optional bounded rejection diagnostics.
+
+    Acceptance, public error codes and caller signature remain unchanged.
+    Diagnostics are server-local metadata, never a repaired model argument.
+    """
+    try:
+        _validate_arguments(value, schema, depth)
+    except RuntimeFailure as error:
+        if error.code == "tool_arguments":
+            error.details = _argument_diagnostics(value, schema, depth)
+            # Provenance for the HTTP/checkpoint projection: arbitrary callers
+            # assigning an untrusted .details dict do not gain a log channel.
+            error._argument_diagnostic_json = json.dumps(error.details, sort_keys=True,
+                separators=(",", ":"), ensure_ascii=False, allow_nan=False).encode()
+        raise
+
+
+def tool_argument_diagnostics(error: BaseException) -> dict[str, Any] | None:
+    """Project only intact validator-authored diagnostics, never arbitrary details.
+
+    This is not authentication against trusted Python code. The private sealed
+    snapshot establishes which fields came from this validator's server schema;
+    the second whitelist prevents later mutations becoming HTTP/log payloads.
+    """
+    if not isinstance(error, RuntimeFailure) or error.code != "tool_arguments":
+        return None
+    raw = getattr(error, "_argument_diagnostic_json", None)
+    if type(raw) is not bytes or not 1 <= len(raw) <= 4096 or type(error.details) is not dict:
+        return None
+    try:
+        if json.dumps(error.details, sort_keys=True, separators=(",", ":"), ensure_ascii=False,
+                      allow_nan=False).encode() != raw:
+            return None
+        value = strict_json(raw)
+        if (type(value) is not dict or set(value) != {"schema_version", "errors", "truncated"}
+                or value["schema_version"] != ARGUMENT_DIAGNOSTIC_VERSION or type(value["truncated"]) is not bool
+                or type(value["errors"]) is not list or not 1 <= len(value["errors"]) <= 4):
+            return None
+        types = {"object", "array", "string", "integer", "number", "boolean", "null", "other"}
+        for row in value["errors"]:
+            if (type(row) is not dict or not {"path", "reason"} <= set(row)
+                    or set(row) - {"path", "reason", "count", "limit", "expected_type", "actual_type"}
+                    or type(row["reason"]) is not str or row["reason"] not in _DIAGNOSTIC_REASONS
+                    or type(row["path"]) is not list or len(row["path"]) > 12):
+                return None
+            for part in row["path"]:
+                if not (type(part) is str and _DIAGNOSTIC_FIELD.fullmatch(part)
+                        or type(part) is int and 0 <= part <= 1_000_000):
+                    return None
+            if any(type(row[key]) is not int or not 0 <= row[key] <= 1_000_000 for key in ("count", "limit") if key in row):
+                return None
+            if any(type(row[key]) is not str or row[key] not in types for key in ("expected_type", "actual_type") if key in row):
+                return None
+        return value
+    except (TypeError, ValueError, UnicodeError, RecursionError):
+        return None
 
 
 @dataclass(frozen=True)

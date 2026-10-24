@@ -19,7 +19,7 @@ from pydantic import BaseModel, ConfigDict, Field, ValidationError, model_valida
 
 from agents.agent_orchestrator import AgentOrchestrator, AgentRequest
 from agents.tools import ToolSpec
-from core.llm_utils import RuntimeFailure
+from core.llm_utils import RuntimeFailure, tool_argument_diagnostics
 from core.qwen_gateway import QwenGateway
 from core.skill_loader import SkillManager
 from memory.assistant_store import AssistantError, AssistantStore, validate_assistant_extension
@@ -615,7 +615,7 @@ async def assistant_turn(conversation_id: Identifier, raw: Request, store: Store
         empty = {"type": "object", "properties": {}, "required": [], "additionalProperties": False}
         registered = [
             ToolSpec("inspect_trip", "读取本次需求与已确认地点", empty, inspect_trip, terminal=native_dialogue),
-            ToolSpec("update_trip_requirements", "完整整理待确认需求，每个改动必须引用本次原话", _expanded_selection_schema(), update_requirements, read_only=False, terminal=native_dialogue),
+            ToolSpec("update_trip_requirements", "用户提出、补充或纠正旅行需求时，记录明确的信息，即使其他字段缺失。返回requirements、sources、issues三个字段；requirements必须完整含destination_id、start_date、end_date、travelers、budget_cny、accommodation_hint、required_place_hints、preferences、transport_mode。沿用当前值，未知标量null、未知列表[]，不要省略字段。sources仅含改动字段的field及本轮连续原话quote；未改字段无source。issues无问题时[]。带父母不等于已知总人数，几天不是确切日期；不要猜测。所有结果仅为待确认需求，不执行地点搜索或排程。", _expanded_selection_schema(), update_requirements, read_only=False, terminal=native_dialogue),
             ToolSpec("request_clarification", "信息缺失或范围不支持时停止并提示", {"type": "object", "properties": {"reason": {"type": "string", "enum": ["missing_information", "date_ambiguous", "unsupported", "multiple_requests"]}}, "required": ["reason"], "additionalProperties": False}, clarify, terminal=True),
             ToolSpec("search_places", "用户明确要求且城市已确认时，仅搜索一个地点候选", {"type": "object", "properties": {"city_id": {"type": "string", "enum": list(CITIES)}, "keyword": {"type": "string", "minLength": 1, "maxLength": 80}, "role": {"type": "string", "enum": ["accommodation", "required"]}}, "required": ["city_id", "keyword", "role"], "additionalProperties": False}, search, terminal=True),
             ToolSpec("prepare_itinerary", "提示用户在正式行程卡主动生成，本工具不排程", empty, prepare, terminal=True),
@@ -740,6 +740,11 @@ async def assistant_turn(conversation_id: Identifier, raw: Request, store: Store
                         if command.dialogue_context is not None else None}}
             except RuntimeFailure:
                 trace = {key: value for key, value in trace.items() if key != "execution_receipt"}
+        diagnostics = tool_argument_diagnostics(error)
+        if diagnostics is not None:
+            # Separate bounded failure metadata, not a trace/schema expansion
+            # or repaired argument. Preserve a full-runtime receipt if present.
+            failure_result.setdefault("result", {})["argument_diagnostics"] = diagnostics
         if reservation is not None and not finalized:
             try:
                 latest = await db_call(store.get, user.id, conversation_id)
@@ -795,5 +800,6 @@ async def assistant_turn(conversation_id: Identifier, raw: Request, store: Store
             raise safe_error(error) from None
         if isinstance(error, RuntimeFailure):
             raise HTTPException(502, detail={"code": "assistant_" + error.code,
-                                "message": "本轮助手未完成，未自动重试；请核对会话与执行记录。"}) from None
+                                "message": "本轮助手未完成，未自动重试；请核对会话与执行记录。",
+                                **({"diagnostics": diagnostics} if diagnostics is not None else {})}) from None
         raise

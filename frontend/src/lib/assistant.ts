@@ -98,6 +98,8 @@ function assistantError(code: string | null): string {
     return "旅行助手存储尚未准备好，请联系管理员完成独立迁移。没有生成替代回复。";
   }
   if (code === "assistant_budget_exhausted") return "这次任务已达到执行上限，已停止。请查看已完成的步骤，不会自动继续调用。";
+  // This is a finite local message/code lookup. Never render the backend's
+  // arbitrary message/diagnostic/input or echo an unrecognized reason string.
   return chatErrorMessage(code?.startsWith("assistant_") ? code.slice(10) : code);
 }
 
