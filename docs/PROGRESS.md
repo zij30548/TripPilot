@@ -1,5 +1,22 @@
 # TripPilot Progress
 
+## 最新摘要（2026-10-24，EchoMind完整方法旅行适配：离线候选接通，网站未切换）
+
+- **授权／基线**：实际`main / d31f258841ba8fa68a6d4a670760374c6f0d2dbf`，开工及提交前与origin同步。用户要求保留原方法，只适配旅行Agent／提示／工具／Skills；本轮实施完整离线组合，不再用“源码已复制”代替运行接线。用户说明测试总次数不限制；已明确区分测试轮数、单任务运行预算、持久业务额度及旧暂停台账。**本轮真实千问／Embedding／高德／其他业务外部调用全部0**；未运行付费验收脚本、切换当前网站／环境／服务／云端或修改用户库。详见[完整候选、原理与面试](ECHOMIND_TRAVEL_DOMAIN.md)。
+- **实际实现**：新增`travel_full_engine.py`及11个配套模块（budget／capabilities／evaluation／memory／observation／package／package_skills／routing／stages／templates／vector_recall）、8份旅行Skill及11份测试。`FullTravelCandidate`共用原执行门禁与计量，实际连接原三路融合→原结构化主辅路由→四个旅行Profile→原native反馈／限定只读并行→原Composer→实际工具的程序投影。Profile覆盖职责／工作流／输入输出／交接／白名单；38动作按角色缩窄到具体action，不仅过滤group。原4枚举只是内部兼容槽，不声称通用动态Agent框架；没有放开跨城／自主提交或知识生成问答。
+- **检索／记忆／治理**：审核资料端口保留完整主题、短摘录、来源和日期；`ReviewedRetrieval`实际复用原改写／并行召回／去重／重排。可选`ReviewedVectorRecall`经显式prepare走原KnowledgeBase的500字分块／Chroma，命中后严格映射回完整单元，非BM25换名；未准备或异源／篡改时失败关闭，不扩预算或悄悄回退。Memory复用原context／显式压缩／画像函数，真Redis源CAS摘要缓存，MySQL明确偏好仍权威，推断画像／自动情景写入仅未确认候选；不自动维护全部长历史。Monitor原降权跨新实例有效，但仅进程内技术指标；Evaluator复用原Accuracy／Macro-F1、单次四维Judge与独立业务阻塞检查，没有新质量分数。
+- **预算／安全边界**：旧HTTP／TaskBudget／旧冻结仍3模型／4工具／45秒／6144预留Token。独立完整候选显式三档6模型8工具60秒8192Token、10／12／90秒16384、16／16／90秒24576，所有角色／Embedding／检索／Composer共用原预留方法与锁，不给子Agent新额度；单次输入48000字节／输出2048、工具16和结果容量不放大。这不是新真实发送授权或精确RMB。仅新候选桥`parallel_reads=True`容许恰好read_schedule＋read_budget两项**未执行读取提议**；默认桥仍只允许一提议。专员及协调者降级都限只读；Composer得到真实程序结果／待执行状态，模型自由文字不成为事实。
+- **检查／真实差异**：既有选装Python3.13，`-B`，独立临时MySQL与私有Unix-socket Redis／Chroma，最终`TRIPPILOT_TEST_MYSQL_ADMIN_URL=… python -B -m unittest discover -s tests -p 'test_echomind*.py' -v` **590项／65.872秒通过，无跳过、exit0**，其中新增149项；补充assistant API／dialogue／preferences／原动作与national契约 **70项／11.292秒通过**。565／588／589和各子集为中间检查，不相加或当质量分数。原来源36文件／11namespace重建、132包离线锁、语法／本地链接／敏感信息／diff核对通过。没有前端源码或运行配置改动，未机械重跑前端测试／lint／typecheck／Webpack，没有新Chrome／真实模型验收。保留既有Starlette/httpx／Chroma Pydantic弃用、受控async慢任务和临时Chroma SQLite ResourceWarning；不宣称Linux／长期资源准入。
+- **发现与修复方式**：新完整链受控测试首跑的Embedding Mock缺官方必需object字段，被原解析器正确拒绝；只修Mock，不放宽校验。主审发现原并行降级可能让协调者拿到写工具，以及原RAG callback未传完整scope，两处都在新组合层修正并加实际白名单／完整检索回归。另统一新Skill和现有4000字请求边界，并在分类／记忆发送前预检全部角色，避免先付费再因Skill输入限额失败。末审另补最终投影await之后的精确scope复核与晚变化回归，防止读取过程中换版仍发布；不是修改旧真实输出或旧分数。
+- **证据／保护**：稳定目录`/Users/zijing/projects/trippilot-evidence/echomind-domain-v2-20261024.bR0mIg/`含前后保护、检查日志及脱敏收据。25项保护文件＋16旧台账合计41项核对不变，另原暂停journal仍`f713930c…3e324`；旧live verify正确拒绝本轮源码`live_frozen_source_changed`，未更新旧hash、删pause或恢复18次。原五缓存、原两SQLite／身份锚、旧知识／来源／评分／样本和无关PROGRESS末尾手工试用说明及浏览器日志不暂存；8000／8804／3110／MySQL原PID未变。原upstream／SOURCE、业务接口／模型配置／存档／费用／排程规则不改。
+- **准确停止点／剩余**：**完整方法的旅行候选离线实现与受控组合完成；尚未接入当前HTTP／默认网站，不是整个框架迁移或真实效果验收完成。** 仍需真实模板／索引来源及准备流程、完整候选的持久HTTP准入／生命周期、按新档位核对前端超时与trace、双读取执行回执、长历史供给／维护及固定真实质量对照。当前服务端行程／费用只是提议，不能说已经执行两个读取或用户得到了两个实际答案。完整任务恢复、生产备份／部署与公开上线仍待验；停在本轮候选，不自动真实发送、切网站、恢复知识问答或新增产品功能。
+
+- **末审补充检查**：在589项广泛回归后，最终完整候选／向量召回／记忆组合 **32项／4.539秒**及评测适配 **14项／0.126秒**再次通过；只是相关子集，不叠加成新成绩。270处本地文档链接与46份旅行Python语法检查通过。未启动新的业务服务或真实验收。
+
+当前导航：[四Agent／八Skill／工具／实际接线／预算／面试](ECHOMIND_TRAVEL_DOMAIN.md) → [原HTTP接线](ECHOMIND_CHAT_INTEGRATION.md) → [旧真实失败／暂停](ECHOMIND_TRAVEL_LIVE_ACCEPTANCE.md) → [旧语义消融冻结](KNOWLEDGE_NATIONAL.md)。下方旧“最新／下一步”只表示各轮历史，不覆盖本次停止点，也不借新受控测试改判旧失败。
+
+---
+
 ## 最新摘要（2026-10-24，语义召回三臂与固定准备：离线完成，真实质量待验）
 
 - **范围／基线**：实际`main / 98d192fb593c6d6fdb93a56d122387597ed8ae86`，开工与origin同步。用户要求继续解决检索问题；按此前先召回再相关性／弃答的分层建议，完成第一步离线三臂与精确准备，**模型／Embedding／高德及其他业务外部调用0次**。仅读官方Embedding接口说明确认既有参数，无新场馆采集／语料编辑、付费脚本、环境／用户库／服务或云端切换。旧3/21已用／18暂停、媒体／知识问答台账、两批60题和全部失败不改；没有新额度。

@@ -303,8 +303,10 @@ class TravelToolBridge:
     ``project`` reads this bridge's actual results, never Agent.content/traces.
     """
     def __init__(self, snapshot: TrustedTravelSnapshot, current: Callable[[], TravelBinding | Awaitable[TravelBinding]],
-                 *, materials: Callable[[KnowledgeRequest], KnowledgeResponse] | None = None):
+                 *, materials: Callable[[KnowledgeRequest], KnowledgeResponse] | None = None,
+                 parallel_reads: bool = False):
         if (type(snapshot) is not TrustedTravelSnapshot or not callable(current)
+                or type(parallel_reads) is not bool
                 or materials is not None and not callable(materials)):
             raise ExecutionError("travel_snapshot_invalid")
         self.snapshot, self.current = snapshot, current
@@ -312,6 +314,10 @@ class TravelToolBridge:
         self._rows: list[dict[str, Any]] = []
         self._lock = threading.RLock()
         self._invalid = False
+        # Explicit full-profile exception: two independent READ proposals, not
+        # two mutations. They remain unexecuted until the current browser checks
+        # its formal-schedule/fee versions. Legacy admission stays one proposal.
+        self.parallel_reads = parallel_reads
 
     async def _check(self, request: Request | None = None) -> None:
         try:
@@ -340,8 +346,15 @@ class TravelToolBridge:
         await self._check(request)
         row = {"name": name, "data": strict_json(_json(data))}
         with self._lock:
-            if len(self._rows) >= MAX_RESULTS or data["kind"] in {"proposal", "requirements_proposal"} and any(
-                    item["data"]["kind"] in {"proposal", "requirements_proposal"} for item in self._rows):
+            proposals = [item for item in self._rows if item["data"]["kind"] in {"proposal", "requirements_proposal"}]
+            multiple = bool(data["kind"] in {"proposal", "requirements_proposal"} and proposals)
+            read_pair = (self.parallel_reads and len(proposals) == 1
+                and all(item["data"].get("kind") == "proposal" and item["data"].get("executed") is False
+                        for item in [*proposals, row])
+                and {(item["name"], item["data"].get("action", {}).get("name"))
+                     for item in [*proposals, row]} == {
+                         ("travel_schedule", "read_schedule"), ("travel_budget", "read_budget")})
+            if len(self._rows) >= MAX_RESULTS or multiple and not read_pair:
                 execution_gate().fail("travel_multiple_proposals")
                 raise ExecutionError("travel_multiple_proposals")
             _json([*self._rows, row], MAX_PROJECTION_BYTES)
