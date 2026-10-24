@@ -47,6 +47,50 @@ function offer(v: ReturnType<typeof setup>, action: DialogueProposal["action"]) 
 }
 
 describe("dialogue composition retains uncertain save authority across input replacement", () => {
+  it("v3 local read pair publishes two actual results once and cannot replay the same response", async () => {
+    const v = setup(); await submit(v, "准备规划"); await submit(v, "确认"); await submit(v, "生成行程"); await submit(v, "确认");
+    act(() => v.handle.current!.beforeModel());
+    const context = v.handle.current!.selectionContext();
+    const conversation = { ...v.props.conversation, revision: v.props.conversation.revision + 2,
+      last_turn: { operation_id: crypto.randomUUID(), state: "succeeded" as const, error_code: null } };
+    const proposal: DialogueProposal = { conversation: conversation.id, revision: conversation.revision, operation: conversation.last_turn.operation_id,
+      action: null, actions: [{ name: "read_schedule", arguments: { date: null, day: 1 } }, { name: "read_budget", arguments: {} }],
+      context, workspaceVersion: context.workspace_version, programMessages: [] };
+    v.rerender(<DialogueTools {...v.props} conversation={conversation} proposal={proposal} />);
+    await waitFor(() => expect(v.message.mock.calls.at(-1)?.[1]).toContain("本地只读结果"));
+    const answer = v.message.mock.calls.at(-1)?.[1]; expect(answer).toContain("必去已安排"); expect(answer).toContain("尚未核算");
+    expect(api.schedule).toHaveBeenCalledOnce(); expect(api.save).not.toHaveBeenCalled();
+    const count = v.message.mock.calls.length;
+    v.rerender(<DialogueTools {...v.props} conversation={conversation} proposal={{ ...proposal }} />);
+    expect(v.message).toHaveBeenCalledTimes(count);
+  });
+
+  it("fee ABA and cancel make old v3 read proposals inert even when requirements are unchanged", async () => {
+    const v = setup(); await submit(v, "准备规划"); await submit(v, "确认"); await submit(v, "生成行程"); await submit(v, "确认");
+    act(() => v.handle.current!.beforeModel()); const context = v.handle.current!.selectionContext();
+    for (const value of ["5", ""]) {
+      v.props.conversation = { ...v.props.conversation, revision: v.props.conversation.revision + 2,
+        last_turn: { operation_id: crypto.randomUUID(), state: "succeeded", error_code: null } };
+      offer(v, { name: "set_cost", arguments: { kind: "other", selector: null, value } });
+      await waitFor(() => expect(v.message.mock.calls.at(-1)?.[1]).toContain("未确认前不执行")); await submit(v, "确认");
+    }
+    const conversation = { ...v.props.conversation, revision: v.props.conversation.revision + 2,
+      last_turn: { operation_id: crypto.randomUUID(), state: "succeeded" as const, error_code: null } };
+    const late: DialogueProposal = { conversation: conversation.id, revision: conversation.revision, operation: conversation.last_turn.operation_id,
+      action: null, actions: [{ name: "read_schedule", arguments: { date: null, day: 1 } }, { name: "read_budget", arguments: {} }],
+      context, workspaceVersion: context.workspace_version, programMessages: [] };
+    v.rerender(<DialogueTools {...v.props} conversation={conversation} proposal={late} />);
+    await waitFor(() => expect(v.message.mock.calls.at(-1)?.[1]).toContain("未执行旧提议"));
+    expect(v.message.mock.calls.some(([, text]) => text.includes("本地只读结果"))).toBe(false);
+    expect(api.schedule).toHaveBeenCalledOnce();
+    act(() => v.handle.current!.beforeModel()); const next = v.handle.current!.selectionContext(); act(() => v.handle.current!.cancel());
+    const cancelled = { ...conversation, revision: conversation.revision + 2, last_turn: { ...conversation.last_turn, operation_id: crypto.randomUUID() } };
+    v.rerender(<DialogueTools {...v.props} conversation={cancelled} proposal={{ ...late, conversation: cancelled.id, revision: cancelled.revision,
+      operation: cancelled.last_turn.operation_id, context: next, workspaceVersion: next.workspace_version }} />);
+    await waitFor(() => expect(v.message.mock.calls.at(-1)?.[1]).toContain("未执行旧提议"));
+    expect(api.save).not.toHaveBeenCalled();
+  });
+
   it("prepare cannot discard a frozen operation; explicit retry resolves it and only then permits replacement", async () => {
     const v = setup(); await prepareUncertain(v); const original = api.save.mock.calls[0][0] as SaveOperation;
     const calls = v.fetcher.mock.calls.length;

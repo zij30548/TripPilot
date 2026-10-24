@@ -1,5 +1,9 @@
 # release-1F：可重复的 Linux 部署包与分步手册
 
+## 2026-10-24：完整候选等待配置尚未部署
+
+本次完整候选HTTP接线将仓库TLS模板的`proxy_read_timeout`改为130秒，前端Next等待120秒、v3浏览器105秒，覆盖最长90秒任务；`proxy_send_timeout`仍90秒，21MiB入口、固定回环上游、非缓冲／client-abort限制保持。下文旧90／75秒是历史配置与证据，不改其验收。没有连接云端、覆盖现有站点或证明Linux已采用新等待；新候选配置／准备附件、数据和生产准入仍需独立审查，不能仅拉代码启用，见[旅行领域第10节](ECHOMIND_TRAVEL_DOMAIN.md#10-完整候选接入与缺口补修2026-10-24)。
+
 ## 2026-10-20：MySQL与注册增量的部署边界
 
 用户在旧版本上已报告服务active、HTTPS200及成功登录；不是本轮代理远程验收。最新实现新增邀请码注册和MySQL全迁能力，**线上库仍未由本轮切换**，先读[MYSQL_REGISTRATION](MYSQL_REGISTRATION.md)再决定升级。
@@ -174,7 +178,7 @@ git diff --check
 
 实际基线 `0db7a8aeb5240e7d067e856b7429128f1b5f7429`，main，开工fetch后与origin/main同步。用户报告服务器已完成 `layout`、`runtime`、`config-templates`，尚未填正式凭据、attest、stage或启动服务；这是用户提供的执行状态，本轮没有连接服务器核验。以下原部署包记录保留。
 
-**原因与最小变更**：[后端 `beijing_endpoint`](../backend/app/integrations/qwen.py)已接受北京公共地址与北京业务空间专属地址；[部署检查](../deploy/config.py)此前仅接受空值或公共地址的精确字符串，导致合法workspace地址在安装后端依赖前被误拒为 `beijing_model_origin_required`。本次只扩展部署层官方域名／固定路径兼容，不改后端、模型、请求协议或调用逻辑。
+**原因与最小变更**：[后端 `beijing_endpoint`（后续迁移至此路径）](../backend/tooling/providers/qwen.py)已接受北京公共地址与北京业务空间专属地址；[部署检查](../deploy/config.py)此前仅接受空值或公共地址的精确字符串，导致合法workspace地址在安装后端依赖前被误拒为 `beijing_model_origin_required`。本次只扩展部署层官方域名／固定路径兼容，不改后端、模型、请求协议或调用逻辑。
 
 非空 `QWEN_BASE_URL` 现允许：
 

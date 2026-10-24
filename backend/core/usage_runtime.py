@@ -18,6 +18,7 @@ from typing import TypeVar
 import httpx
 
 from core.business_usage import Service, UsageError, UsageStore, get_usage_store
+from core.usage_observation import DispatchObservation, current_observation
 
 T = TypeVar("T")
 
@@ -73,6 +74,8 @@ class _Attempt:
         self.store, self.identifier = store, identifier
         self.finished = False
         self.lock = asyncio.Lock()
+        self.observation: DispatchObservation | None = None
+        self.observation_index: int | None = None
 
     async def finish(self, state: str) -> None:
         async with self.lock:
@@ -83,8 +86,19 @@ class _Attempt:
                     # The thread was drained. Do not attempt a different terminal
                     # transition when httpx subsequently closes this response.
                     self.finished = True
+                    if self.observation is not None:
+                        self.observation.finish(self.observation_index, "uncertain")
+                    raise
+                except BaseException:
+                    # Persisted outcome may be unknown. Closing the response
+                    # must not attempt a different terminal transition later.
+                    self.finished = True
+                    if self.observation is not None:
+                        self.observation.finish(self.observation_index, "uncertain")
                     raise
                 self.finished = True
+                if self.observation is not None:
+                    self.observation.finish(self.observation_index, state)
 
 
 async def _start(service: Service) -> _Attempt:
@@ -177,7 +191,17 @@ class MeteredTransport(httpx.AsyncBaseTransport):
 
 
 async def _dispatch(request: httpx.Request, send: Callable[[], Awaitable[httpx.Response]]) -> httpx.Response:
-    attempt = await _start(_service(request))
+    service = _service(request)
+    observer = current_observation()
+    if observer is not None:
+        # Full-runtime trusted authority is re-read for EVERY new physical
+        # attempt, including fusion/embedding after a prior await. A rejected
+        # or cancelled fence is not a send or a new durable quota reservation.
+        await observer.before_dispatch(service)
+    attempt = await _start(service)
+    if observer is not None:
+        attempt.observation_index = observer.start(service)
+        attempt.observation = observer
     try:
         response = await send()
     except asyncio.CancelledError:

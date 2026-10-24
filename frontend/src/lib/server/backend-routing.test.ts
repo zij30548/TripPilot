@@ -45,7 +45,9 @@ describe("trusted server-only same-origin forwarding", () => {
     expect(rules.some(r => r.source.includes(":path") || r.source.includes(":url"))).toBe(false);
     expect(rules.some(r => r.source === "/api/chat/conversations/:id/places" || r.source.includes("/places/:"))).toBe(false);
     expect(FORWARDING_BODY_BYTES).toBeGreaterThan(20 * 1024 * 1024);
+    expect(FORWARDING_BODY_BYTES).toBe(21 * 1024 * 1024);
     expect(FORWARDING_TIMEOUT_MS).toBeGreaterThan(60_000);
+    expect(FORWARDING_TIMEOUT_MS).toBe(120_000);
   });
   it("keeps workspace CSRF and UUID-scoped receipts on the trusted origin without forwarding removed credential endpoints", () => {
     const target = "http://127.0.0.1:18081", rules = backendRewrites(target);

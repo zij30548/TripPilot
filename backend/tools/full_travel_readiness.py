@@ -21,7 +21,7 @@ from typing import Any, get_args
 from pydantic import TypeAdapter, ValidationError
 
 VERSION = "full-travel-readiness-v1"
-# A discussion-only proposed name, NOT an existing server setting/protocol.
+# Explicit target; registration alone still does not prove HTTP admission.
 PROPOSED_RUNTIME = "echomind_travel_full_v2"
 FRONTEND_SOURCE = "frontend/src/lib/assistant.ts"
 PROXY_SOURCE = "frontend/src/lib/server/backend-routing.ts"
@@ -94,13 +94,13 @@ def configuration_probe() -> dict[str, Any]:
         accepted = True
     except ValidationError:
         accepted = False
-    return {"id": "http_runtime_registration", "status": "ready" if accepted else "blocked",
+    return {"id": "http_runtime_registration", "status": "registered-admission-unverified" if accepted else "blocked",
             "method": "executed-current-settings-field-contract",
             "proposed_runtime": PROPOSED_RUNTIME, "registered_values": allowed,
             "proposed_runtime_is_existing_configuration": accepted,
             "contract_accepts_proposed_runtime": accepted,
             "reason": "registration-alone-does-not-prove-admission" if accepted else "proposed_full_runtime_not_registered",
-            "admission_check": "not-executed; separately source-reviewed api/assistant.py imports legacy adapter",
+            "admission_check": "not-executed; configuration validation alone does not execute the admitted candidate",
             "limitation": "Rejecting the proposed name alone does not prove which candidate the HTTP path executes.",
             "http_execution_verified": False}
 
@@ -121,7 +121,7 @@ def _receipt(actions: list[tuple[str, dict[str, Any]]]) -> tuple[dict, dict]:
     return conversation, task
 
 
-def browser_projection_probe() -> dict[str, Any]:
+def browser_projection_probe(*, surface: str = "legacy") -> dict[str, Any]:
     from core.llm_utils import RuntimeFailure
     from core.schemas.dialogue import DialogueAction
     from tooling.travel.dialogue import project_action
@@ -143,6 +143,19 @@ def browser_projection_probe() -> dict[str, Any]:
         code, accepted = error.code, False
     except ValidationError:
         code, accepted = "dialogue_action_contract_rejected", False
+    legacy = {"individual_read_projections_valid": individual, "pair_projection_valid": accepted,
+              "safe_error_code": code, "scope": "legacy-compatibility-not-v3-target"}
+    if surface == "dialogue-v3":
+        from core.schemas.dialogue import DialogueActions
+        from tooling.travel.dialogue import project_actions
+        task["checkpoint"]["result"].update(surface="dialogue-v3", workspace_version=_ID)
+        value = DialogueActions.model_validate(project_actions(conversation, task))
+        return {"id": "parallel_read_browser_projection", "status": "ready",
+                "method": "executed-v3-projector-and-response-contract", "legacy_compatibility": legacy,
+                "pair_projection_valid": len(value.actions) == 2, "browser_execution_verified": False,
+                "reason": "v3-contract-only-browser-execution-unverified"}
+    if surface != "legacy":
+        raise ProbeError("surface_invalid")
     return {"id": "parallel_read_browser_projection", "status": "ready" if accepted else "blocked",
             "method": "executed-current-projector-and-response-contract",
             "individual_read_projections_valid": individual, "pair_projection_valid": accepted,
@@ -150,7 +163,7 @@ def browser_projection_probe() -> dict[str, Any]:
             "reason": "browser-execution-still-unverified" if accepted else "two_read_proposals_not_representable"}
 
 
-async def _budget_projection() -> list[dict[str, Any]]:
+async def _budget_projection(*, surface: str = "legacy") -> list[dict[str, Any]]:
     from api.assistant import TaskView, _trace_rows
     from echomind_core.travel_budget import TravelBudgetTier, TravelTaskBudget
 
@@ -175,6 +188,26 @@ async def _budget_projection() -> list[dict[str, Any]]:
         except ValidationError:
             accepts = False
         faithful = (models, tools) == (displayed["model_calls"], displayed["tool_calls"])
+        legacy = {"displayed_from_current_trace": displayed, "display_rows": len(rows),
+                  "reservation_display_matches": faithful, "task_view_accepts_full_counts": accepts,
+                  "scope": "legacy-compatibility-not-v3-target"}
+        if surface == "dialogue-v3":
+            from api.assistant import TaskViewV2, _full_trace_rows
+            receipt = {"schema_version": "travel-execution-receipt-v1", "budget": budget.summary(),
+                "reservations": {"models": models, "tools": tools, "output_tokens": 0},
+                "dispatch": {"status": "unknown", "sent": None, "received": None, "failed": None,
+                             "cancelled": None, "uncertain": None}, "trace_complete": False}
+            full_rows = _full_trace_rows({"execution_receipt": receipt})
+            view = TaskViewV2.model_validate({"id": _OP, "state": "failed", "model_calls": models,
+                "tool_calls": tools, "stop_reason": "offline_reservation_probe", "steps": [],
+                "execution_receipt": receipt})
+            results.append({"tier": tier.value, "reservation_counts": {"model_calls": models, "tool_calls": tools},
+                "projected_reservation_counts": {"model_calls": view.model_calls, "tool_calls": view.tool_calls},
+                "trace_reservation_rows": len(full_rows), "dispatch_status": view.execution_receipt.dispatch.status,
+                "legacy_compatibility": legacy, "status": "ready"})
+            continue
+        if surface != "legacy":
+            raise ProbeError("surface_invalid")
         results.append({"tier": tier.value, "reservation_counts": {"model_calls": models, "tool_calls": tools},
             "displayed_from_current_trace": displayed, "display_rows": len(rows),
             "reservation_display_matches": faithful, "task_view_accepts_full_counts": accepts,
@@ -182,14 +215,15 @@ async def _budget_projection() -> list[dict[str, Any]]:
     return results
 
 
-def reservation_projection_probe() -> dict[str, Any]:
-    tiers = asyncio.run(_budget_projection())
+def reservation_projection_probe(*, surface: str = "legacy") -> dict[str, Any]:
+    tiers = asyncio.run(_budget_projection(surface=surface))
     return {"id": "full_tier_reservation_display", "status": "ready" if all(
                 row["status"] == "ready" for row in tiers) else "blocked",
             "method": "executed-original-reservations-current-trace-and-task-view",
             "trace_case": "aggregate-reservations-without-per-step-events-not-a-live-turn",
             "count_semantics": "conservative_reservations_not_actual_dispatches", "tiers": tiers,
-            "reason": "reservation_display_or_contract_mismatch"}
+            "reason": "v3-contract-only-dispatch-observation-unverified" if surface == "dialogue-v3"
+                else "reservation_display_or_contract_mismatch"}
 
 
 def wait_probe(frontend: WaitInspection, proxy: WaitInspection) -> dict[str, Any]:
@@ -206,12 +240,13 @@ def wait_probe(frontend: WaitInspection, proxy: WaitInspection) -> dict[str, Any
             "reason": "source-capacity-only" if covered else "source_waits_do_not_cover_90_seconds"}
 
 
-def probe(frontend: WaitInspection, proxy: WaitInspection) -> dict[str, Any]:
-    checks = [configuration_probe(), browser_projection_probe(), reservation_projection_probe(),
+def probe(frontend: WaitInspection, proxy: WaitInspection, *, surface: str = "dialogue-v3") -> dict[str, Any]:
+    checks = [configuration_probe(), browser_projection_probe(surface=surface), reservation_projection_probe(surface=surface),
               wait_probe(frontend, proxy)]
     ready = all(row["status"] == "ready" for row in checks)
     return {"schema_version": VERSION, "status": "contracts-ready-not-product-acceptance" if ready else "blocked",
             "scope": "offline-current-contracts-and-explicit-source-inspection",
+            "target_surface": surface,
             "real_model_calls": 0, "business_external_calls": 0, "database_operations": 0,
             "browser_operations": 0, "checks": checks,
             "limitation": "Rejection reproduced is a blocked seam, not successful product acceptance. No cutover performed."}
@@ -223,11 +258,12 @@ def main(argv: list[str] | None = None) -> int:
                         help="Explicitly reviewed source value, not a live browser measurement")
     parser.add_argument("--proxy-wait-ms", type=int, required=True,
                         help="Explicitly reviewed source value, not a live proxy measurement")
+    parser.add_argument("--surface", choices=("legacy", "dialogue-v3"), default="dialogue-v3")
     args = parser.parse_args(argv)
     root = Path(__file__).resolve().parents[2]
     try:
         result = probe(inspect_wait_source(root, FRONTEND_SOURCE, args.frontend_wait_ms),
-                       inspect_wait_source(root, PROXY_SOURCE, args.proxy_wait_ms))
+                       inspect_wait_source(root, PROXY_SOURCE, args.proxy_wait_ms), surface=args.surface)
     except ProbeError as error:
         print(json.dumps({"schema_version": VERSION, "status": "blocked", "code": str(error)}))
         return 2

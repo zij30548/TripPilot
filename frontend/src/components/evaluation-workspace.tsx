@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
 import { authServerSnapshot, authSnapshot, subscribeAuth } from "@/lib/auth-session";
 import { listChatConversations, readChatConversation, type ChatSummary } from "@/lib/chat";
-import { readAssistantState, type AssistantState, type AssistantTaskState } from "@/lib/assistant";
+import { readVersionedAssistantState, type VersionedAssistantState, type AssistantTaskState } from "@/lib/assistant";
 
 type Context = { epoch: number; session: string | null; authenticated: boolean };
 type View = {
@@ -12,7 +12,7 @@ type View = {
   nextOffset: number | null;
   listed: boolean;
   selected: ChatSummary | null;
-  receipt: AssistantState | null;
+  receipt: VersionedAssistantState | null;
   pending: "list" | "receipt" | null;
   error: string | null;
   notice: string | null;
@@ -36,16 +36,19 @@ function updatedAt(value: string): string {
 }
 export type TechnicalReceiptCheck = { id: "model_budget" | "tool_budget" | "completion"; label: string; state: "passed" | "failed" | "pending"; detail: string };
 /** Deterministic receipt checks only. These cannot establish answer quality. */
-export function technicalReceiptChecks(value: AssistantState): TechnicalReceiptCheck[] {
+export function technicalReceiptChecks(value: VersionedAssistantState): TechnicalReceiptCheck[] {
   const task = value.task;
   if (!value.migration_ready || !task) return [
     { id: "model_budget", label: "模型尝试上限", state: "pending", detail: "没有可核查的任务回执" },
     { id: "tool_budget", label: "工具执行上限", state: "pending", detail: "没有可核查的任务回执" },
     { id: "completion", label: "任务完成状态", state: "pending", detail: "没有可核查的任务回执" },
   ];
+  const receipt = "execution_receipt" in task ? task.execution_receipt : undefined;
+  const models = receipt?.budget.model_limit ?? (value.schema_version === "assistant-state-v1" ? 3 : null);
+  const tools = receipt?.budget.tool_limit ?? (value.schema_version === "assistant-state-v1" ? 4 : null);
   return [
-    { id: "model_budget", label: "模型尝试上限", state: task.model_calls <= 3 ? "passed" : "failed", detail: `${task.model_calls} / 3 次` },
-    { id: "tool_budget", label: "工具执行上限", state: task.tool_calls <= 4 ? "passed" : "failed", detail: `${task.tool_calls} / 4 次` },
+    { id: "model_budget", label: "模型尝试上限", state: models === null ? "pending" : task.model_calls <= models ? "passed" : "failed", detail: models === null ? "旧任务缺少完整预约回执，不能推断上限或发送数" : `${task.model_calls} / ${models} 次${receipt ? "（预算预约）" : ""}` },
+    { id: "tool_budget", label: "工具执行上限", state: tools === null ? "pending" : task.tool_calls <= tools ? "passed" : "failed", detail: tools === null ? "旧任务缺少完整预约回执，不能推断上限" : `${task.tool_calls} / ${tools} 次${receipt ? "（预算预约）" : ""}` },
     { id: "completion", label: "任务完成状态", state: task.state === "succeeded" ? "passed" : ["failed", "cancelled"].includes(task.state) ? "failed" : "pending",
       detail: task.state === "succeeded" ? "程序记录为执行完成，非答案质量判定" : `${STATES[task.state]}，不记为成功` },
   ];
@@ -102,7 +105,7 @@ export default function EvaluationWorkspace({ active = true }: { active?: boolea
       // to a freshly validated conversation revision, never to a timestamp alone.
       const conversation = await readChatConversation(item.id, request.controller.signal);
       if (!valid(request)) return;
-      const result = await readAssistantState(conversation.id, conversation.revision, request.controller.signal);
+      const result = await readVersionedAssistantState(conversation.id, conversation.revision, request.controller.signal);
       if (valid(request)) update({ ...retained, selected: conversation, receipt: result, pending: null });
     } catch (error) {
       if (valid(request)) update({ ...retained, pending: null, receipt: null, error: error instanceof Error ? error.message : "无法读取执行记录，请主动重新读取。" });
@@ -140,6 +143,10 @@ export default function EvaluationWorkspace({ active = true }: { active?: boolea
           {view.receipt.migration_ready && !task && <p className="mt-8 text-sm leading-7 text-[#71807a]">这份会话还没有任务回执。读取不会自动开始任务。</p>}
           {task && <>
             <dl className="mt-7 grid grid-cols-3 gap-x-3 border-y border-[#e4e8e6] py-5"><div><dt className="text-xs text-[#71807a]">执行状态</dt><dd className="mt-2 break-words text-sm font-medium text-[#294e43]">{STATES[task.state]}</dd></div><div><dt className="text-xs text-[#71807a]">模型尝试</dt><dd className="mt-2 text-lg tabular-nums">{task.model_calls}<span className="ml-1 text-xs text-[#71807a]">次</span></dd></div><div><dt className="text-xs text-[#71807a]">工具执行</dt><dd className="mt-2 text-lg tabular-nums">{task.tool_calls}<span className="ml-1 text-xs text-[#71807a]">次</span></dd></div></dl>
+            {"execution_receipt" in task && <p className="mt-3 text-xs leading-6 text-[#71807a]">{task.execution_receipt?.dispatch.status === "observed"
+              ? `实际发送 ${task.execution_receipt.dispatch.sent} 次；收到 ${task.execution_receipt.dispatch.received}、失败 ${task.execution_receipt.dispatch.failed}、取消 ${task.execution_receipt.dispatch.cancelled}、结果不明 ${task.execution_receipt.dispatch.uncertain}。不是人民币费用。`
+              : "实际发送次数未知；预算预约和工具提议不等于已发请求或浏览器执行完成。"}
+              {task.execution_receipt && !task.execution_receipt.trace_complete ? " 分步记录不完整，不能据此补造全部执行过程。" : ""}</p>}
             <section aria-label="本轮技术核查" className="mt-7">
               <h3 className="text-xs font-medium text-[#71807a]">技术核查</h3>
               <ul className="mt-3">{technicalReceiptChecks(view.receipt).map(check => <li key={check.id} className="border-b border-[#edf0ee] py-3 text-sm leading-6"><div className="flex flex-wrap justify-between gap-x-4"><span>{check.label}</span><span className={check.state === "failed" ? "text-[#945746]" : check.state === "passed" ? "text-[#294e43]" : "text-[#71807a]"}>{check.state === "passed" ? "通过" : check.state === "failed" ? "未通过" : "待核"}</span></div><p className="mt-1 text-xs text-[#71807a]">{check.detail}</p></li>)}</ul>

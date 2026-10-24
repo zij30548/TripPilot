@@ -1,8 +1,10 @@
 import registry from "../../../shared/dialogue-actions.json";
-import { readDialogueActionReceipt } from "./assistant";
+import { readDialogueActionReceipt, readFullDialogueActionReceipt } from "./assistant";
 
 export type DialogueAction = { name: string; arguments: Record<string, unknown> };
 export type DialogueReceipt = { schema_version: "dialogue-action-v1"; conversation_id: string; revision: number; operation_id: string | null; action: DialogueAction | null };
+export type DialogueActionsReceipt = { schema_version: "dialogue-actions-v2"; conversation_id: string; revision: number;
+  operation_id: string | null; workspace_version: string | null; actions: DialogueAction[]; program_messages: string[] };
 type Schema = { type?: string; properties?: Record<string, Schema>; required?: string[]; additionalProperties?: boolean;
   anyOf?: Schema[]; enum?: unknown[]; const?: unknown; minLength?: number; maxLength?: number; minimum?: number; maximum?: number; pattern?: string; format?: string };
 const schemas = new Map(registry.actions.map(row => [row.name, row.arguments as unknown as Schema]));
@@ -48,6 +50,28 @@ export async function readDialogueAction(id: string, revision: number, operation
     v.action !== null && !isDialogueAction(v.action)) throw new Error("这项操作不属于当前回复，未执行。请重新读取对话。");
   if (signal.aborted) throw new DOMException("已取消", "AbortError");
   return v.action as DialogueAction | null;
+}
+
+/** One original action, or the one reviewed independent read pair. Never a
+ * generic batch executor, and never execute a valid prefix of an invalid list. */
+export function isDialogueActionBatch(value: unknown): value is DialogueAction[] {
+  return Array.isArray(value) && value.length <= 2 && value.every(isDialogueAction) &&
+    (value.length < 2 || new Set(value.map(action => action.name)).size === 2 &&
+      value.every(action => ["read_schedule", "read_budget"].includes(action.name)));
+}
+
+export async function readDialogueActions(id: string, revision: number, operation: string, workspace: string, signal: AbortSignal): Promise<DialogueActionsReceipt> {
+  const value = await readFullDialogueActionReceipt(id, signal);
+  if (!object(value) || !exact(value, ["schema_version", "conversation_id", "revision", "operation_id", "workspace_version", "actions", "program_messages"]) ||
+      value.schema_version !== "dialogue-actions-v2" || value.conversation_id !== id || value.revision !== revision || value.operation_id !== operation ||
+      !isDialogueActionBatch(value.actions) || !Array.isArray(value.program_messages) || value.program_messages.length > 4 ||
+      !value.program_messages.every(message => typeof message === "string" && !!message.trim() && Array.from(message).length <= 32_000 && !/[\u0000-\u0008\u000b\u000c\u000e-\u001f\u007f]/.test(message)) ||
+      new TextEncoder().encode(value.program_messages.join("")).byteLength > 96_000 ||
+      !(value.workspace_version === workspace || value.actions.length === 0 && value.program_messages.length === 0 && value.workspace_version === null)) {
+    throw new Error("这组操作不属于本次工作区回复，未执行。请重新读取对话。");
+  }
+  if (signal.aborted) throw new DOMException("已取消", "AbortError");
+  return value as DialogueActionsReceipt;
 }
 
 const labels: Record<string, string> = {

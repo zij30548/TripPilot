@@ -10,16 +10,21 @@ import { useScheduleExplanation } from "./use-schedule-explanation";
 import { useItineraryQuery } from "./use-itinerary-query";
 import { useSaveTrip, useSavedHistory } from "./use-saved-trips";
 import { applyEditedRequirements, restoreSavedTrip, type WorkspaceInputs, type RestoredTrip } from "./restore-trip";
-import { calculateScheduleCosts, updateCostInput, type UserCost } from "./schedule-costs";
+import { calculateScheduleCosts, updateCostInput, type UserCost, type CostInputs } from "./schedule-costs";
 import { candidateItems } from "./candidate-pool-state";
 import { scheduleClock, scheduleDates, scheduleMinutes } from "@/types/schedule";
 import { scheduledVisits } from "./weather-schedule-check";
 import { adoptionIssue } from "./schedule-adjustment";
-import { isDialogueAction } from "./dialogue-action";
+import { isDialogueAction, isDialogueActionBatch } from "./dialogue-action";
 import { adjustmentDialogueText, costsDialogueText, historyDialogueText, scheduleDialogueText, weatherCheckDialogueText, weatherDialogueText } from "./dialogue-travel-text";
+import type { ScheduleCapture } from "./schedule-adjustment";
+import type { TripRequest } from "@/types/trip";
 
 export type PlanningAction = { name: string; arguments: Record<string, unknown> };
 export type PlanningReply = { text: string; changed?: boolean; view?: "map"; date?: string; edgeId?: string; replacement?: WorkspaceInputs; restored?: RestoredTrip };
+/** Opaque request-time capability. Cloning or manufacturing its visible
+ * version does not grant access to another work copy's frozen inputs. */
+export type PlanningReadSnapshot = Readonly<{ version: number }>;
 
 // Exact IDs, names, or the ordinal in the displayed collection. A same-name
 // collision is a clarification, never a first-match place selection.
@@ -41,6 +46,7 @@ export function useDialoguePlanning(initial: WorkspaceInputs, canOperate: () => 
   const [costs, setCosts] = useState(() => structuredClone(seed.costs));
   const costRef = useRef(costs), alive = useRef(true), version = useRef(0);
   const operation = useRef<{id: number; cancel: () => void} | null>(null), operationVersion = useRef(0);
+  const readSnapshots = useRef(new WeakMap<PlanningReadSnapshot, { capture: ScheduleCapture | null; costs: CostInputs; request: TripRequest }>());
   const allowed = useCallback(() => alive.current && canOperate(), [canOperate]);
   const checkRevision = useWeatherCheckRevision();
   const invalidateCheck = checkRevision.invalidate;
@@ -69,6 +75,40 @@ export function useDialoguePlanning(initial: WorkspaceInputs, canOperate: () => 
   const readInputs = (): WorkspaceInputs => structuredClone({request:seed.request,...schedule.readInputs(),candidates:candidates.readSnapshot(),costs:costRef.current});
   const readVersion = () => version.current;
   const budget = () => calculateScheduleCosts(schedule.capture()?.original ?? null, seed.request, costRef.current);
+  const captureReadSnapshot = (): PlanningReadSnapshot | null => {
+    if (!allowed() || operation.current) return null;
+    // Both values are read synchronously, once, before the model request.
+    const capture = structuredClone(schedule.capture()), costs = structuredClone(costRef.current), request = structuredClone(seed.request);
+    const token = Object.freeze({ version: version.current });
+    readSnapshots.current.set(token, { capture, costs, request });
+    return token;
+  };
+  const executeReadBatch = async (actions: PlanningAction[], snapshot: PlanningReadSnapshot, signal?: AbortSignal): Promise<PlanningReply> => {
+    const frozen = readSnapshots.current.get(snapshot);
+    // Consume before any await; a response cannot replay a local read receipt.
+    readSnapshots.current.delete(snapshot);
+    const current = () => allowed() && !signal?.aborted && snapshot.version === version.current;
+    if (!frozen || !current() || operation.current || !isDialogueActionBatch(actions) || !actions.length ||
+        actions.some(action => !["read_schedule", "read_budget"].includes(action.name))) {
+      return { text: "提问后的草案或费用已变化，或读取组合无效；未使用旧快照，请重新查询。" };
+    }
+    const texts: string[] = [];
+    for (const action of actions) {
+      if (action.name === "read_budget") {
+        texts.push(costsDialogueText(calculateScheduleCosts(frozen.capture?.original ?? null, frozen.request, frozen.costs)));
+      } else {
+        const dates = scheduleDates(frozen.request.start_date, frozen.request.end_date)!;
+        const a = action.arguments;
+        const date = typeof a.date === "string" ? a.date : typeof a.day === "number" ? dates[a.day - 1] : undefined;
+        texts.push((a.date !== null || a.day !== null) && (!date || !dates.includes(date))
+          ? "指定日期不在当前旅行范围内，请核对完整日期或第几天。"
+          : scheduleDialogueText(frozen.capture?.original ?? null, date));
+      }
+    }
+    // One result publication, no change to the selected map/day or formal data.
+    if (!current()) return { text: "提问后的草案或费用已变化，未发布旧读取结果。" };
+    return { text: ["本地只读结果：来自提问时同一份正式草案与费用输入；没有重新查询或修改行程。", ...texts].join("\n\n") };
+  };
   const editCost = (row: UserCost, value: string): boolean => {
     if (!allowed() || value.length > 256) return false;
     version.current++; queryAssistant.costsChanged();
@@ -242,7 +282,7 @@ export function useDialoguePlanning(initial: WorkspaceInputs, canOperate: () => 
     }
   };
   return {request:seed.request,schedule,candidates,weather,check,adjustment,explanation,queryAssistant,saving,history,costs,getCosts,
-    readInputs,readVersion,invalidate,cancelOperation,editCost,budget,candidatesText,previewText,execute};
+    readInputs,readVersion,captureReadSnapshot,executeReadBatch,invalidate,cancelOperation,editCost,budget,candidatesText,previewText,execute};
 }
 
 export type DialoguePlanning = ReturnType<typeof useDialoguePlanning>;

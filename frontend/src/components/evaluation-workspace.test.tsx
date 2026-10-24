@@ -2,6 +2,7 @@ import { act, fireEvent, render, screen, waitFor, within } from "@testing-librar
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import EvaluationWorkspace, { technicalReceiptChecks } from "./evaluation-workspace";
 import type { AssistantState } from "@/lib/assistant";
+import { fullAssistantStateFixture } from "@/lib/assistant-full.test-fixtures";
 import { CHAT_ID, OTHER_CHAT_ID, conversationFixture, deferred } from "@/lib/chat-test-fixtures";
 
 const api = vi.hoisted(() => ({
@@ -13,7 +14,7 @@ vi.mock("@/lib/auth-session", () => ({
   subscribeAuth: (listener: () => void) => { api.listeners.add(listener); return () => api.listeners.delete(listener); },
 }));
 vi.mock("@/lib/chat", () => ({ CHAT_VERSION: "chat-session-v1", listChatConversations: api.list, readChatConversation: api.conversation }));
-vi.mock("@/lib/assistant", () => ({ readAssistantState: api.state }));
+vi.mock("@/lib/assistant", () => ({ readVersionedAssistantState: api.state }));
 const summary = (id = CHAT_ID, title = "杭州旅行", revision = 1) => ({ id, title, revision, updated_at: "2026-10-22T01:00:00Z" });
 function receipt(overrides: Partial<AssistantState> = {}): AssistantState {
   return { schema_version: "assistant-state-v1", conversation_id: CHAT_ID, revision: 2, migration_ready: true, preferences: [], skills: [],
@@ -30,6 +31,21 @@ beforeEach(() => {
 });
 
 describe("deterministic technical receipt checks, not semantic scoring", () => {
+  it("uses the exact full-runtime tier and distinguishes reservations from observed sends", async () => {
+    const full = fullAssistantStateFixture();
+    expect(technicalReceiptChecks(full).map(check => check.state)).toEqual(["passed", "passed", "pending"]);
+    expect(technicalReceiptChecks(full)[0].detail).toContain("10 / 16");
+    expect(technicalReceiptChecks(full)[1].detail).toContain("12 / 16");
+    api.state.mockResolvedValueOnce(full); render(<EvaluationWorkspace />); await readList(); await click(/杭州旅行/);
+    expect(screen.getByText(/实际发送 9 次；收到 8、失败 1/)).toBeTruthy();
+    expect(screen.getByText(/10 \/ 16 次（预算预约）/)).toBeTruthy();
+    expect(screen.getByText("step_11")).toBeTruthy();
+  });
+  it("a v2 legacy task with unknown aggregate is pending, never assigned a made-up limit", () => {
+    const full = fullAssistantStateFixture(); full.task!.execution_receipt = null;
+    expect(technicalReceiptChecks(full).map(check => check.state)).toEqual(["pending", "pending", "pending"]);
+    expect(technicalReceiptChecks(full)[0].detail).toContain("不能推断上限");
+  });
   it("accepts the exact execution limits and flags either exceeded limit independently", () => {
     const atLimit = receipt({ task: { ...receipt().task!, state: "succeeded", model_calls: 3, tool_calls: 4 } });
     expect(technicalReceiptChecks(atLimit).map(check => check.state)).toEqual(["passed", "passed", "passed"]);

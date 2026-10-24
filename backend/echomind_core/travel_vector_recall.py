@@ -19,13 +19,16 @@ from core.business_usage import UsageError
 from core.llm_utils import RuntimeFailure, bounded_json, strict_json, validate_arguments
 from core.schemas.knowledge_national import NationalSource, applicability_check_for
 from echomind_core.execution import ExecutionError, execution_gate
+from echomind_core.embedding import DIMENSIONS, EMBEDDING_MODEL, _payload, unit_vector
 from echomind_core.runtime import CandidateResources
+from echomind_core.storage import _VERSION as STORAGE_VERSION, _drain_thread
 from echomind_core.travel_capabilities import ReviewedKnowledgePort, _exact_model_objects
 from echomind_core.upstream.tooling.knowledge_base import KnowledgeBase
 from tooling.travel.knowledge import fingerprint
 from tooling.travel.knowledge_national import NationalKnowledgeIndex
 
 VERSION = "travel-reviewed-chroma-recall-v1"
+INDEX_RECEIPT_VERSION = "travel-reviewed-index-receipt-v1"
 _RAW_FIELDS = frozenset({"title", "content", "score", "chunk", "document_id", "version"})
 _SCHEMA = {"type": "object", "properties": {
     "query": {"type": "string", "minLength": 2, "maxLength": 160},
@@ -118,6 +121,96 @@ class ReviewedVectorRecall:
             # A partially written or uncertain private index is not retried.
             self._state = "uncertain"
             raise
+
+    async def attach_prepared(self, receipt: dict[str, Any]) -> dict[str, Any]:
+        """Read-only reopen of an explicitly prepared, source-bound index.
+
+        This checks declared acquisition metadata and exact persisted rows; it
+        does not authenticate the upstream origin of caller-supplied vectors.
+        No provider binding, import, embedding or automatic repair is used.
+        """
+        if self._state != "unprepared" or self.resources._closed:
+            raise ExecutionError("travel_vector_context_changed")
+        try:
+            receipt = strict_json(bounded_json(receipt, 65536))
+        except (RuntimeFailure, ValueError, TypeError, RecursionError):
+            raise ExecutionError("travel_vector_prepared_receipt_invalid") from None
+        scope = self.resources.scope
+        if self.resources.current() != scope:
+            raise ExecutionError("travel_vector_context_changed")
+        self._check_source()
+        config, store = self.resources._store.config, self.resources._store
+        fields = {"schema_version", "owner_id", "namespace", "embedding_model", "dimensions",
+                  "corpus_hash", "city_id", "venue_id", "chunk_count", "rows_sha256", "operations"}
+        texts = list(dict.fromkeys(chunk for entry in self._mappings.values() for chunk in entry["chunks"]))
+        canonical = lambda value: json.dumps(value, ensure_ascii=False, sort_keys=True,
+            separators=(",", ":"), allow_nan=False).encode()
+        payload_hash = hashlib.sha256(canonical(_payload(texts, EMBEDDING_MODEL))).hexdigest()
+        try:
+            if (type(receipt) is not dict or set(receipt) != fields
+                    or receipt["schema_version"] != INDEX_RECEIPT_VERSION
+                    or receipt["owner_id"] != scope.owner_id or receipt["namespace"] != config.namespace
+                    or receipt["embedding_model"] != EMBEDDING_MODEL
+                    or type(receipt["dimensions"]) is not int or receipt["dimensions"] != DIMENSIONS
+                    or receipt["corpus_hash"] != self.corpus_hash
+                    or (receipt["city_id"], receipt["venue_id"]) != (self.city_id, self.venue_id)
+                    or type(receipt["chunk_count"]) is not int or receipt["chunk_count"] != self._chunk_count
+                    or type(receipt["rows_sha256"]) is not str or len(receipt["rows_sha256"]) != 64
+                    or any(c not in "0123456789abcdef" for c in receipt["rows_sha256"])
+                    or type(receipt["operations"]) is not list or len(receipt["operations"]) != 1):
+                raise ValueError()
+            operation = receipt["operations"][0]
+            if (type(operation) is not dict or set(operation) != {
+                    "operation_id", "payload_sha256", "response_sha256", "state"}
+                    or operation["state"] != "received" or operation["payload_sha256"] != payload_hash
+                    or type(operation["operation_id"]) is not str or not 1 <= len(operation["operation_id"]) <= 128
+                    or any(not(c.isascii() and (c.isalnum() or c in "_.:-")) for c in operation["operation_id"])
+                    or type(operation["response_sha256"]) is not str or len(operation["response_sha256"]) != 64
+                    or any(c not in "0123456789abcdef" for c in operation["response_sha256"])):
+                raise ValueError()
+            expected = {}
+            for identifier, entry in self._mappings.items():
+                for position, text in enumerate(entry["chunks"]):
+                    expected[f"{identifier}:{position}"] = (text, {"title": entry["title"],
+                        "document_id": identifier, "version": entry["version"], "chunk_index": position,
+                        "total_chunks": len(entry["chunks"]), "scope": store._scope, "storage_version": STORAGE_VERSION})
+            collection = store._collections["knowledge"]
+            metadata = {"scope": store._scope, "storage_version": STORAGE_VERSION,
+                "embedding_model": EMBEDDING_MODEL, "embedding_dimensions": DIMENSIONS, "hnsw:space": "cosine"}
+            if collection.metadata != metadata:
+                raise ValueError()
+            def read_rows() -> list[dict[str, Any]]:
+                store._check()
+                if collection.count() > 128:
+                    raise ValueError()
+                result = collection.get(ids=list(expected), include=["documents", "metadatas", "embeddings"])
+                if set(result["ids"]) != set(expected) or len(result["ids"]) != len(expected):
+                    raise ValueError()
+                rows = []
+                for index, identifier in enumerate(result["ids"]):
+                    document, meta = result["documents"][index], result["metadatas"][index]
+                    if (type(meta) is not dict or type(meta.get("chunk_index")) is not int
+                            or type(meta.get("total_chunks")) is not int or (document, meta) != expected[identifier]):
+                        raise ValueError()
+                    vector = [float(value) for value in result["embeddings"][index]]
+                    unit_vector(vector)  # Shared shape/finite/zero/overflow rejection.
+                    rows.append({"id": identifier, "document": document, "metadata": meta,
+                        "embedding_sha256": hashlib.sha256(canonical(vector)).hexdigest()})
+                return sorted(rows, key=lambda value: value["id"])
+            rows = await _drain_thread(read_rows)
+            if hashlib.sha256(canonical(rows)).hexdigest() != receipt["rows_sha256"]:
+                raise ValueError()
+            self._check_source()
+            if self.resources.current() != scope or self.resources._closed:
+                raise ExecutionError("travel_vector_context_changed")
+        except asyncio.CancelledError:
+            raise
+        except ExecutionError:
+            raise
+        except Exception:
+            raise ExecutionError("travel_vector_prepared_receipt_invalid") from None
+        self._state, self._prepared_scope = "ready", scope
+        return self.summary()
 
     def summary(self) -> dict[str, Any]:
         return {"version": VERSION, "state": self._state, "corpus_hash": self.corpus_hash,

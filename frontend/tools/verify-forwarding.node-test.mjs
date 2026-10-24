@@ -81,7 +81,7 @@ test("assistant and dialogue readback transport retains version header and auth 
       assert.deepEqual(result.authentication_headers, { cookie_matches: true, origin_matches: true, csrf_matches: true });
     }
     const postPath = endpoints.find(([method, path]) => method === "POST" && path.endsWith("/assistant-turns"))[1];
-    for (const [value, expected] of [["dialogue-v1", "dialogue-v1"], ["private-unrecognized-surface", "invalid"], ["dialogue-v2,dialogue-v2", "invalid"]]) {
+    for (const [value, expected] of [["dialogue-v1", "dialogue-v1"], ["dialogue-v3", "dialogue-v3"], ["private-unrecognized-surface", "invalid"], ["dialogue-v2,dialogue-v2", "invalid"]]) {
       const response = await fetch(`${origin}${postPath}`, { method: "POST", headers: { ...SYNTHETIC_AUTH_HEADERS, "x-trippilot-surface": value }, body: "{}" });
       assert.equal((await response.json()).dialogue_surface, expected);
     }

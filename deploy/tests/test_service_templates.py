@@ -113,7 +113,7 @@ class NginxTemplateTests(unittest.TestCase):
         for directive in (
             "proxy_http_version 1.1", "proxy_request_buffering off", "proxy_buffering off",
             "proxy_ignore_client_abort off", "proxy_next_upstream off", "proxy_intercept_errors off",
-            "proxy_send_timeout 90s", "proxy_read_timeout 90s", "proxy_set_header X-Forwarded-Proto https",
+            "proxy_send_timeout 90s", "proxy_read_timeout 130s", "proxy_set_header X-Forwarded-Proto https",
         ):
             self.assertIn(directive + ";", text)
 

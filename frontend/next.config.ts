@@ -22,7 +22,8 @@ export default function nextConfig(phase: string): NextConfig {
     distDir,
     // This pinned Next version otherwise truncates cloned bodies at 10 MiB
     // and defaults external rewrites to 30s. Backend limits stay 5/20 MiB;
-    // frontend deadlines remain 35/60s. No proxy.ts or body parsing is added.
+    // media deadlines remain 35/60s; only dialogue-v3 waits at most 105s.
+    // No proxy.ts or body parsing is added; disconnects still propagate.
     experimental: {
       proxyTimeout: FORWARDING_TIMEOUT_MS,
       proxyClientMaxBodySize: FORWARDING_BODY_BYTES,

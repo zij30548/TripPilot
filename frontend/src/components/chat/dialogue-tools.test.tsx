@@ -46,6 +46,29 @@ beforeEach(() => {
 });
 
 describe("dialogue tools composed with real place authority and pure planning preparation", () => {
+  it("a local read batch may bind the model response revision but cannot publish into a later identical-input revision", async () => {
+    const late = deferred<{ text: string }>(), readBatch = vi.fn(() => late.promise);
+    mocks.planning.mockImplementation((inputs: WorkspaceInputs) => ({ readInputs: () => structuredClone(inputs), readVersion: () => 0,
+      captureReadSnapshot: () => Object.freeze({ version: 0 }), executeReadBatch: readBatch,
+      execute: mocks.execute, invalidate: mocks.invalidate, cancelOperation: mocks.cancel, schedule: { capture: () => null } }));
+    const v = setup(); await submit(v, "准备规划"); await submit(v, "确认");
+    act(() => v.handle.current!.beforeModel()); const context = v.handle.current!.selectionContext();
+    const responseConversation = { ...v.props.conversation, revision: v.props.conversation.revision + 2,
+      last_turn: { operation_id: crypto.randomUUID(), state: "succeeded" as const, error_code: null } };
+    const proposal: DialogueProposal = { conversation: responseConversation.id, revision: responseConversation.revision,
+      operation: responseConversation.last_turn.operation_id, action: null, context, workspaceVersion: context.workspace_version,
+      actions: [{ name: "read_schedule", arguments: { date: null, day: 1 } }, { name: "read_budget", arguments: {} }], programMessages: [] };
+    v.rerender(<DialogueTools {...v.props} conversation={responseConversation} proposal={proposal} />);
+    await waitFor(() => expect(readBatch).toHaveBeenCalledOnce());
+    // Request→response advanced legitimately. Only the later local publication
+    // crosses another revision, with the same requirements, work copy and fees.
+    v.rerender(<DialogueTools {...v.props} conversation={{ ...responseConversation, revision: responseConversation.revision + 1 }} proposal={null} />);
+    await act(async () => late.resolve({ text: "obsolete-local-read" }));
+    expect(v.message.mock.calls.some(([, text]) => text.includes("obsolete-local-read"))).toBe(false);
+    expect(readBatch).toHaveBeenCalledOnce(); expect(mocks.execute).not.toHaveBeenCalled();
+    expect(v.busy.mock.calls.at(-1)?.[0]).toBe(false);
+  });
+
   it("mount has no requests; search asks explicit consent; local preview and confirmation keep separate authority", async () => {
     const v = setup(); expect(v.fetcher).not.toHaveBeenCalled(); expect(mocks.planning).not.toHaveBeenCalled();
     await submit(v, "搜索必去 受控新点"); expect(v.fetcher).not.toHaveBeenCalled();

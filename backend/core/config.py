@@ -72,7 +72,17 @@ class Settings(BaseSettings):
     qwen_vision_model: str = "qwen3-vl-plus"
     # Trusted server-only admission choice. A request cannot select an engine,
     # provider, URL or model. Legacy callers keep their existing default.
-    assistant_runtime: Literal["legacy", "echomind_travel_v1"] = "legacy"
+    assistant_runtime: Literal["legacy", "echomind_travel_v1", "echomind_travel_full_v2"] = "legacy"
+    # Full runtime is an explicit, server-owned composition. Missing private
+    # resources disable that path; no startup DDL, cold embedding or fallback.
+    assistant_full_template_root: Path | None = None
+    assistant_full_redis_socket: Path | None = None
+    assistant_full_chroma_path: Path | None = None
+    assistant_full_namespace: str = "trippilot-full"
+    assistant_full_budget: Literal["single", "collaboration", "reference"] = "collaboration"
+    assistant_full_reference_city: str | None = None
+    assistant_full_reference_venue: str | None = None
+    assistant_full_vector_receipt_root: Path | None = None
 
     @field_validator("amap_allowed_page_origins", mode="before")
     @classmethod

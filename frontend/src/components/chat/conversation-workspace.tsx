@@ -1,9 +1,10 @@
 "use client";
 
 import { useCallback, useEffect, useLayoutEffect, useRef, useState, type KeyboardEvent } from "react";
-import { sendToolDialogueTurn, type DialogueSelectionContext } from "@/lib/assistant";
-import { readDialogueAction } from "@/lib/dialogue-action";
+import { sendFullDialogueTurn, type DialogueSelectionContext } from "@/lib/assistant";
+import { readDialogueActions } from "@/lib/dialogue-action";
 import { useChatWorkspace } from "@/lib/chat-controller";
+import { authSnapshot } from "@/lib/auth-session";
 import DialogueTools, { type DialogueProposal, type DialogueToolsHandle } from "./dialogue-tools";
 
 const focus = "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#294e43]/40 focus-visible:ring-offset-2";
@@ -17,13 +18,17 @@ export default function ConversationWorkspace() {
   const [proposal, setProposal] = useState<DialogueProposal | null>(null);
   const tools = useRef<DialogueToolsHandle | null>(null), input = useRef("");
   const selection = useRef<DialogueSelectionContext | undefined>(undefined);
-  const send = useCallback<typeof sendToolDialogueTurn>(async (id, body, signal) => {
+  const bootstrapEpoch = useRef<number | undefined>(undefined);
+  const send = useCallback<typeof sendFullDialogueTurn>(async (id, body, signal) => {
     const context = selection.current;
-    const result = await sendToolDialogueTurn(id, { ...body, ...(context ? { dialogue_context: context } : {}) }, signal);
+    const initialEpoch = body.expected_revision === 0 ? bootstrapEpoch.current : undefined;
+    const result = await sendFullDialogueTurn(id, { ...body, ...(context ? { dialogue_context: context } : {}) }, signal);
     if (signal.aborted) return result;
     try {
-      const action = await readDialogueAction(id, result.revision, body.operation_id, signal);
-      if (!signal.aborted) setProposal({ conversation: id, revision: result.revision, operation: body.operation_id, action, context });
+      const receipt = await readDialogueActions(id, result.revision, body.operation_id, context!.workspace_version, signal);
+      if (!signal.aborted) setProposal({ conversation: id, revision: result.revision, operation: body.operation_id, action: null,
+        actions: receipt.actions, workspaceVersion: receipt.workspace_version, programMessages: receipt.program_messages, context,
+        ...(initialEpoch !== undefined ? { bootstrapEpoch: initialEpoch } : {}) });
     } catch (error) {
       // A lost readback cannot undo a committed conversation or invent an action.
       if (!signal.aborted) setProposal({ conversation: id, revision: result.revision, operation: body.operation_id, action: null,
@@ -64,8 +69,11 @@ export default function ConversationWorkspace() {
     const text = input.current.trim();
     if (!text || Array.from(text).length > 2000) return;
     if (tools.current?.submit(text)) { input.current = ""; chat.editDraft(""); return; }
-    selection.current = tools.current?.selectionContext();
-    tools.current?.beforeModel(); setProposal(null); void chat.send(); input.current = "";
+    tools.current?.beforeModel();
+    const local = tools.current?.selectionContext();
+    bootstrapEpoch.current = !local && !current ? authSnapshot().epoch : undefined;
+    selection.current = local ?? { workspace_version: crypto.randomUUID(), display: "none", items: [] };
+    setProposal(null); void chat.send(); input.current = "";
   }
   const visibleMessages = current ? [
     ...localMessages.filter(row => row.conversation === current.id && row.after === null),

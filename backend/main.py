@@ -1,3 +1,5 @@
+from contextlib import asynccontextmanager
+import sys
 from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
@@ -28,9 +30,21 @@ from api.assistant import router as assistant_router
 from api.assistant_preferences import router as assistant_preferences_router
 from core.business_usage import SERVICES, UsageError
 
+@asynccontextmanager
+async def lifespan(_app: FastAPI):
+    try:
+        yield
+    finally:
+        # Do not import optional native dependencies for the legacy/default app.
+        runtime = sys.modules.get("echomind_core.integration_full")
+        if runtime is not None:
+            await runtime.close_full_services()
+
+
 app = FastAPI(
     title="TripPilot API",
     version="0.2.0",
+    lifespan=lifespan,
 )
 
 app.add_middleware(

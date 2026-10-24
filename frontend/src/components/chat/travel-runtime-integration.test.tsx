@@ -37,10 +37,11 @@ function controlledServer({ confirmed = false, populated = false } = {}) {
   const home = clone(fixture.places.accommodation!);
   const visit = clone(fixture.places.required_places[0]);
   const optional = optionals.slice(0, 2).map((place, index) => located({ ...place, name: `受控可选${index + 1}` }, "hangzhou"));
-  const actions = new Map<string, DialogueAction | null>();
+  const actions = new Map<string, DialogueAction | DialogueAction[] | null>();
+  const contexts = new Map<string, string>();
   const schedules: ScheduleResponse[] = [], saved: SavedDetail[] = [], writes: SaveOperation[] = [];
   let saveUncertain = false;
-  const byText = new Map<string, DialogueAction>([
+  const byText = new Map<string, DialogueAction | DialogueAction[]>([
     ["把其他费用估算写为25元", { name: "set_cost", arguments: { kind: "other", selector: null, value: "25" } }],
     ["核对这天的全部费用", { name: "read_budget", arguments: {} }],
     ["预览排除受控可选1", { name: "preview_exclusion", arguments: { selector: optional[0].id } }],
@@ -62,10 +63,16 @@ function controlledServer({ confirmed = false, populated = false } = {}) {
           { id: uid(), role: "assistant", text: prior.revision ? "已准备本轮操作提议，尚未执行。" : "已整理待确认需求草稿，尚未正式确认或生成。", created_at: "2026-10-23T00:00:01Z" }],
       };
       actions.set(body.operation_id, byText.get(body.text) ?? null);
+      contexts.set(body.operation_id, body.dialogue_context.workspace_version);
       return json(conversation);
     }
-    if (url.endsWith("/dialogue-action")) return json({ schema_version: "dialogue-action-v1", conversation_id: CHAT_ID,
-      revision: conversation.revision, operation_id: conversation.last_turn?.operation_id, action: actions.get(conversation.last_turn!.operation_id) ?? null });
+    if (url.endsWith("/dialogue-action")) {
+      const chosen = actions.get(conversation.last_turn!.operation_id);
+      return json({ schema_version: "dialogue-actions-v2", conversation_id: CHAT_ID,
+        revision: conversation.revision, operation_id: conversation.last_turn?.operation_id,
+        workspace_version: contexts.get(conversation.last_turn!.operation_id),
+        actions: Array.isArray(chosen) ? chosen : chosen ? [chosen] : [], program_messages: [] });
+    }
     if (url.endsWith("/confirm")) {
       expect(body.expected_revision).toBe(conversation.revision);
       const revision = conversation.revision + 1;
@@ -143,6 +150,28 @@ const sent = (server: ReturnType<typeof controlledServer>, part: string) => serv
 beforeEach(() => { route.pathname = "/"; });
 
 describe("opt-in full core retains existing three-surface dialogue wire and domain controllers", () => {
+  it("v3 independent proposals execute both real local reads from the same captured plan and fees, once", async () => {
+    const server = controlledServer({ confirmed: true, populated: true }); render(<ConversationWorkspace />);
+    fireEvent.click(await screen.findByRole("button", { name: "杭州旅行" }));
+    await screen.findByRole("list", { name: "对话消息" });
+    await send("准备规划"); await send("确认"); await send("生成行程"); await send("确认");
+    await expectLast("必去已安排 1/1");
+    await send("把其他费用估算写为25元"); await send("确认"); await expectLast("当前可计算小计：¥25.00");
+    server.byText.set("同时查看第一天安排与全程费用", [
+      { name: "read_schedule", arguments: { date: null, day: 1 } }, { name: "read_budget", arguments: {} }]);
+    const before = server.fetcher.mock.calls.length;
+    await send("同时查看第一天安排与全程费用"); await expectLast("本地只读结果");
+    expect(last()).toContain(server.schedules[0].request.start_date); expect(last()).toContain(server.visit.name);
+    expect(last()).toContain("当前可计算小计：¥25.00"); expect(last()).toContain("尚未核算");
+    expect(last()).toContain("未知"); expect(last()).not.toContain("上一项操作仍在进行");
+    expect(server.schedules).toHaveLength(1); expect(server.writes).toHaveLength(0);
+    expect(server.fetcher.mock.calls.slice(before).map(([url]) => url)).toEqual([
+      `/api/chat/conversations/${CHAT_ID}/assistant-turns`, `/api/chat/conversations/${CHAT_ID}/dialogue-action`]);
+    const reads = messages().filter(row => row.textContent?.includes("本地只读结果")); expect(reads).toHaveLength(1);
+    const submit = sent(server, "/assistant-turns").at(-1)![1]!;
+    expect(new Headers(submit.headers).get("X-TripPilot-Surface")).toBe("dialogue-v3");
+  });
+
   it("draft confirmation, actual POI guards, generation, budget, preview cancel/adopt and save compose without model facts", async () => {
     const server = controlledServer(); render(<ConversationWorkspace />);
     await send("整理杭州一天旅行，2人预算3000，住测试住宿，去同名地点");

@@ -139,3 +139,33 @@ class DialogueAction(BaseModel):
         if self.action is not None and self.operation_id is None:
             raise ValueError("dialogue_action_turn_required")
         return self
+
+
+class DialogueActions(Strict):
+    """Versioned bounded browser work, never execution authority or facts.
+
+    Old dialogue-action-v1 is intentionally unchanged. Two actions are only
+    legal for the independent schedule/budget reads; mutations remain singular.
+    """
+    schema_version: Literal["dialogue-actions-v2"] = "dialogue-actions-v2"
+    conversation_id: Identifier
+    revision: int = Field(ge=0, le=1000)
+    operation_id: Identifier | None
+    workspace_version: Identifier | None
+    actions: list[Action] = Field(max_length=2)
+    program_messages: list[str] = Field(default_factory=list, max_length=4)
+
+    @model_validator(mode="after")
+    def bounded_read_pair(self) -> "DialogueActions":
+        if self.actions and (self.operation_id is None or self.workspace_version is None):
+            raise ValueError("dialogue_actions_binding_required")
+        names = [action.name for action in self.actions]
+        if (len(names) != len(set(names)) or len(names) == 2
+                and set(names) != {"read_schedule", "read_budget"}):
+            raise ValueError("dialogue_actions_read_pair_required")
+        if (any(not value.strip() or len(value) > 32000 or any(ord(c) < 32 and c not in "\n\r\t"
+                or ord(c) == 127 for c in value) for value in self.program_messages)
+                or sum(len(value.encode("utf-8")) for value in self.program_messages) > 96000
+                or self.program_messages and (self.operation_id is None or self.workspace_version is None)):
+            raise ValueError("dialogue_program_messages_invalid")
+        return self

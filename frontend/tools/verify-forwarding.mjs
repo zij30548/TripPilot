@@ -61,7 +61,7 @@ export async function startControlledBackend({ port = BACKEND_PORT } = {}) {
       bytes: 0, sha256: null, completed_upload: false, response_finished: false,
       response_close_count: 0, upload_aborted: false,
       dialogue_surface: req.headers["x-trippilot-surface"] === undefined ? "absent"
-        : ["dialogue-v1", "dialogue-v2"].includes(req.headers["x-trippilot-surface"]) ? req.headers["x-trippilot-surface"] : "invalid",
+        : ["dialogue-v1", "dialogue-v2", "dialogue-v3"].includes(req.headers["x-trippilot-surface"]) ? req.headers["x-trippilot-surface"] : "invalid",
       authentication_headers: {
         cookie_matches: req.headers.cookie === SYNTHETIC_AUTH_HEADERS.cookie,
         origin_matches: req.headers.origin === SYNTHETIC_AUTH_HEADERS.origin,

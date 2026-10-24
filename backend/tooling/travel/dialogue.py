@@ -11,7 +11,8 @@ from agents.tools import ToolSpec
 from core.chat_cities import CITIES, legacy_city_id
 from core.llm_utils import RuntimeFailure
 from core.schemas.chat import Intent
-from core.schemas.dialogue import GROUPS, TOOL_VERSION, group_schema, obj, validate_action
+from core.schemas.dialogue import DialogueActions, GROUPS, TOOL_VERSION, group_schema, obj, validate_action
+from pydantic import ValidationError
 
 GUIDANCE = {
     "greeting": "你好，可以告诉我想去哪里、什么时候出发，以及和谁一起去。我可以帮你整理需求、核对真实地点和行程；具体营业、预约和实时票价需要可靠资料。",
@@ -110,3 +111,51 @@ def project_action(conversation: dict, task: dict | None) -> dict:
         raise RuntimeFailure("dialogue_receipt_invalid")
     base["action"] = proposals[0] if proposals else None
     return base
+
+
+def project_actions(conversation: dict, task: dict | None) -> dict:
+    """New exact surface only: single work or the two independent read pair.
+
+    Receipts bind the submitted browser generation; the current browser must
+    still recheck its snapshot and record actual execution. No database writes
+    or tool execution happens when reading this projection.
+    """
+    base = {"schema_version": "dialogue-actions-v2", "conversation_id": conversation["id"],
+            "revision": conversation["revision"], "operation_id": None,
+            "workspace_version": None, "actions": [], "program_messages": []}
+    turn = conversation["last_turn"]
+    if (task is None or task["stale"] or task["conversation_revision"] != conversation["revision"]
+            or task["state"] not in {"waiting", "succeeded"} or turn is None or turn["state"] != "succeeded"
+            or task["operation_id"] != turn["operation_id"]):
+        return base
+    result = task["checkpoint"].get("result")
+    if not isinstance(result, dict) or result.get("surface") != "dialogue-v3":
+        return base
+    rows = result.get("tool_results")
+    if not isinstance(rows, list) or len(rows) > 4:
+        raise RuntimeFailure("dialogue_receipt_invalid")
+    proposals = []
+    for row in rows:
+        if not isinstance(row, dict) or not isinstance(row.get("data"), dict):
+            raise RuntimeFailure("dialogue_receipt_invalid")
+        data = row["data"]
+        if "dialogue_action" not in data:
+            continue
+        value = data["dialogue_action"]
+        if (row.get("name") not in GROUPS or set(data) != {"message", "dialogue_action"}
+                or not isinstance(value, dict) or set(value) != {"name", "arguments"}
+                or value["name"] not in GROUPS[row["name"]][1]):
+            raise RuntimeFailure("dialogue_receipt_invalid")
+        proposals.append(validate_action(value["name"], value["arguments"]))
+    runtime = result.get("runtime", {})
+    if not isinstance(runtime, dict):
+        raise RuntimeFailure("dialogue_receipt_invalid")
+    messages = runtime.get("program_messages", [])
+    if messages and runtime.get("runtime") != "echomind_travel_full_v2":
+        raise RuntimeFailure("dialogue_receipt_invalid")
+    try:
+        return DialogueActions.model_validate(base | {"operation_id": turn["operation_id"],
+            "workspace_version": result.get("workspace_version"), "actions": proposals,
+            "program_messages": messages}).model_dump(mode="json")
+    except ValidationError:
+        raise RuntimeFailure("dialogue_receipt_invalid") from None

@@ -7,13 +7,15 @@ from __future__ import annotations
 
 import asyncio
 from datetime import datetime, timezone
+import hashlib
+import json
 import re
 from typing import Annotated, Any, Callable, Literal
 from uuid import uuid4
 
 import httpx
 from fastapi import APIRouter, Depends, HTTPException, Request
-from pydantic import BaseModel, ConfigDict, Field, ValidationError
+from pydantic import BaseModel, ConfigDict, Field, ValidationError, model_validator
 
 from agents.agent_orchestrator import AgentOrchestrator, AgentRequest
 from agents.tools import ToolSpec
@@ -33,7 +35,7 @@ from tooling.providers.chat_places import ChatPlacesClient
 from tooling.providers.chat_places_factory import chat_places_configured, create_chat_places_client
 from core.schemas.chat import Conversation, Identifier, Intent, Selection, SubmitTurn
 from core.schemas.chat_places import Batch, SearchArguments
-from core.schemas.dialogue import DialogueAction, SubmitDialogueTurn
+from core.schemas.dialogue import DialogueAction, DialogueActions, SubmitDialogueTurn
 from tooling.travel import dialogue
 from tooling.travel.chat import apply_selection, provider_schema
 
@@ -93,6 +95,185 @@ class AssistantState(StateStrict):
     preferences: list = Field(max_length=0)
     skills: list[SkillView] = Field(max_length=32)
     migration_ready: bool
+
+
+class RuntimeBudget(StateStrict):
+    version: Literal["travel-task-budget-v1"]
+    tier: Literal["single", "collaboration", "reference"]
+    model_limit: int = Field(ge=1, le=16)
+    tool_limit: int = Field(ge=1, le=16)
+    output_tokens_reserved_limit: int = Field(ge=1, le=24576)
+    deadline_seconds: float = Field(gt=0, le=90)
+    shared: Literal[True]
+    real_call_authorization: Literal[False]
+
+    @model_validator(mode="after")
+    def fixed_tier(self) -> "RuntimeBudget":
+        expected = {"single": (6, 8, 8192, 60.0), "collaboration": (10, 12, 16384, 90.0),
+                    "reference": (16, 16, 24576, 90.0)}[self.tier]
+        if (self.model_limit, self.tool_limit, self.output_tokens_reserved_limit, self.deadline_seconds) != expected:
+            raise ValueError("assistant_budget_invalid")
+        return self
+
+
+class Reservations(StateStrict):
+    models: int = Field(ge=0, le=16)
+    tools: int = Field(ge=0, le=16)
+    output_tokens: int = Field(ge=0, le=24576)
+
+
+class DispatchReceipt(StateStrict):
+    status: Literal["observed", "unknown"]
+    sent: int | None = Field(ge=0, le=16)
+    received: int | None = Field(ge=0, le=16)
+    failed: int | None = Field(ge=0, le=16)
+    cancelled: int | None = Field(ge=0, le=16)
+    uncertain: int | None = Field(ge=0, le=16)
+
+    @model_validator(mode="after")
+    def consistent_dispatch(self) -> "DispatchReceipt":
+        values = (self.sent, self.received, self.failed, self.cancelled, self.uncertain)
+        if self.status == "unknown":
+            if any(value is not None for value in values):
+                raise ValueError("assistant_dispatch_unknown")
+        elif any(value is None for value in values) or sum(values[1:]) != self.sent:
+            raise ValueError("assistant_dispatch_invalid")
+        return self
+
+
+class ExecutionReceipt(StateStrict):
+    schema_version: Literal["travel-execution-receipt-v1"]
+    budget: RuntimeBudget
+    reservations: Reservations
+    dispatch: DispatchReceipt
+    trace_complete: bool
+
+    @model_validator(mode="after")
+    def reservation_bounds(self) -> "ExecutionReceipt":
+        if (self.reservations.models > self.budget.model_limit or self.reservations.tools > self.budget.tool_limit
+                or self.reservations.output_tokens > self.budget.output_tokens_reserved_limit
+                or self.dispatch.sent is not None and self.dispatch.sent > self.reservations.models):
+            raise ValueError("assistant_reservation_invalid")
+        return self
+
+
+class TaskViewV2(StateStrict):
+    id: Identifier
+    state: TaskState
+    # Runtime reservations, NOT successful sends; precise dispatch is separate.
+    # null receipt marks old tasks for which only legacy trace is available.
+    model_calls: int = Field(ge=0, le=16)
+    tool_calls: int = Field(ge=0, le=16)
+    stop_reason: str | None = Field(default=None, pattern=r"^[a-z][a-z0-9_]{0,79}$")
+    steps: list[StepView] = Field(max_length=100)
+    execution_receipt: ExecutionReceipt | None
+
+    @model_validator(mode="after")
+    def counts_match_receipt(self) -> "TaskViewV2":
+        if self.execution_receipt is not None and (self.model_calls, self.tool_calls) != (
+                self.execution_receipt.reservations.models, self.execution_receipt.reservations.tools):
+            raise ValueError("assistant_reservation_invalid")
+        return self
+
+
+class AssistantStateV2(AssistantState):
+    schema_version: Literal["assistant-state-v2"] = "assistant-state-v2"
+    task: TaskViewV2 | None
+
+
+def _requested_surface(raw: Request) -> str | None:
+    values = raw.headers.getlist("x-trippilot-surface")
+    if not values:
+        return None
+    if values not in (["dialogue-v1"], ["dialogue-v2"], ["dialogue-v3"]):
+        raise HTTPException(422, detail={"code": "assistant_invalid_surface"})
+    return values[0]
+
+
+def _receipt(trace: dict) -> dict | None:
+    if type(trace) is not dict:
+        raise RuntimeFailure("execution_receipt_invalid")
+    value = trace.get("execution_receipt")
+    if value is None:
+        return None
+    try:
+        return ExecutionReceipt.model_validate(value).model_dump(mode="json")
+    except ValidationError:
+        raise RuntimeFailure("execution_receipt_invalid") from None
+
+
+def _full_trace_rows(trace: dict, *, error_code: str | None = None) -> list[dict]:
+    """V3 only: retain all bounded reservations; never infer successful sends."""
+    receipt = _receipt(trace)
+    if receipt is None:
+        return _trace_rows(trace, error_code=error_code)
+    rows = []
+    for tool, count in (("model", receipt["reservations"]["models"]),
+                        ("tool_attempt", receipt["reservations"]["tools"])):
+        for _ in range(count):
+            rows.append({"step": len(rows) + 1, "tool": tool, "state": "uncertain",
+                         "error_code": error_code or "reservation_not_dispatch_proof"})
+    return rows
+
+
+def _captured_skill_views(runtime: dict) -> list[dict] | None:
+    """Project the exact captured full-task rules, never reload today's files.
+
+    Hashes establish the stored package's identity, not independent proof of
+    its origin. Only server-written full metadata uses this path; raw prompts,
+    descriptions and role packets are deliberately absent from the response.
+    """
+    if runtime.get("runtime") != "echomind_travel_full_v2":
+        # A failed full task may only have its exact attempt receipt. Missing
+        # captured rules are unknown, never relabelled as the old three Skills.
+        return [] if runtime.get("execution_receipt") is not None else None
+    try:
+        from echomind_core.travel_domain import TravelIntent, TravelRole
+        from echomind_core.travel_package import PROMPT_VERSION, STAGE_PROMPTS, VERSION
+        from echomind_core.travel_package_skills import SKILL_ROLES, SKILL_VERSION
+        from echomind_core.upstream.agents.agent_orchestrator import AgentProfile
+        from echomind_core.provider import MODEL
+        package = runtime["skills"]
+        details = runtime["domain_details"]
+        hashes = re.compile(r"[0-9a-f]{64}\Z")
+        if (type(package) is not dict or set(package) != {"schema_version", "version", "prompt_version", "model",
+                "roles", "intents", "skills", "stages", "activation", "model_calls_on_capture"}
+                or package["schema_version"] != VERSION or package["prompt_version"] != PROMPT_VERSION
+                or type(package["version"]) is not str or not hashes.fullmatch(package["version"])
+                or package["model"] != MODEL or package["activation"] != "explicit_capture_only"
+                or type(package["model_calls_on_capture"]) is not int or package["model_calls_on_capture"] != 0
+                or type(details) is not dict or details.get("skills") != package
+                or package["intents"] != [item.value for item in TravelIntent]
+                or type(package["roles"]) is not list or len(package["roles"]) != len(TravelRole)
+                or any(type(row) is not dict or set(row) != set(AgentProfile.__dataclass_fields__)
+                       for row in package["roles"])
+                or [row["role"] for row in package["roles"]] != [item.value for item in TravelRole]):
+            raise ValueError()
+        stages = package["stages"]
+        if (type(stages) is not list or [row.get("id") if type(row) is dict else None for row in stages] != list(STAGE_PROMPTS)
+                or any(set(row) != {"id", "sha256"} or type(row["sha256"]) is not str
+                       or not hashes.fullmatch(row["sha256"]) for row in stages)):
+            raise ValueError()
+        captured = package["skills"]
+        if (type(captured) is not dict or set(captured) != {"schema_version", "version", "skills"}
+                or captured["schema_version"] != SKILL_VERSION or type(captured["version"]) is not str
+                or not hashes.fullmatch(captured["version"]) or type(captured["skills"]) is not list
+                or len(captured["skills"]) != len(SKILL_ROLES)):
+            raise ValueError()
+        identities = []
+        for row, (name, roles) in zip(captured["skills"], SKILL_ROLES, strict=True):
+            if (type(row) is not dict or set(row) != {"id", "sha256", "roles"} or row["id"] != name
+                    or row["roles"] != [role.value for role in roles] or type(row["sha256"]) is not str
+                    or not hashes.fullmatch(row["sha256"])):
+                raise ValueError()
+            identities.append((name, row["sha256"]))
+        digest = hashlib.sha256(json.dumps([SKILL_VERSION, identities], separators=(",", ":")).encode()).hexdigest()
+        if digest != captured["version"]:
+            raise ValueError()
+        return [SkillView(id=name, name=name, version="sha256-" + digest).model_dump()
+                for name, digest in identities]
+    except (KeyError, ValueError, TypeError, ImportError, ValidationError):
+        raise RuntimeFailure("execution_receipt_invalid") from None
 
 
 def ready(store: AssistantStore) -> bool:
@@ -162,17 +343,28 @@ def _explicit_search(text: str, keyword: str) -> bool:
     return re.search(actions, text) is not None and keyword in text
 
 
-@router.get("/{conversation_id}/assistant-state", response_model=AssistantState)
+@router.get("/{conversation_id}/assistant-state", response_model=AssistantState | AssistantStateV2)
 async def assistant_state(conversation_id: Identifier, raw: Request, store: Store, tasks: Tasks, user: User) -> dict:
     if raw.query_params:
         raise HTTPException(422, detail={"code": "assistant_invalid_request"})
+    full_surface = _requested_surface(raw) == "dialogue-v3"
     try:
         conversation = await db_call(store.get, user.id, conversation_id)
         is_ready = await db_call(ready, tasks)
         task = await db_call(tasks.latest, user.id, conversation_id) if is_ready else None
         projected = None
+        captured_skills = None
         if task is not None:
-            rows = task["checkpoint"].get("trace", [])[:8]
+            stored_result = task["checkpoint"].get("result", {})
+            stored_runtime = stored_result.get("runtime", {}) if type(stored_result) is dict else {}
+            if (not full_surface and type(stored_runtime) is dict and (
+                    stored_runtime.get("runtime") == "echomind_travel_full_v2"
+                    or stored_runtime.get("execution_receipt") is not None)):
+                # Old schemas have no truthful representation of the new
+                # aggregate. Never present an8-row prefix as the full count.
+                raise HTTPException(409, detail={"code": "assistant_state_surface_required",
+                    "message": "本次完整任务需要dialogue-v3读取完整预算与尝试记录，未截断为旧计数。"})
+            rows = task["checkpoint"].get("trace", [])[:100 if full_surface else 8]
             stop = task["checkpoint"].get("stop_reason")
             projected = {"id": task["id"], "state": task["state"],
                          "model_calls": sum(row.get("tool") == "model" for row in rows),
@@ -186,15 +378,33 @@ async def assistant_state(conversation_id: Identifier, raw: Request, store: Stor
                 # Preserve its historical task, but never present stale running
                 # state as an actively executing or resumable current task.
                 projected.update(state="uncertain", stop_reason="context_changed")
-        return {"schema_version": "assistant-state-v1", "conversation_id": conversation_id, "revision": conversation["revision"],
+            if full_surface:
+                if type(stored_result) is not dict:
+                    raise RuntimeFailure("execution_receipt_invalid")
+                runtime = stored_result.get("runtime", {})
+                receipt = _receipt(runtime)
+                captured_skills = _captured_skill_views(runtime)
+                projected["execution_receipt"] = receipt
+                if receipt is not None:
+                    projected.update(model_calls=receipt["reservations"]["models"],
+                                     tool_calls=receipt["reservations"]["tools"])
+                try:
+                    TaskViewV2.model_validate(projected)
+                except ValidationError:
+                    raise RuntimeFailure("execution_receipt_invalid") from None
+        return {"schema_version": "assistant-state-v2" if full_surface else "assistant-state-v1",
+                "conversation_id": conversation_id, "revision": conversation["revision"],
                 "task": projected, "preferences": [], "migration_ready": is_ready,
-                "skills": [{"id": item["name"], "name": item["name"], "version": "travel-skills-v1"}
-                           for item in skills().summary()["skills"]]}
+                "skills": captured_skills if captured_skills is not None else [
+                    {"id": item["name"], "name": item["name"], "version": "travel-skills-v1"}
+                    for item in skills().summary()["skills"]]}
     except ChatError as error:
         raise safe_error(error) from None
+    except RuntimeFailure:
+        raise HTTPException(503, detail={"code": "assistant_execution_receipt_invalid"}) from None
 
 
-@router.get("/{conversation_id}/dialogue-action", response_model=DialogueAction)
+@router.get("/{conversation_id}/dialogue-action", response_model=DialogueAction | DialogueActions)
 async def dialogue_action(conversation_id: Identifier, raw: Request, store: Store, tasks: Tasks, user: User) -> dict:
     """Project a single current proposal, never expose generic task checkpoints.
 
@@ -203,10 +413,11 @@ async def dialogue_action(conversation_id: Identifier, raw: Request, store: Stor
     """
     if raw.query_params:
         raise HTTPException(422, detail={"code": "assistant_invalid_request"})
+    full_surface = _requested_surface(raw) == "dialogue-v3"
     try:
         conversation = await db_call(store.get, user.id, conversation_id)
         task = await db_call(tasks.latest, user.id, conversation_id) if await db_call(ready, tasks) else None
-        projected = dialogue.project_action(conversation, task)
+        projected = (dialogue.project_actions if full_surface else dialogue.project_action)(conversation, task)
         # Avoid stitching an old task projection onto a concurrent new turn.
         latest = await db_call(store.get, user.id, conversation_id)
         if latest["revision"] != conversation["revision"] or latest["last_turn"] != conversation["last_turn"]:
@@ -227,13 +438,16 @@ async def assistant_turn(conversation_id: Identifier, raw: Request, store: Store
     # authorization bypass or an arbitrary client-provided tool registry.
     # Missing preserves the established legacy callers. Reject duplicates,
     # combined values and unknown versions before reserving a durable turn.
-    surfaces = raw.headers.getlist("x-trippilot-surface")
-    if surfaces and surfaces not in (["dialogue-v1"], ["dialogue-v2"]):
-        raise HTTPException(422, detail={"code": "assistant_invalid_surface"})
-    dialogue_only = bool(surfaces)
-    native_dialogue = surfaces == ["dialogue-v2"]
+    surface = _requested_surface(raw)
+    dialogue_only = surface is not None
+    native_dialogue = surface in {"dialogue-v2", "dialogue-v3"}
+    full_surface = surface == "dialogue-v3"
     command = await body(raw, SubmitDialogueTurn if native_dialogue else SubmitTurn)
-    travel_runtime = settings.assistant_runtime == "echomind_travel_v1"
+    full_runtime = settings.assistant_runtime == "echomind_travel_full_v2"
+    travel_runtime = settings.assistant_runtime in {"echomind_travel_v1", "echomind_travel_full_v2"}
+    if full_runtime and (not full_surface or command.dialogue_context is None):
+        raise HTTPException(422, detail={"code": "assistant_runtime_surface_required",
+            "message": "完整助手要求dialogue-v3及当前浏览器版本；没有调用模型。"})
     if travel_runtime and not native_dialogue:
         raise HTTPException(422, detail={"code": "assistant_runtime_surface_required",
             "message": "当前服务端助手只接受既有dialogue-v2界面，未切回旧引擎。"})
@@ -243,7 +457,10 @@ async def assistant_turn(conversation_id: Identifier, raw: Request, store: Store
             # Optional core dependencies are loaded only by the trusted server
             # opt-in. Missing dependencies fail this feature, never the entire
             # default app or a request-selected fallback engine.
-            from echomind_core.integration import AdmittedTravelTurn
+            if full_runtime:
+                from echomind_core.integration_full import AdmittedFullTravelTurn as AdmittedTravelTurn
+            else:
+                from echomind_core.integration import AdmittedTravelTurn
             from core.usage_runtime import MeteredAsyncClient
             if type(client) is not MeteredAsyncClient:
                 raise ImportError
@@ -269,6 +486,14 @@ async def assistant_turn(conversation_id: Identifier, raw: Request, store: Store
         search_continuity = SearchBatchCarry.capture(initial, place_before) if native_dialogue else None
         admitted = admitted_type(user.id, command.operation_id, command.text, initial, place_before, preferences,
                                  command.dialogue_context) if admitted_type is not None else None
+        if full_runtime:
+            # Resource artifacts/lifecycle must be ready before burning a turn.
+            # The adapter owns its fail-closed, non-sending preflight contract.
+            try:
+                await admitted.preflight(settings)
+            except RuntimeFailure:
+                raise HTTPException(503, detail={"code": "assistant_full_runtime_not_ready",
+                    "message": "完整助手资源或冻结附件尚未准备，未登记任务或发送模型。"}) from None
         if previous is not None and not previous["stale"] and not place_before["stale"]:
             inherited = {key: value for key, value in previous["checkpoint"].items()
                          if key in {"workspace", "preview", "plan", "drawing", "continuation"}}
@@ -411,7 +636,7 @@ async def assistant_turn(conversation_id: Identifier, raw: Request, store: Store
                    "preference_scope": "用户明确同意的沟通参考，未承诺转成排程硬约束；本次要求优先。"}
         if native_dialogue:
             context["interaction_surface"] = {
-                "id": "dialogue-v2", "available_actions": sorted(dialogue.GROUPS),
+                "id": surface, "available_actions": sorted(dialogue.GROUPS),
                 "limitations": "正式草案、费用、候选、预览和地图由当前浏览器控制器持有，服务端不假称已读取。工具只提议一个动作，由程序核验当前状态并显示结果。需要确认的写入先展示确认步骤。名称或编号含糊时澄清，不生成UUID。没有可靠来源的营业预约价格或实时事项，使用固定资料不足说明。知识库只检索不生成答案。",
             }
             if command.dialogue_context is not None:
@@ -432,13 +657,34 @@ async def assistant_turn(conversation_id: Identifier, raw: Request, store: Store
             nonlocal trace, finalized, inherited, place_reservation, intent, changed_sources, issues
             await current()
             if admitted is not None:
-                outcome = await admitted.run(settings, client, current,
-                    lambda: db_call(places.get, user.id, conversation_id),
-                    lambda: db_call(tasks.list_preferences, user.id))
+                try:
+                    outcome = await admitted.run(settings, client, current,
+                        lambda: db_call(places.get, user.id, conversation_id),
+                        lambda: db_call(tasks.list_preferences, user.id))
+                except BaseException as error:
+                    # connected() deliberately replaces a disconnect with499
+                    # after draining the task. Preserve trusted finite attempt
+                    # metadata here before that wrapper removes the exception.
+                    if full_runtime and isinstance(getattr(error, "trace", None), dict):
+                        trace = {key: value for key, value in error.trace.items() if key in {
+                            "execution_receipt", "model_calls", "tool_calls", "events", "stop_reason",
+                            "runtime_version", "role", "elapsed_ms", "output_tokens_reserved", "usage_has_unknown"}}
+                    raise
                 intent, changed_sources, issues = Intent.model_validate(outcome.requirements), outcome.sources, outcome.issues
             else:
                 outcome = await orchestrator.run(AgentRequest(command.text, user.id, conversation_id, command.operation_id, context))
             trace = outcome.trace
+            if full_runtime:
+                # Invalid diagnostics cannot commit a success or be repaired
+                # after receiving a model response. Failure cleanup remains
+                # possible even when the supplied receipt itself is malformed.
+                try:
+                    checked_receipt = _receipt(trace)
+                    if checked_receipt is None or _receipt(outcome.metadata) != checked_receipt:
+                        raise RuntimeFailure("execution_receipt_invalid")
+                except RuntimeFailure:
+                    trace = {key: value for key, value in trace.items() if key != "execution_receipt"}
+                    raise
             await current()
             reply = outcome.message if admitted is not None else (("助手建议（尚需核实）\n" + outcome.reply)
                      if trace.get("reply_source") == "model_suggestion" else outcome.reply)
@@ -465,10 +711,13 @@ async def assistant_turn(conversation_id: Identifier, raw: Request, store: Store
                                                   {"keyword": pending_batch["keyword"], "role": pending_batch["role"]})
                 await db_call(lambda: places.finish_operation(user.id, conversation_id, place_reservation["operation_id"],
                     place_reservation["revision"], result["revision"], batch=pending_batch))
-            data = inherited | {"trace": _trace_rows(trace), "stop_reason": trace.get("stop_reason", "answered"),
+            data = inherited | {"trace": (_full_trace_rows if full_surface else _trace_rows)(trace), "stop_reason": trace.get("stop_reason", "answered"),
                                 "result": {"tool_results": outcome.tool_results,
                                     **({"runtime": outcome.metadata} if admitted is not None else {}),
-                                    **({"surface": "dialogue-v2"} if native_dialogue else {})}, "waiting_for": "user" if trace.get("stop_reason") == "awaiting_user" else None}
+                                    **({"surface": surface} if native_dialogue else {}),
+                                    **({"workspace_version": command.dialogue_context.workspace_version
+                                        if command.dialogue_context is not None else None} if full_surface else {})},
+                                "waiting_for": "user" if trace.get("stop_reason") == "awaiting_user" else None}
             await db_call(tasks.finalize, user.id, command.operation_id, task["revision"], result["revision"], data,
                           "waiting" if trace.get("stop_reason") in {"awaiting_user", "model_budget"} else "succeeded")
             finalized = True
@@ -481,6 +730,16 @@ async def assistant_turn(conversation_id: Identifier, raw: Request, store: Store
     except BaseException as error:
         if isinstance(error, (RuntimeFailure, UsageError)) and getattr(error, "trace", None):
             trace = error.trace
+        failure_result = {}
+        if full_surface and trace.get("execution_receipt") is not None:
+            # Preserve exact aggregate reservations/dispatch even if projection
+            # failed; this is metadata, not authorization to replay the task.
+            try:
+                failure_result = {"result": {"runtime": {"execution_receipt": _receipt(trace)},
+                    "surface": "dialogue-v3", "workspace_version": command.dialogue_context.workspace_version
+                        if command.dialogue_context is not None else None}}
+            except RuntimeFailure:
+                trace = {key: value for key, value in trace.items() if key != "execution_receipt"}
         if reservation is not None and not finalized:
             try:
                 latest = await db_call(store.get, user.id, conversation_id)
@@ -514,14 +773,16 @@ async def assistant_turn(conversation_id: Identifier, raw: Request, store: Store
                         finalized = True
                     elif state == "succeeded":
                         await db_call(tasks.finalize, user.id, command.operation_id, task["revision"], latest["revision"],
-                            inherited | {"trace": _trace_rows(trace, error_code=code),
+                            inherited | {"trace": (_full_trace_rows if full_surface else _trace_rows)(trace, error_code=code),
                                          "stop_reason": "post_commit_uncertain", "waiting_for": "readback",
                                          "continuation": {"kind": "read_receipts_only", "operation_id": command.operation_id},
-                                         "result": {"chat_committed": True, "post_commit_error": code, "readback_required": True}},
+                                         "result": {"chat_committed": True, "post_commit_error": code, "readback_required": True,
+                                             **failure_result.get("result", {})}},
                             "uncertain")
                     else:
                         await db_call(tasks.finalize, user.id, command.operation_id, task["revision"], latest["revision"],
-                                      inherited | {"trace": _trace_rows(trace, error_code=code), "stop_reason": code},
+                                      inherited | {"trace": (_full_trace_rows if full_surface else _trace_rows)(trace, error_code=code),
+                                                   "stop_reason": code} | failure_result,
                                       state if state in {"failed", "cancelled", "uncertain"} else "uncertain")
             except ChatError:
                 # A newer operation owns state; never close/overwrite that turn.

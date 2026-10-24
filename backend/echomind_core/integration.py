@@ -90,21 +90,7 @@ class AdmittedTravelTurn:
         if self._used or type(client) is not MeteredAsyncClient:
             raise RuntimeFailure("runtime_configuration")
         self._used = True
-
-        async def authority() -> TravelBinding:
-            view = await current()
-            live_places, live_preferences = await read_places(), await read_preferences()
-            expected_places = deepcopy(self.original_places)
-            expected_places.update(stale=True, batch=None, clarification=None, proposed_city_id=None, request_text=None)
-            if expected_places["revision"] == 0 and expected_places["city_id"] is None and expected_places["last_operation"] is None:
-                expected_places["intent_revision"] = self.scope.input_version
-            if (view["requirements"] != self.initial["requirements"] or view["sources"] != self.initial["sources"]
-                    or view["issues"] != self.initial["issues"] or view["confirmed_revision"] is not None
-                    or live_places != expected_places or live_preferences != self.preferences):
-                raise RuntimeFailure("context_changed")
-            # Recheck the durable running receipt after the other reads.
-            await current()
-            return self.binding
+        authority = self.authority(current, read_places, read_preferences)
 
         bridge = TravelToolBridge(self.snapshot, authority)
         budget = TaskBudget()
@@ -120,15 +106,41 @@ class AdmittedTravelTurn:
         try:
             return self._project(result)
         except RuntimeFailure as error:
-            # Rendering/compatibility limits are checked after native feedback.
-            # A failed projection must not erase already consumed reservations
-            # from the durable receipt, or imply that no send was attempted.
+            # Rendering/compatibility limits must not erase consumed attempts.
             if not error.trace:
                 error.trace = {"runtime_version": ENGINE_VERSION, "role": result.role,
                     "model_calls": result.counts[0], "tool_calls": result.counts[1],
                     "output_tokens_reserved": result.counts[2], "usage_has_unknown": True,
                     "elapsed_ms": result.elapsed_ms, "stop_reason": error.code, "events": []}
             raise
+
+    def authority(self, current: Callable[[], Awaitable[dict]], read_places: Callable[[], Awaitable[dict]],
+                  read_preferences: Callable[[], Awaitable[list[dict]]]) -> Callable[[], Awaitable[TravelBinding]]:
+        """The same durable authority check for both explicit runtime profiles."""
+        async def check() -> TravelBinding:
+            view = await current()
+            live_places, live_preferences = await read_places(), await read_preferences()
+            expected_places = deepcopy(self.original_places)
+            expected_places.update(stale=True, batch=None, clarification=None, proposed_city_id=None, request_text=None)
+            if expected_places["revision"] == 0 and expected_places["city_id"] is None and expected_places["last_operation"] is None:
+                expected_places["intent_revision"] = self.scope.input_version
+            if (view["requirements"] != self.initial["requirements"] or view["sources"] != self.initial["sources"]
+                    or view["issues"] != self.initial["issues"] or view["confirmed_revision"] is not None
+                    or live_places != expected_places or live_preferences != self.preferences):
+                raise RuntimeFailure("context_changed")
+            # Recheck the durable running receipt after the other reads.
+            await current()
+            return self.binding
+        return check
+
+    def model_events(self, turn: TravelTurn) -> list[dict]:
+        return [{"stage": "model", "model": MODEL} for _ in range(turn.counts[0])]
+
+    def format_message(self, messages: list[str]) -> str:
+        message = "\n\n".join(messages)
+        if len(message) > 3000:
+            raise RuntimeFailure("reply_limit")
+        return message
 
     def _project(self, turn: TravelTurn) -> IntegratedOutcome:
         trace = {"runtime_version": ENGINE_VERSION, "role": turn.role,
@@ -145,7 +157,7 @@ class AdmittedTravelTurn:
         # A complete run has received each successful model response. Token
         # values and per-step timings remain unknown; do not let the legacy
         # trace fallback label these known completed stages as failed attempts.
-        trace["events"] = [{"stage": "model", "model": MODEL} for _ in range(turn.counts[0])]
+        trace["events"] = self.model_events(turn)
         projection = turn.projection
         if (set(projection) != {"schema_version", "state", "message", "binding", "tool_results"}
                 or projection["schema_version"] != BRIDGE_VERSION or projection["binding"] != self.binding.as_dict()
@@ -190,9 +202,7 @@ class AdmittedTravelTurn:
             trace["events"].append({"stage": "tool", "name": name, "elapsed_ms": 0})
         # A stored draft is not a formal user confirmation. All other results
         # remain current-input reads, fixed guidance or an unexecuted proposal.
-        message = "\n\n".join(messages)
-        if len(message) > 3000:
-            raise RuntimeFailure("reply_limit")
+        message = self.format_message(messages)
         trace["stop_reason"] = "awaiting_user" if turn.state in {"awaiting_confirmation", "pending_browser", "clarification"} else "answered"
         return IntegratedOutcome(_detach(intent), _detach(sources), list(issues), message, _detach(rows), trace,
             {"runtime": RUNTIME, "engine_version": ENGINE_VERSION, "bridge_version": BRIDGE_VERSION,

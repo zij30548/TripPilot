@@ -27,6 +27,32 @@ beforeEach(() => {
 });
 
 describe("plain conversational workspace", () => {
+  it("binds first-chat empty context and renders complete long program text as ordinary text, not model HTML", async () => {
+    let operation = "", workspace = "";
+    const program = "整理摘要：" + "完整条件及例外。".repeat(1000) + "<script>不执行</script>";
+    fetcher.mockImplementation(async (url: string, init: RequestInit = {}) => {
+      if (url.includes("?limit=")) return reply({ schema_version: "chat-list-v1", items: [], next_offset: null });
+      if (url === "/api/chat/conversations" && init.method === "POST") return reply(emptyConversation());
+      if (url.endsWith("/assistant-turns")) {
+        const body = JSON.parse(String(init.body)); operation = body.operation_id; workspace = body.dialogue_context.workspace_version;
+        return reply(conversationFixture({ messages: [
+          { id: crypto.randomUUID(), role: "user", text: body.text, created_at: "2026-10-20T12:01:00Z" },
+          { id: crypto.randomUUID(), role: "assistant", text: "完整资料见接下来的程序结果；不是已核验答案。", created_at: "2026-10-20T12:01:01Z" }],
+          last_turn: { operation_id: operation, state: "succeeded", error_code: null } }));
+      }
+      if (url.endsWith("/dialogue-action")) return reply({ schema_version: "dialogue-actions-v2", conversation_id: CHAT_ID, revision: 2,
+        operation_id: operation, workspace_version: workspace, actions: [], program_messages: [program] });
+      throw new Error(`Unexpected controlled request: ${url}`);
+    });
+    const page = render(<ConversationWorkspace />);
+    await waitFor(() => expect(fetcher).toHaveBeenCalledOnce());
+    fireEvent.change(screen.getByRole("textbox", { name: "告诉我你的旅行想法" }), { target: { value: "请检索已收录参观资料" } });
+    fireEvent.submit(screen.getByRole("form", { name: "发送旅行需求" }));
+    expect(await screen.findByText(program)).toBeTruthy(); expect(page.container.querySelector("script")).toBeNull();
+    expect(fetcher.mock.calls.map(([url]) => url)).toEqual(["/api/chat/conversations?limit=20&offset=0", "/api/chat/conversations",
+      `/api/chat/conversations/${CHAT_ID}/assistant-turns`, `/api/chat/conversations/${CHAT_ID}/dialogue-action`]);
+  });
+
   it("only reads the conversation list initially; no planner, places, preferences or execution controllers mount", async () => {
     render(<ConversationWorkspace />);
     await screen.findByRole("button", { name: "杭州旅行" });
@@ -49,7 +75,7 @@ describe("plain conversational workspace", () => {
     await screen.findByRole("list", { name: "对话消息" });
     const sent = fetcher.mock.calls.filter(([url]) => String(url).endsWith("/assistant-turns"));
     expect(sent).toHaveLength(1);
-    expect(new Headers(sent[0][1].headers).get("X-TripPilot-Surface")).toBe("dialogue-v2");
+    expect(new Headers(sent[0][1].headers).get("X-TripPilot-Surface")).toBe("dialogue-v3");
     expect(JSON.parse(sent[0][1].body).text).toBe("想去杭州，带父母轻松玩几天");
     expect(fetcher.mock.calls.every(([url]) => String(url).startsWith("/api/chat/conversations"))).toBe(true);
     expect(fetcher.mock.calls.some(([url]) => /places|preferences|assistant-state|schedule|saved-trips/.test(String(url)))).toBe(false);
@@ -75,11 +101,13 @@ describe("plain conversational workspace", () => {
     const question = "我希望接下来改成公交地铁出行";
     const answer = "可以，请先确认这次交通方式修改。";
     let operation: string | null = null;
+    let workspace: string | null = null;
     fetcher.mockImplementation(async (url: string, init: RequestInit = {}) => {
       if (url.includes("?limit=")) return reply(list());
       if (url.endsWith("/assistant-turns")) {
         const body = JSON.parse(init.body as string);
         operation = body.operation_id;
+        workspace = body.dialogue_context.workspace_version;
         return reply(conversationFixture({
           revision: 4,
           messages: [...initial.messages,
@@ -90,8 +118,8 @@ describe("plain conversational workspace", () => {
         }));
       }
       if (url.endsWith("/dialogue-action")) return reply({
-        schema_version: "dialogue-action-v1", conversation_id: CHAT_ID, revision: 4,
-        operation_id: operation, action: { name: "set_transport", arguments: { mode: "transit" } },
+        schema_version: "dialogue-actions-v2", conversation_id: CHAT_ID, revision: 4,
+        operation_id: operation, workspace_version: workspace, actions: [{ name: "set_transport", arguments: { mode: "transit" } }], program_messages: [],
       });
       if (url === `/api/chat/conversations/${CHAT_ID}`) return reply(initial);
       throw new Error(`Unexpected controlled request: ${url}`);

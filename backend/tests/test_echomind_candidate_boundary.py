@@ -35,9 +35,40 @@ class CandidateBoundaryTests(unittest.TestCase):
             if path == BACKEND / "api/assistant.py":
                 guards = [item.value for item in ast.walk(tree) if isinstance(item, ast.Assign)
                           and any(isinstance(target, ast.Name) and target.id == "travel_runtime" for target in item.targets)]
-                expected = ast.parse('settings.assistant_runtime == "echomind_travel_v1"', mode="eval").body
+                expected = ast.parse('settings.assistant_runtime in {"echomind_travel_v1", "echomind_travel_full_v2"}', mode="eval").body
                 self.assertEqual(len(guards), 1)
                 self.assertEqual(ast.dump(guards[0]), ast.dump(expected))
+                full_guards = [item.value for item in ast.walk(tree) if isinstance(item, ast.Assign)
+                               and any(isinstance(target, ast.Name) and target.id == "full_runtime" for target in item.targets)]
+                self.assertEqual(len(full_guards), 1)
+                self.assertEqual(ast.dump(full_guards[0]), ast.dump(ast.parse(
+                    'settings.assistant_runtime == "echomind_travel_full_v2"', mode="eval").body))
+                # Full admission requires the new finite browser surface and
+                # binding; registering an enum is not permission to bypass it.
+                full_surface_guard = ast.parse('full_runtime and (not full_surface or command.dialogue_context is None)', mode="eval").body
+                self.assertTrue(any(isinstance(item, ast.If) and ast.dump(item.test) == ast.dump(full_surface_guard)
+                                    and isinstance(item.body[0], ast.Raise) for item in ast.walk(tree)))
+                metadata = next(item for item in tree.body if isinstance(item, ast.FunctionDef)
+                                and item.name == "_captured_skill_views")
+                # Lazy full-only metadata imports do not execute a candidate.
+                # Keep a fixed early guard rather than permitting arbitrary
+                # echomind_core imports anywhere inside any helper function.
+                metadata_guard = metadata.body[1]
+                self.assertIsInstance(metadata_guard, ast.If)
+                self.assertEqual(ast.dump(metadata_guard.test), ast.dump(ast.parse(
+                    'runtime.get("runtime") != "echomind_travel_full_v2"', mode="eval").body))
+                self.assertIsInstance(metadata_guard.body[0], ast.Return)
+                metadata_calls = [item for item in ast.walk(tree) if isinstance(item, ast.Call)
+                                  and isinstance(item.func, ast.Name) and item.func.id == "_captured_skill_views"]
+                self.assertEqual(len(metadata_calls), 1)
+                ancestors, parent = [], parents.get(metadata_calls[0])
+                while parent is not None:
+                    ancestors.append(parent)
+                    parent = parents.get(parent)
+                self.assertTrue(any(isinstance(item, ast.If) and isinstance(item.test, ast.Name)
+                                    and item.test.id == "full_surface" for item in ancestors))
+                self.assertTrue(any(isinstance(item, ast.AsyncFunctionDef) and item.name == "assistant_state"
+                                    for item in ancestors))
             for node in ast.walk(tree):
                 names = [item.name for item in node.names] if isinstance(node, ast.Import) else (
                     [node.module or ""] if isinstance(node, ast.ImportFrom) else []
@@ -54,16 +85,37 @@ class CandidateBoundaryTests(unittest.TestCase):
                         continue
                     self.assertEqual(path, BACKEND / "api/assistant.py")
                     self.assertIsInstance(node, ast.ImportFrom)
-                    self.assertEqual(node.module, "echomind_core.integration")
-                    self.assertEqual([item.name for item in node.names], ["AdmittedTravelTurn"])
                     ancestors, parent = [], parents.get(node)
                     while parent is not None:
                         ancestors.append(parent)
                         parent = parents.get(parent)
+                    metadata_imports = {
+                        "echomind_core.travel_domain": ["TravelIntent", "TravelRole"],
+                        "echomind_core.travel_package": ["PROMPT_VERSION", "STAGE_PROMPTS", "VERSION"],
+                        "echomind_core.travel_package_skills": ["SKILL_ROLES", "SKILL_VERSION"],
+                        "echomind_core.upstream.agents.agent_orchestrator": ["AgentProfile"],
+                        "echomind_core.provider": ["MODEL"],
+                    }
+                    if any(isinstance(item, ast.FunctionDef) and item.name == "_captured_skill_views"
+                           for item in ancestors):
+                        self.assertIn(node.module, metadata_imports)
+                        self.assertEqual([item.name for item in node.names], metadata_imports[node.module])
+                        self.assertTrue(all(item.asname is None for item in node.names))
+                        continue
+                    admission_imports = {
+                        "echomind_core.integration": [("AdmittedTravelTurn", None)],
+                        "echomind_core.integration_full": [("AdmittedFullTravelTurn", "AdmittedTravelTurn")],
+                    }
+                    self.assertIn(node.module, admission_imports)
+                    self.assertEqual([(item.name, item.asname) for item in node.names], admission_imports[node.module])
                     self.assertTrue(any(isinstance(item, ast.If) and isinstance(item.test, ast.Name)
                                         and item.test.id == "travel_runtime" for item in ancestors))
                     self.assertTrue(any(isinstance(item, ast.AsyncFunctionDef) and item.name == "assistant_turn"
                                         for item in ancestors))
+                    branch = next(item for item in ancestors if isinstance(item, ast.If)
+                                  and isinstance(item.test, ast.Name) and item.test.id == "full_runtime")
+                    expected_branch = branch.body if node.module == "echomind_core.integration_full" else branch.orelse
+                    self.assertIn(node, expected_branch)
                 self.assertFalse(any(name.split(".")[0] == "anthropic" for name in names),
                                  path.relative_to(BACKEND).as_posix())
 

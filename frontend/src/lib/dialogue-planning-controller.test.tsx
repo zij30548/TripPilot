@@ -174,4 +174,53 @@ describe("headless dialogue planning reuses formal owners",()=>{
     expect((await v.execute("query_weather")).text).toContain("上海市");expect(v.result.current.schedule.capture()!.original).toEqual(before);
     expect(api.weather).toHaveBeenCalledTimes(1);expect(api.schedule).toHaveBeenCalledTimes(1);
   });
+  it("one frozen read batch provides actual schedule and shared-calculator budget, without two competing operations",async()=>{
+    const v=setup();await v.execute("generate_schedule");await v.execute("set_cost",{kind:"other",selector:null,value:"25"});
+    const original=v.result.current.schedule.capture()!.original, before=v.result.current.readInputs(), version=v.result.current.readVersion();
+    const snapshot=v.result.current.captureReadSnapshot()!;
+    const answer=await v.result.current.executeReadBatch([
+      {name:"read_schedule",arguments:{date:null,day:1}},{name:"read_budget",arguments:{}}],snapshot);
+    expect(answer.text).toContain("09:01—10:01");expect(answer.text).toContain("当前可计算小计：¥25.00");
+    expect(answer.text).toContain("尚未核算");expect(answer.text).toContain("不能作为可自由支配余额");
+    expect(v.result.current.schedule.capture()!.original).toEqual(original);expect(v.result.current.readInputs()).toEqual(before);
+    expect(v.result.current.readVersion()).toBe(version);expect(api.schedule).toHaveBeenCalledOnce();
+    expect((await v.result.current.executeReadBatch([{name:"read_budget",arguments:{}}],snapshot)).text).toContain("未使用旧快照");
+    expect(api.explain).not.toHaveBeenCalled();expect(api.weather).not.toHaveBeenCalled();expect(api.save).not.toHaveBeenCalled();
+  });
+  it("request snapshots reject cost/rule ABA, fabricated copies and cancelled signals instead of reading newer inputs",async()=>{
+    const v=setup();await v.execute("generate_schedule");
+    const old=v.result.current.captureReadSnapshot()!;
+    await v.execute("set_cost",{kind:"other",selector:null,value:"5"});await v.execute("set_cost",{kind:"other",selector:null,value:""});
+    expect((await v.result.current.executeReadBatch([{name:"read_budget",arguments:{}}],old)).text).toContain("未使用旧快照");
+    const next=v.result.current.captureReadSnapshot()!;
+    expect((await v.result.current.executeReadBatch([{name:"read_budget",arguments:{}}],structuredClone(next))).text).toContain("未使用旧快照");
+    const stop=new AbortController();stop.abort();
+    expect((await v.result.current.executeReadBatch([{name:"read_budget",arguments:{}}],next,stop.signal)).text).toContain("未使用旧快照");
+    const rules=v.result.current.captureReadSnapshot()!;await v.execute("set_stay",{selector:required.id,minutes:90});await v.execute("set_stay",{selector:required.id,minutes:60});
+    expect((await v.result.current.executeReadBatch([{name:"read_schedule",arguments:{date:null,day:1}}],rules)).text).toContain("未使用旧快照");
+    expect(api.schedule).toHaveBeenCalledOnce();
+  });
+  it("frozen reads defensively detach returned formal objects and costs instead of sharing mutable references",async()=>{
+    const v=setup();await v.execute("generate_schedule");await v.execute("set_cost",{kind:"other",selector:null,value:"25"});
+    const current=v.result.current, shared=current.schedule.capture()!;
+    vi.spyOn(current.schedule,"capture").mockReturnValue(shared);
+    const snapshot=current.captureReadSnapshot()!;
+    shared.original.request.must_visit_places[0].name="changed-after-capture";
+    current.getCosts().other="999";
+    const answer=await current.executeReadBatch([{name:"read_schedule",arguments:{date:null,day:1}},{name:"read_budget",arguments:{}}],snapshot);
+    expect(answer.text).not.toContain("changed-after-capture");expect(answer.text).toContain("当前可计算小计：¥25.00");
+    expect(answer.text).not.toContain("¥999.00");expect(api.schedule).toHaveBeenCalledOnce();
+  });
+  it("read batches preserve empty/invalid-money states and reject mixed writes before any action executes",async()=>{
+    const v=setup();
+    const none=v.result.current.captureReadSnapshot()!;
+    const missing=await v.result.current.executeReadBatch([{name:"read_schedule",arguments:{date:null,day:1}},{name:"read_budget",arguments:{}}],none);
+    expect(missing.text).toContain("没有有效正式草案");expect(missing.text).toContain("请先生成");
+    await v.execute("generate_schedule");await v.execute("set_cost",{kind:"other",selector:null,value:"bad"});
+    const invalid=v.result.current.captureReadSnapshot()!;
+    expect((await v.result.current.executeReadBatch([{name:"read_budget",arguments:{}}],invalid)).text).toContain("非法金额");
+    const writes=v.result.current.captureReadSnapshot()!;
+    expect((await v.result.current.executeReadBatch([{name:"read_budget",arguments:{}},{name:"set_cost",arguments:{kind:"other",selector:null,value:"0"}}],writes)).text).toContain("未使用旧快照");
+    expect(v.result.current.getCosts().other).toBe("bad");expect(api.schedule).toHaveBeenCalledOnce();
+  });
 });

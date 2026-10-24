@@ -3,7 +3,9 @@ import { API_ENDPOINTS, AMAP_SERVICE_PATH } from "../api-endpoints";
 
 export type BackendRewrite = { source: string; destination: string };
 
-export const FORWARDING_TIMEOUT_MS = 75_000;
+// The full dialogue's bounded task is 90s and its browser deadline is 105s.
+// This outer allowance does not change media/body limits or cancellation.
+export const FORWARDING_TIMEOUT_MS = 120_000;
 export const FORWARDING_BODY_BYTES = 21 * 1024 * 1024;
 
 export function backendOrigin(value: string | undefined, development: boolean): string {

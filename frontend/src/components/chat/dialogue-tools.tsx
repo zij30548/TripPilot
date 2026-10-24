@@ -3,12 +3,12 @@
 import { useCallback, useEffect, useImperativeHandle, useLayoutEffect, useRef, useState, type Ref } from "react";
 import type { ChatConversation } from "@/lib/chat";
 import { authSnapshot } from "@/lib/auth-session";
-import { actionDescription, confirmationReply, isDialogueAction, needsActionConfirmation, type DialogueAction } from "@/lib/dialogue-action";
+import { actionDescription, confirmationReply, isDialogueAction, isDialogueActionBatch, needsActionConfirmation, type DialogueAction } from "@/lib/dialogue-action";
 import { DialogueConfirmation, localDialogueAction } from "@/lib/dialogue-confirmation";
 import { bindDialogueSelection } from "@/lib/dialogue-selection";
 import { useDialoguePlaces } from "@/lib/dialogue-places-controller";
 import { useDialoguePreferences } from "@/lib/dialogue-preferences-controller";
-import { useDialoguePlanning, resolveDialogueSelector, type DialoguePlanning } from "@/lib/dialogue-planning-controller";
+import { useDialoguePlanning, resolveDialogueSelector, type DialoguePlanning, type PlanningReadSnapshot } from "@/lib/dialogue-planning-controller";
 import { assertConfirmedPlanningRequirements, prepareAssistantPlanning, DEFAULT_ASSISTANT_WINDOW } from "@/lib/assistant-planning";
 import { applyEditedRequirements, restoreSavedTrip, type WorkspaceInputs } from "@/lib/restore-trip";
 import { useSavedHistory } from "@/lib/use-saved-trips";
@@ -25,9 +25,12 @@ import DialogueMedia from "./dialogue-media";
 import DialogueMap from "./dialogue-map";
 import TripRequestForm from "@/components/trip-request-form";
 
-export type DialogueProposal = { conversation: string; revision: number; operation: string; action: DialogueAction | null; context?: DialogueSelectionContext; error?: string };
+export type DialogueProposal = { conversation: string; revision: number; operation: string; action: DialogueAction | null; context?: DialogueSelectionContext; error?: string;
+  actions?: DialogueAction[]; workspaceVersion?: string | null; programMessages?: string[]; bootstrapEpoch?: number };
 export type DialogueToolsHandle = { submit: (text: string) => boolean; cancel: () => void; beforeModel: () => void; selectionContext: () => DialogueSelectionContext };
 type Prepared = { key: string; inputs: WorkspaceInputs; origin: string; requirementsKey: string; placesKey: string | null };
+type ModelSnapshot = { token: string; generation: number; epoch: number; conversation: string; requirements: string; places: string | null;
+  prepared: string | null; plannerVersion: number | null; inputVersion: number; reads: PlanningReadSnapshot | null };
 const button = "min-h-11 rounded-lg border border-stone-300 px-3 text-sm focus-visible:outline-2 focus-visible:outline-offset-2";
 
 function Planner({ prepared, available, retryAllowed, controllerRef }: { prepared: Prepared; available: () => boolean; retryAllowed: () => boolean; controllerRef: { current: DialoguePlanning | null } }) {
@@ -50,9 +53,11 @@ export default function DialogueTools({ conversation, blocked, proposal, handle,
   const planner = useRef<DialoguePlanning | null>(null), current = useRef({ conversation, blocked, prepared });
   const mounted = useRef(true), serial = useRef(0), active = useRef<AbortController | null>(null), confirmation = useRef(new DialogueConfirmation());
   const consumed = useRef<string | null>(null), epoch = useRef(authSnapshot().epoch), selectionToken = useRef<string | undefined>(undefined);
+  const modelSnapshot = useRef<ModelSnapshot | null>(null), inputVersion = useRef(0);
   const display = useRef<DialogueSelectionContext["display"]>("none");
   const requirementsKey = canonical(conversation.requirements);
   const knownPlacesKey = useRef<string | null>(null);
+  const lastAuthority = useRef({ requirements: requirementsKey, places: null as string | null, prepared: null as string | null });
   const visiblePlaces = places.state.workspace;
   const placesKey = visiblePlaces && visiblePlaces.intent_revision === conversation.revision && !visiblePlaces.stale ?
     canonical({ city: visiblePlaces.city_id, home: visiblePlaces.accommodation, required: visiblePlaces.required_places }) : null;
@@ -62,6 +67,9 @@ export default function DialogueTools({ conversation, blocked, proposal, handle,
     current.current.prepared.placesKey === knownPlacesKey.current, [allowed]);
   useLayoutEffect(() => { current.current = { conversation, blocked, prepared }; }, [conversation, blocked, prepared]);
   useLayoutEffect(() => {
+    const previous = lastAuthority.current, nextPlaces = placesKey ?? previous.places, nextPrepared = prepared?.key ?? null;
+    if (previous.requirements !== requirementsKey || previous.places !== nextPlaces || previous.prepared !== nextPrepared) inputVersion.current++;
+    lastAuthority.current = { requirements: requirementsKey, places: nextPlaces, prepared: nextPrepared };
     if (placesKey !== null) knownPlacesKey.current = placesKey;
     if (prepared && (prepared.requirementsKey !== requirementsKey || prepared.placesKey !== knownPlacesKey.current)) {
       confirmation.current.clear(); planner.current?.invalidate();
@@ -74,7 +82,7 @@ export default function DialogueTools({ conversation, blocked, proposal, handle,
   function cancel(silent = false) {
     const wasActive = active.current !== null;
     serial.current++; active.current?.abort(); active.current = null;
-    confirmation.current.clear(); selectionToken.current = undefined;
+    confirmation.current.clear(); selectionToken.current = undefined; modelSnapshot.current = null;
     planner.current?.cancelOperation(); places.cancel(); preferences.cancel(); if (wasActive) history.cancel();
     setMedia(null); setEditing(null); onBusy(false);
     if (!silent) onMessage("assistant", "已取消本次等待或待确认操作，未采用新方案。已发送的调用或存档可能已经处理，不会自动重试。");
@@ -99,6 +107,29 @@ export default function DialogueTools({ conversation, blocked, proposal, handle,
     knownPlacesKey.current = source;
     const next = { key: crypto.randomUUID(), inputs: structuredClone(inputs), origin, requirementsKey, placesKey: source };
     current.current = { ...current.current, prepared: next }; setPrepared(next);
+  }
+  const sameModelInputs = (snapshot: ModelSnapshot) => allowed() && snapshot.epoch === authSnapshot().epoch &&
+    current.current.conversation.id === snapshot.conversation && canonical(current.current.conversation.requirements) === snapshot.requirements &&
+    knownPlacesKey.current === snapshot.places && current.current.prepared?.key === (snapshot.prepared ?? undefined) &&
+    (planner.current?.readVersion() ?? null) === snapshot.plannerVersion && inputVersion.current === snapshot.inputVersion;
+  async function executeReads(actions: DialogueAction[], snapshot: ModelSnapshot) {
+    if (!sameModelInputs(snapshot) || active.current || !isDialogueActionBatch(actions) || !actions.length ||
+        actions.some(action => !["read_schedule", "read_budget"].includes(action.name))) return;
+    const controller = new AbortController(), generation = ++serial.current, revision = current.current.conversation.revision;
+    active.current = controller; onBusy(true);
+    const valid = () => active.current === controller && serial.current === generation && !controller.signal.aborted &&
+      current.current.conversation.revision === revision && sameModelInputs(snapshot);
+    try {
+      const p = planner.current;
+      const result = p && snapshot.reads ? await p.executeReadBatch(actions, snapshot.reads, controller.signal) :
+        { text: "当前还没有规划输入或有效正式草案，无法读取行程及费用。请先确认需求与真实地点，再主动生成。" };
+      if (valid()) {
+        display.current = actions.some(action => action.name === "read_schedule") ? "schedule" : "budget";
+        onMessage("assistant", result.text);
+      }
+    } catch {
+      if (valid()) onMessage("assistant", "本次本地读取未完成，没有使用模型文字补造行程或费用。请重新查询。");
+    } finally { if (active.current === controller) { active.current = null; onBusy(false); } }
   }
   async function execute(action: DialogueAction, confirmed = false) {
     if (!allowed() || active.current || !isDialogueAction(action)) return;
@@ -243,7 +274,12 @@ export default function DialogueTools({ conversation, blocked, proposal, handle,
         }
       }
     }
-    return { workspace_version: crypto.randomUUID(), display: kind, items: items.slice(0, 20).map((row, index) => ({ ...row, ordinal: index + 1 })).filter(row => row.id.length <= 120 && row.name.length <= 120) };
+    const token = crypto.randomUUID();
+    modelSnapshot.current = { token, generation: serial.current, epoch: authSnapshot().epoch, conversation: conversation.id,
+      requirements: canonical(current.current.conversation.requirements), places: knownPlacesKey.current,
+      prepared: current.current.prepared?.key ?? null, plannerVersion: p?.readVersion() ?? null, inputVersion: inputVersion.current,
+      reads: p && planningAllowed() ? p.captureReadSnapshot?.() ?? null : null };
+    return { workspace_version: token, display: kind, items: items.slice(0, 20).map((row, index) => ({ ...row, ordinal: index + 1 })).filter(row => row.id.length <= 120 && row.name.length <= 120) };
   }
   useImperativeHandle(handle, () => ({ submit, cancel: () => cancel(), beforeModel: () => cancel(true), selectionContext }));
   useEffect(() => {
@@ -251,11 +287,39 @@ export default function DialogueTools({ conversation, blocked, proposal, handle,
       proposal.operation !== conversation.last_turn?.operation_id || consumed.current === proposal.operation) return;
     consumed.current = proposal.operation;
     if (proposal.error) onMessage("assistant", proposal.error);
+    else if (proposal.actions !== undefined) {
+      let snapshot = modelSnapshot.current;
+      modelSnapshot.current = null; // Consume even an invalid/stale response.
+      // A brand-new chat has no mounted domain controller at submit time.
+      // Only the parent's request-time empty-workspace marker can bootstrap;
+      // it cannot manufacture a formal draft or borrow a later work copy.
+      if (!snapshot && serial.current === 0 && proposal.bootstrapEpoch === authSnapshot().epoch && current.current.prepared === null && planner.current === null &&
+          knownPlacesKey.current === null && proposal.context?.display === "none" && proposal.context.items.length === 0) {
+        snapshot = { token: proposal.context.workspace_version, generation: serial.current, epoch: proposal.bootstrapEpoch,
+          conversation: conversation.id, requirements: canonical(conversation.requirements), places: null, prepared: null,
+          plannerVersion: null, inputVersion: inputVersion.current, reads: null };
+      }
+      if (!snapshot || proposal.workspaceVersion !== snapshot.token || proposal.context?.workspace_version !== snapshot.token ||
+          snapshot.generation !== serial.current || !sameModelInputs(snapshot) || !isDialogueActionBatch(proposal.actions)) {
+        if (proposal.actions.length || proposal.programMessages?.length) onMessage("assistant", "提问后的草案、费用或工作区已变化，未执行旧提议，请重新查询。");
+        return;
+      }
+      for (const message of proposal.programMessages ?? []) onMessage("assistant", message);
+      if (proposal.actions.length && proposal.actions.every(action => ["read_schedule", "read_budget"].includes(action.name))) {
+        // One frozen read batch, not two competing calls to offer/execute.
+        void executeReads(proposal.actions, snapshot);
+      } else if (proposal.actions.length === 1) {
+        const action = bindDialogueSelection(proposal.actions[0], proposal.context);
+        // A newly admitted, unseen receipt is the external event, not a rerender.
+        // eslint-disable-next-line react-hooks/set-state-in-effect
+        if (action) void offer(action);
+        else onMessage("assistant", "这个编号不能对应到提问时的列表，未执行。请先查看列表，再明确选择。");
+      }
+    }
     // Receipt arrival is an external event; only this previously unseen, bound
     // operation may publish its pending-confirmation UI.
     else if (proposal.action) {
       const action = bindDialogueSelection(proposal.action, proposal.context);
-      // eslint-disable-next-line react-hooks/set-state-in-effect
       if (action) void offer(action);
       else onMessage("assistant", "这个编号不能对应到提问时的地点或历史列表，未执行。请先查看对应列表，再用明确名称或编号选择。");
     }

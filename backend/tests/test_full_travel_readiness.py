@@ -25,13 +25,15 @@ class FullTravelReadinessTests(unittest.TestCase):
 
     def test_current_runtime_is_not_registered_without_reading_configuration(self):
         from core.config import Settings
+        from typing import get_args
         with patch.object(Settings, "__init__", side_effect=AssertionError("do not discover settings")):
             value = readiness.configuration_probe()
-        self.assertEqual(value["status"], "blocked")
-        self.assertFalse(value["contract_accepts_proposed_runtime"])
-        self.assertEqual(value["registered_values"], ["legacy", "echomind_travel_v1"])
-        self.assertFalse(value["proposed_runtime_is_existing_configuration"])
-        self.assertEqual(value["reason"], "proposed_full_runtime_not_registered")
+        allowed = list(get_args(Settings.model_fields["assistant_runtime"].annotation))
+        accepted = readiness.PROPOSED_RUNTIME in allowed
+        self.assertEqual(value["registered_values"], allowed)
+        self.assertEqual(value["contract_accepts_proposed_runtime"], accepted)
+        self.assertEqual(value["proposed_runtime_is_existing_configuration"], accepted)
+        self.assertEqual(value["status"], "registered-admission-unverified" if accepted else "blocked")
         self.assertIn("not-executed", value["admission_check"])
         self.assertIn("alone does not prove", value["limitation"])
 
@@ -114,9 +116,9 @@ class FullTravelReadinessTests(unittest.TestCase):
             stack.enter_context(patch.object(socket, "create_connection", side_effect=AssertionError("no network")))
             stack.enter_context(patch.object(socket.socket, "connect", side_effect=AssertionError("no network")))
             stack.enter_context(patch.object(sqlalchemy.engine.Engine, "connect", side_effect=AssertionError("no database")))
-            value = readiness.probe(self.frontend, self.proxy)
+            value = readiness.probe(self.frontend, self.proxy, surface="legacy")
         self.assertEqual(value["status"], "blocked")
-        self.assertEqual([row["status"] for row in value["checks"]], ["blocked"] * 4)
+        self.assertTrue(all(row["status"] == "blocked" for row in value["checks"][1:]))
         self.assertEqual(value["real_model_calls"], 0)
         self.assertEqual(value["business_external_calls"], 0)
         self.assertEqual(value["database_operations"], 0)
@@ -125,6 +127,21 @@ class FullTravelReadinessTests(unittest.TestCase):
         self.assertNotIn("password", serialized)
         self.assertNotIn("api_key", serialized)
         self.assertNotIn("input_value", serialized)
+
+    def test_new_surface_executes_new_contracts_without_reinterpreting_old_limits(self):
+        value = readiness.probe(self.frontend, self.proxy)
+        self.assertEqual(value["target_surface"], "dialogue-v3")
+        self.assertEqual(value["status"], "blocked")  # no admission/browser execution in this probe
+        projection = value["checks"][1]
+        self.assertEqual(projection["status"], "ready")
+        self.assertTrue(projection["pair_projection_valid"])
+        self.assertFalse(projection["legacy_compatibility"]["pair_projection_valid"])
+        self.assertFalse(projection["browser_execution_verified"])
+        for tier in value["checks"][2]["tiers"]:
+            self.assertEqual(tier["status"], "ready")
+            self.assertEqual(tier["projected_reservation_counts"], tier["reservation_counts"])
+            self.assertEqual(tier["dispatch_status"], "unknown")
+            self.assertFalse(tier["legacy_compatibility"]["reservation_display_matches"])
 
     def test_cli_exits_blocked_not_success_when_contracts_are_blocked(self):
         output = io.StringIO()
