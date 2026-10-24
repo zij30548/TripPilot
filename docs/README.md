@@ -19,7 +19,7 @@
 
 | 文档 | 什么时候读 |
 | --- | --- |
-| [ECHOMIND_TRAVEL_DOMAIN](ECHOMIND_TRAVEL_DOMAIN.md) | 最新完整候选：四旅行角色、八Skill、38动作具体权限，原融合／并行／RAG／记忆／Monitor／评测的实际受控组合；独立有限预算，尚未切网站或真实验收，下一步准入和面试说明 |
+| [ECHOMIND_TRAVEL_DOMAIN](ECHOMIND_TRAVEL_DOMAIN.md) | 完整候选：四角色、八Skill、原方法受控组合；第9节为16项用户功能矩阵、零网络readiness探针及四处接线阻塞，当前网站尚未接入／真实语义待验 |
 | [KNOWLEDGE_NATIONAL](KNOWLEDGE_NATIONAL.md) | 第8节保留相关性候选失败；最新第9节为语义召回三臂／新40题／子问依据及8次建议预算，只有离线实现，实际Embedding0且无授权，不是质量改善，生产仍BM25／问答停用 |
 | [AMAP_MCP_SEARCH](AMAP_MCP_SEARCH.md) | 最新高德MCP只读搜索接线、标准协议／持久计量、配置和受控验证；默认REST，真实服务待验，不接路线天气或恢复知识问答 |
 | [ECHOMIND_TRAVEL_LIVE_ACCEPTANCE](ECHOMIND_TRAVEL_LIVE_ACCEPTANCE.md) | 原真实3/21失败／18暂停及旧L02计划缺陷保留；最新第8节为零调用终止补修、保存输出重放、回归和面试说明，不是新真实通过或网站切换 |
