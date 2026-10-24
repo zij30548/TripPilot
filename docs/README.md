@@ -19,7 +19,7 @@
 
 | 文档 | 什么时候读 |
 | --- | --- |
-| [ECHOMIND_TRAVEL_DOMAIN](ECHOMIND_TRAVEL_DOMAIN.md) | 四角色／八Skill完整候选；第9节保留历史阻塞，第10节为原MySQL＋显式full runtime、v3同快照双读、请求资源／准确计数和受控ASGI／Chrome。默认服务未切换，真实准备附件及语义质量待验 |
+| [ECHOMIND_TRAVEL_DOMAIN](ECHOMIND_TRAVEL_DOMAIN.md) | 最新第11节：固定真实验收46次、4/8通过／4失败，质量未通过；真实准备／有限双读与合成业务分开。第9／10节保留旧阻塞和受控接线，不切默认服务或恢复知识问答 |
 | [KNOWLEDGE_NATIONAL](KNOWLEDGE_NATIONAL.md) | 第8节保留相关性候选失败；最新第9节为语义召回三臂／新40题／子问依据及8次建议预算，只有离线实现，实际Embedding0且无授权，不是质量改善，生产仍BM25／问答停用 |
 | [AMAP_MCP_SEARCH](AMAP_MCP_SEARCH.md) | 最新高德MCP只读搜索接线、标准协议／持久计量、配置和受控验证；默认REST，真实服务待验，不接路线天气或恢复知识问答 |
 | [ECHOMIND_TRAVEL_LIVE_ACCEPTANCE](ECHOMIND_TRAVEL_LIVE_ACCEPTANCE.md) | 原真实3/21失败／18暂停及旧L02计划缺陷保留；最新第8节为零调用终止补修、保存输出重放、回归和面试说明，不是新真实通过或网站切换 |
