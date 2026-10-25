@@ -2,6 +2,8 @@
 
 **独立客服项目**：本机5173现为[智应 ServeFlow](SERVEFLOW_UI.md)，基于上传的原EchoMind客服前端进行品牌／样式调整；[启动说明](ECHOMIND_ORIGINAL_LOCAL.md)。下方TripPilot旅行重构、权限和验收范围不自动适用于这个独立开发入口。
 
+[ServeFlow知识资料](SERVEFLOW_KNOWLEDGE.md)：六篇智能设备＋数字服务演示规则、公开参考、实际本机更新和质量边界；不是新旅行语料或真实企业政策。
+
 当前使用方式已改为[匿名浏览器工作区](ANONYMOUS_WORKSPACE.md)：打开即用，无登录／注册／邀请码／账号菜单。旧身份专题与验收记录保留历史用途，不能再将其当当前使用前提。
 
 当前界面仍为纯聊天／知识库／Agent评测；最新[旅行能力聊天接入](TRAVEL_DIALOGUE_INTEGRATION.md)以38项有限动作复用原控制器，不挂载旅行卡片。媒体／地图／需求编辑仅主动打开轻量窗口；资料覆盖、技术核查及未实现范围见专题。[原三界面交付](THREE_SURFACE_UI.md)和旧成绩保留。
