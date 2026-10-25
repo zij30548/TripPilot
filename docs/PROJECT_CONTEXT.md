@@ -2,6 +2,8 @@
 
 更新：2026-10-24。本文件只维护当前事实和长期定位；实际交付、失败与停止点见[PROGRESS](PROGRESS.md)，旧交付记录见[历史导航](archive/README.md)。历史报告中的“当前”只表示其当时状态。
 
+**2026-10-25 ServeFlow演示业务**：[独立MySQL演示订单](SERVEFLOW_DEMO_ORDERS.md)已在现有本机MySQL进程中新建隔离schema和专用SELECT账号，保存2客10单及关联记录；与原TripPilot库、Redis记忆、Chroma政策分开，不迁移或覆盖旧库。只读`read_demo_order`接入General／Billing原工具白名单，客户上下文来自新的本机签名HttpOnly演示Cookie，原客户端user_id不能决定订单归属；保留原框架方法，未恢复登录。5173可折叠查看真实MySQL中的合成记录与主动填入问题；后端220项／前端26项、生产构建和真实Chrome读取已验证，模型接线为受控测试、真实模型0。默认合成客户A与独立随机浏览器会话不是公网真实客户认证，数据固定时刻，不是真实交易／物流或新的回答准确率验收。
+
 **2026-10-25最新独立试用**：用户要求先原样运行上传的EchoMind，只替换模型接入配置，不继续旅行改造。[原版入口5173](ECHOMIND_ORIGINAL_LOCAL.md)已用原Python／Vue工程、官方北京Anthropic兼容千问配置和独立Redis／Chroma启动。随后已完成[智应ServeFlow品牌／样式](SERVEFLOW_UI.md)及[六篇原创演示知识](SERVEFLOW_KNOWLEDGE.md)替换；原框架方法、模型提示和锁文件不变，初次源码diff为空仅代表初次启动。当前仍是独立客服场景，不把演示资料当真实企业承诺或旅行资料；真实千问回答未在这些轮次验收，既有TripPilot3110／MySQL／云端及全部旧结果保持。原项目的本机开发权限、SDK重试和后台记忆不等同于TripPilot生产隔离／持久额度，不能用于公开部署宣称。
 
 **2026-10-25本机开场补修**：[CHAT_OPENING_REPAIR](CHAT_OPENING_REPAIR.md)区分原legacy参数失败、新选工具复现和最终有限检查。已补legacy工具说明、完整参数要求、安全诊断与错误展示；原校验／模型／完整候选不改。真实首轮及补充API取得程序结果，仍有偏好漏项与Chrome第二POST待核，不宣称全流程质量准入；本机服务更新与云端切换分开记录。

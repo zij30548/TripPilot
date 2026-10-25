@@ -1,0 +1,684 @@
+diff --git a/src/App.vue b/src/App.vue
+index cee430d..0c5506a 100644
+--- a/src/App.vue
++++ b/src/App.vue
+@@ -36,2 +36,2 @@
+-            <strong>{{ settings.userId || 'anonymous' }}</strong>
+-            <small>个人工作空间</small>
++            <strong>{{ demoSession?.customer_label || settings.userId || 'anonymous' }}</strong>
++            <small>{{ demoSession ? '独立浏览器演示会话' : '个人工作空间' }}</small>
+@@ -94,0 +95,35 @@
++        <details v-if="demoSession || demoLoading || demoError" class="demo-panel" @toggle="handleDemoToggle">
++          <summary>
++            <span>演示数据</span>
++            <small>{{ demoLoading ? '正在准备' : demoSession ? `${demoSession.customer_label} · 合成记录` : '暂不可用' }}</small>
++          </summary>
++          <div class="demo-panel-content">
++            <p class="demo-note">以下为独立 MySQL 中的合成业务记录。查看记录不调用模型；填入对话后仍需你主动发送。</p>
++            <p v-if="demoError" class="demo-error" role="alert">{{ demoError }}</p>
++            <template v-if="demoSession">
++              <div class="demo-samples" aria-label="可用演示订单">
++                <button v-for="sample in demoSession.sample_orders" :key="sample.order_id" type="button" @click="chooseDemoOrder(sample.order_id)" :disabled="demoOrderBusy">
++                  <strong>{{ sample.order_id }}</strong><span>{{ sample.scenario }}</span>
++                </button>
++              </div>
++              <form class="demo-query" @submit.prevent="lookupDemoOrder">
++                <label>
++                  <span>演示订单号</span>
++                  <input v-model="demoOrderId" aria-label="演示订单号" maxlength="9" autocomplete="off" placeholder="DEMO-1001" :disabled="demoOrderBusy" />
++                </label>
++                <button type="submit" :disabled="demoOrderBusy || !demoOrderId.trim()">{{ demoOrderBusy ? '读取中' : '查看记录' }}</button>
++                <button v-if="demoOrderBusy" class="quiet-button" type="button" @click="cancelDemoOrder">取消读取</button>
++              </form>
++              <p v-if="demoOrderError" class="demo-error" role="alert">{{ demoOrderError }}</p>
++              <section v-if="demoOrder" class="demo-record" aria-label="演示订单记录" aria-live="polite">
++                <template v-if="demoOrder.found">
++                  <div class="demo-record-heading"><h2>{{ demoOrder.orderId }}</h2><button class="quiet-button" type="button" @click="fillDemoQuestion">填入对话</button></div>
++                  <dl><template v-for="(row, index) in demoOrder.rows" :key="`${row.name}-${index}`"><dt>{{ row.name }}</dt><dd>{{ row.value }}</dd></template></dl>
++                  <p class="demo-note">记录更新时间：{{ demoOrder.updatedAt }}</p>
++                </template>
++                <p v-else>未找到可访问的演示订单，请核对订单号。</p>
++                <p class="demo-note">数据快照：{{ demoOrder.snapshot }}；这是预设演示状态，不是实时物流或真实交易。</p>
++              </section>
++            </template>
++          </div>
++        </details>
+@@ -176 +211 @@
+-                      :disabled="busy || !draft.trim()"
++                      :disabled="busy || demoLoading || Boolean(demoError) || !draft.trim()"
+@@ -430 +465,2 @@
+-          <input v-model="connectionDraft.userId" placeholder="u1001" />
++          <input v-model="connectionDraft.userId" placeholder="u1001" :disabled="Boolean(demoSession)" />
++          <small v-if="demoSession">演示身份由当前浏览器会话确定，不能通过修改用户 ID 切换客户。</small>
+@@ -468,0 +505,2 @@ import {
++  bindDemoAuthority,
++  clearDemoAuthority,
+@@ -471,0 +510,2 @@ import {
++  requestDemoOrder,
++  requestDemoSession,
+@@ -487,0 +528 @@ import { createRequestState } from './lib/requestState'
++import { isDemoOrderId, normalizeDemoSession, projectDemoOrder } from './lib/demoOrders'
+@@ -509,0 +551,7 @@ const searched = ref(false)
++const demoSession = ref(null)
++const demoLoading = ref(false)
++const demoError = ref('')
++const demoOrderId = ref('')
++const demoOrder = ref(null)
++const demoOrderBusy = ref(false)
++const demoOrderError = ref('')
+@@ -528,0 +577,6 @@ let messageSequence = 0
++let demoSequence = 0
++let demoOrderSequence = 0
++let demoSessionController = null
++let demoOrderController = null
++let demoExpiryTimer
++let boundDemoSettings = null
+@@ -534,0 +589,5 @@ watch(() => settings.conversationId, persist)
++watch(demoOrderId, () => {
++  cancelDemoOrder()
++  demoOrder.value = null
++  demoOrderError.value = ''
++}, { flush: 'sync' })
+@@ -537,0 +597 @@ onBeforeUnmount(() => {
++  resetDemoState()
+@@ -544 +604 @@ function performAction(name, action, ...args) {
+-  if (busy.value) return
++  if (busy.value || demoLoading.value || demoError.value) return
+@@ -628,0 +689 @@ async function refreshConsole() {
++  await loadDemoSession()
+@@ -631,0 +693,133 @@ async function refreshConsole() {
++function cancelDemoOrder() {
++  demoOrderSequence += 1
++  demoOrderController?.abort()
++  demoOrderController = null
++  demoOrderBusy.value = false
++}
++
++function resetDemoState() {
++  demoSequence += 1
++  demoSessionController?.abort()
++  demoSessionController = null
++  cancelDemoOrder()
++  clearTimeout(demoExpiryTimer)
++  if (boundDemoSettings) clearDemoAuthority(boundDemoSettings)
++  boundDemoSettings = null
++  demoSession.value = null
++  demoLoading.value = false
++  demoError.value = ''
++  demoOrder.value = null
++  demoOrderError.value = ''
++  demoOrderId.value = ''
++}
++
++function expireDemoSession(message = '演示会话已过期，请刷新页面重新读取身份。') {
++  resetDemoState()
++  requestState.invalidate()
++  messages.value = []
++  draft.value = ''
++  lastResponse.value = null
++  lastTrace.value = null
++  searchResults.value = []
++  searched.value = false
++  evalData.value = null
++  settings.conversationId = ''
++  busy.value = false
++  pendingAction.value = ''
++  demoError.value = message
++}
++
++async function loadDemoSession() {
++  resetDemoState()
++  if (settings.backend !== 'python') return
++  const sequence = demoSequence
++  const snapshot = { ...settings, endpoints: { ...settings.endpoints } }
++  const endpoint = backendMeta('python', snapshot).baseUrl
++  const current = () => sequence === demoSequence && settings.backend === 'python' && endpoint === backendMeta('python', settings).baseUrl
++  demoSessionController = new AbortController()
++  demoLoading.value = true
++  try {
++    const raw = await requestDemoSession(snapshot, demoSessionController.signal)
++    if (!current()) return
++    const session = normalizeDemoSession(raw)
++    if (settings.userId !== session.workspace_user_id) {
++      requestState.invalidate()
++      messages.value = []
++      draft.value = ''
++      lastResponse.value = null
++      lastTrace.value = null
++      searchResults.value = []
++      searched.value = false
++      evalData.value = null
++      busy.value = false
++      pendingAction.value = ''
++      settings.conversationId = ''
++    }
++    settings.userId = session.workspace_user_id
++    demoSession.value = session
++    boundDemoSettings = { ...snapshot, userId: session.workspace_user_id }
++    bindDemoAuthority(boundDemoSettings, session)
++    persist()
++    demoExpiryTimer = setTimeout(() => {
++      if (!current()) return
++      expireDemoSession()
++    }, Math.min(2147483647, Date.parse(session.expires_at) - Date.now()))
++  } catch (error) {
++    if (!current()) return
++    if (error.status !== 404) demoError.value = '演示数据暂不可用，请检查当前连接后刷新页面。'
++  } finally {
++    if (current()) {
++      demoLoading.value = false
++      demoSessionController = null
++    }
++  }
++}
++
++function chooseDemoOrder(orderId) {
++  if (!demoSession.value || demoOrderBusy.value || !isDemoOrderId(orderId)) return
++  demoOrderId.value = orderId
++  demoOrder.value = null
++  demoOrderError.value = ''
++}
++
++function handleDemoToggle(event) {
++  if (!event.currentTarget.open) cancelDemoOrder()
++}
++
++async function lookupDemoOrder() {
++  if (!demoSession.value || demoOrderBusy.value || demoLoading.value || settings.backend !== 'python') return
++  const orderId = demoOrderId.value.trim()
++  demoOrder.value = null
++  demoOrderError.value = ''
++  if (!isDemoOrderId(orderId)) {
++    demoOrderError.value = '请输入 DEMO- 加四位数字的演示订单号。'
++    return
++  }
++  const request = requestState.begin('demoOrder')
++  const identity = demoSession.value.workspace_user_id
++  const sequence = ++demoOrderSequence
++  const controller = new AbortController()
++  demoOrderController = controller
++  const current = () => request.isCurrent() && sequence === demoOrderSequence && demoSession.value?.workspace_user_id === identity
++  demoOrderBusy.value = true
++  try {
++    const raw = await requestDemoOrder(request.settings, orderId, controller.signal)
++    if (!current()) return
++    demoOrder.value = projectDemoOrder(raw, orderId)
++  } catch (error) {
++    if (!current()) return
++    if ([401, 403, 428].includes(error.status)) expireDemoSession()
++    else demoOrderError.value = '演示订单读取失败，本次未自动重试。'
++  } finally {
++    if (current()) {
++      demoOrderBusy.value = false
++      demoOrderController = null
++    }
++  }
++}
++
++function fillDemoQuestion() {
++  if (!demoSession.value || !demoOrder.value?.found || demoOrderBusy.value) return
++  usePrompt(`请查询我的演示订单 ${demoOrder.value.orderId}，说明当前进度及还需要核实的事项。`)
++}
++
+@@ -698 +892 @@ async function sendMessage() {
+-  if (!content || busy.value) return
++  if (!content || busy.value || demoLoading.value || demoError.value) return
+@@ -721,0 +916,4 @@ async function sendMessage() {
++    if (demoSession.value && [401, 403, 428].includes(error.status)) {
++      expireDemoSession()
++      return
++    }
+@@ -733,0 +932 @@ function clearConversation() {
++  cancelDemoOrder()
+diff --git a/src/lib/backends.js b/src/lib/backends.js
+index e827be8..1279814 100644
+--- a/src/lib/backends.js
++++ b/src/lib/backends.js
+@@ -1,0 +2 @@ import { pollEvaluation } from './evaluationJobs.js'
++import { createDemoAuthority, isDemoOrderId } from './demoOrders.js'
+@@ -6 +7 @@ const DEFAULT_BACKENDS = {
+-    baseUrl: runtimeConfig().pythonApiUrl || import.meta.env.VITE_PYTHON_API_URL || '/api/python',
++    baseUrl: runtimeConfig().pythonApiUrl || import.meta.env?.VITE_PYTHON_API_URL || '/api/python',
+@@ -12 +13 @@ const DEFAULT_BACKENDS = {
+-    baseUrl: runtimeConfig().javaApiUrl || import.meta.env.VITE_JAVA_API_URL || '/api/java',
++    baseUrl: runtimeConfig().javaApiUrl || import.meta.env?.VITE_JAVA_API_URL || '/api/java',
+@@ -21 +22 @@ export function createInitialSettings() {
+-    backend: saved.backend || import.meta.env.VITE_DEFAULT_BACKEND || 'python',
++    backend: saved.backend || import.meta.env?.VITE_DEFAULT_BACKEND || 'python',
+@@ -62,0 +64,22 @@ export async function requestKnowledgeStats(type, settings) {
++export async function requestDemoSession(settings, signal) {
++  return requestFor('python', settings, '/demo/session', { signal: demoSignal(signal) })
++}
++
++export async function requestDemoOrder(settings, orderId, signal) {
++  if (!isDemoOrderId(orderId)) throw new Error('demo_order_id_invalid')
++  return requestFor('python', settings, `/demo/orders/${encodeURIComponent(orderId)}`, { signal: demoSignal(signal) })
++}
++
++function demoSignal(signal) {
++  const timeout = AbortSignal.timeout(10000)
++  return signal ? AbortSignal.any([signal, timeout]) : timeout
++}
++
++export function bindDemoAuthority(settings, session) {
++  demoAuthority.set(backendMeta('python', settings).baseUrl, session)
++}
++
++export function clearDemoAuthority(settings) {
++  demoAuthority.clear(backendMeta('python', settings).baseUrl)
++}
++
+@@ -180,0 +204 @@ const chatAttempts = new Map()
++const demoAuthority = createDemoAuthority()
+@@ -184 +208,6 @@ async function requestFor(type, settings, path, options = {}) {
+-  return requestJson(backendMeta(type, settings).baseUrl, path, { ...options, headers,
++  const baseUrl = backendMeta(type, settings).baseUrl
++  if (type === 'python' && !['GET', 'HEAD'].includes((options.method || 'GET').toUpperCase())) {
++    const csrf = demoAuthority.csrfFor(baseUrl, settings.userId)
++    if (csrf) headers.set('X-ServeFlow-Demo-CSRF', csrf)
++  }
++  return requestJson(baseUrl, path, { ...options, credentials: 'same-origin', headers,
+diff --git a/src/styles.css b/src/styles.css
+index 1d68e02..0938202 100644
+--- a/src/styles.css
++++ b/src/styles.css
+@@ -133,0 +134,24 @@ pre { margin: 10px 0 0; padding: 12px; background: var(--soft); border: 1px soli
++.demo-panel { flex-shrink: 0; max-height: min(42vh, 360px); margin: 0 32px 10px; border: 1px solid var(--line); border-radius: 12px; background: white; overflow: auto; }
++.demo-panel > summary { display: flex; align-items: center; gap: 12px; padding: 12px 15px; color: var(--ink); cursor: pointer; font-size: 12px; list-style: none; }
++.demo-panel > summary::before { content: '›'; color: var(--accent); font-size: 18px; line-height: 1; }
++.demo-panel[open] > summary::before { transform: rotate(90deg); }
++.demo-panel > summary small { margin-left: auto; color: var(--muted); font-size: 10px; }
++.demo-panel-content { padding: 0 15px 15px; }
++.demo-note { color: var(--muted); font-size: 11px; line-height: 1.8; overflow-wrap: anywhere; }
++.demo-error { margin-top: 9px; color: var(--danger); font-size: 12px; line-height: 1.7; }
++.demo-samples { display: flex; flex-wrap: wrap; gap: 7px; margin: 12px 0; }
++.demo-samples button { display: flex; flex-direction: column; align-items: flex-start; gap: 3px; padding: 8px 10px; color: var(--muted); background: var(--soft); border: 1px solid var(--line); font-size: 10px; white-space: normal; text-align: left; }
++.demo-samples button:hover:not(:disabled) { color: var(--accent); background: var(--accent-soft); }
++.demo-samples strong { color: var(--ink); font-size: 11px; font-weight: 550; }
++.demo-query { display: flex; flex-wrap: wrap; align-items: flex-end; gap: 9px; margin-top: 12px; }
++.demo-query label { flex: 1; min-width: 150px; margin: 0; }
++.demo-query label > span { margin-bottom: 6px; font-size: 11px; }
++.demo-query input { padding: 7px 10px; font-size: 12px; }
++.demo-query button { min-height: 36px; padding-inline: 12px; font-size: 11px; }
++.demo-record { margin-top: 15px; padding-top: 13px; border-top: 1px solid var(--line); }
++.demo-record-heading { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
++.demo-record h2 { font-size: 14px; }
++.demo-record-heading button { min-height: 30px; font-size: 11px; }
++.demo-record dl { display: grid; grid-template-columns: 90px minmax(0, 1fr); gap: 8px 12px; margin: 13px 0; font-size: 12px; line-height: 1.7; }
++.demo-record dt { color: var(--muted); }
++.demo-record dd { margin: 0; overflow-wrap: anywhere; }
+@@ -368,0 +393 @@ summary::-webkit-details-marker { display: none; }
++  .demo-panel { margin-inline: 22px; max-height: 38vh; }
+@@ -441,0 +467,4 @@ summary::-webkit-details-marker { display: none; }
++  .demo-panel { margin-inline: 17px; }
++  .demo-panel > summary { padding-inline: 12px; gap: 8px; }
++  .demo-panel-content { padding-inline: 12px; }
++  .demo-record dl { grid-template-columns: 66px minmax(0, 1fr); gap: 7px 10px; font-size: 11px; }
+diff --git a/src/lib/demoOrders.js b/src/lib/demoOrders.js
+new file mode 100644
+index 0000000..0790545
+--- /dev/null
++++ b/src/lib/demoOrders.js
+@@ -0,0 +1,122 @@
++const ORDER_ID = /^DEMO-[0-9]{4}$/
++const ISO_TIME = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d+)?(?:Z|\+00:00)$/
++const statuses = Object.freeze({
++  physical: '实体商品', digital: '数字服务', bundle: '设备与服务组合',
++  unpaid: '未支付', paid: '已支付', refunded: '已退款',
++  in_transit: '运输中', awaiting_dispatch: '待发货', preorder: '预售待出库',
++  delivered: '已签收', delivery_disputed: '签收存在争议',
++  activation_failed: '权益开通失败', revoked_after_refund: '退款后权益已撤销', active: '权益有效',
++  pending_review: '退款待审核', completed: '退款已完成',
++  device: '设备', accessory: '配件', subscription: '订阅', digital_content: '数字内容',
++  'demo-wallet': '演示钱包', 'demo-store': '演示商店'
++})
++
++function text(value, maximum = 160) {
++  if (typeof value !== 'string' || !value.trim() || value.length > maximum) throw new Error('demo_response_invalid')
++  return value
++}
++
++function time(value) {
++  if (!ISO_TIME.test(value) || !Number.isFinite(Date.parse(value))) throw new Error('demo_response_invalid')
++  return value.replace('T', ' ').replace(/(?:Z|\+00:00)$/, ' UTC')
++}
++
++function label(value) {
++  if (!Object.hasOwn(statuses, value)) throw new Error('demo_response_invalid')
++  return statuses[value]
++}
++
++function list(value, maximum = 20) {
++  if (!Array.isArray(value) || value.length > maximum) throw new Error('demo_response_invalid')
++  return value
++}
++
++export function isDemoOrderId(value) {
++  return typeof value === 'string' && ORDER_ID.test(value)
++}
++
++export function formatDemoMoney(minor) {
++  if (minor === null || minor === undefined) return '金额待核实'
++  if (!Number.isSafeInteger(minor) || minor < 0) throw new Error('demo_response_invalid')
++  const digits = String(minor).padStart(3, '0')
++  return `¥${digits.slice(0, -2)}.${digits.slice(-2)}`
++}
++
++export function normalizeDemoSession(raw, now = Date.now()) {
++  if (raw?.enabled !== true || raw?.is_demo !== true) throw new Error('demo_response_invalid')
++  if (!/^sf_demo_[A-Za-z0-9_-]{16,128}$/.test(raw.workspace_user_id)) throw new Error('demo_response_invalid')
++  const csrf = text(raw.csrf_token, 256)
++  if (/\s/.test(csrf)) throw new Error('demo_response_invalid')
++  time(raw.expires_at)
++  if (Date.parse(raw.expires_at) <= now) throw new Error('demo_session_expired')
++  const samples = list(raw.sample_orders, 12).map(sample => {
++    if (!isDemoOrderId(sample.order_id)) throw new Error('demo_response_invalid')
++    return { order_id: sample.order_id, scenario: text(sample.scenario, 100) }
++  })
++  if (new Set(samples.map(sample => sample.order_id)).size !== samples.length) throw new Error('demo_response_invalid')
++  return {
++    workspace_user_id: raw.workspace_user_id,
++    customer_label: text(raw.customer_label, 40),
++    csrf_token: csrf,
++    expires_at: raw.expires_at,
++    sample_orders: samples
++  }
++}
++
++export function projectDemoOrder(raw, requestedId) {
++  if (raw?.source !== 'serveflow-mysql-demo-v1' || raw?.is_demo !== true) throw new Error('demo_response_invalid')
++  const snapshot = time(raw.as_of)
++  if (raw.status === 'not_found' && raw.order === null) return { found: false, snapshot }
++  const order = raw.order
++  if (raw.status !== 'found' || !order || order.order_id !== requestedId || !isDemoOrderId(order.order_id) || order.currency !== 'CNY') {
++    throw new Error('demo_response_invalid')
++  }
++  const rows = [
++    { name: '订单类型', value: label(order.order_type) },
++    { name: '订单金额', value: formatDemoMoney(order.total_amount_minor) },
++    { name: '支付状态', value: label(order.payment_status) }
++  ]
++  const itemIds = new Set()
++  const belongs = row => {
++    if (row.order_id !== order.order_id) throw new Error('demo_response_invalid')
++  }
++  for (const item of list(order.items)) {
++    belongs(item)
++    itemIds.add(text(item.item_id, 80))
++    if (!Number.isSafeInteger(item.quantity) || item.quantity < 1) throw new Error('demo_response_invalid')
++    rows.push({ name: '商品', value: `${text(item.name)} × ${item.quantity}（${label(item.item_type)}，单价${formatDemoMoney(item.unit_amount_minor)}）` })
++  }
++  for (const payment of list(order.payments)) {
++    belongs(payment)
++    rows.push({ name: '支付记录', value: `${text(payment.payment_id, 80)} · ${label(payment.status)} · ${formatDemoMoney(payment.amount_minor)} · ${label(payment.channel)}` })
++  }
++  for (const shipment of list(order.shipments)) {
++    belongs(shipment)
++    if (!itemIds.has(shipment.item_id)) throw new Error('demo_response_invalid')
++    if (shipment.estimated_delivery !== null && !/^\d{4}-\d{2}-\d{2}$/.test(shipment.estimated_delivery)) throw new Error('demo_response_invalid')
++    const estimate = shipment.estimated_delivery === null ? '到货日期未知' : text(shipment.estimated_delivery, 10)
++    rows.push({ name: '包裹', value: `${text(shipment.shipment_id, 80)} · ${label(shipment.status)} · ${shipment.tracking_id === null ? '无物流单号' : text(shipment.tracking_id, 80)} · ${estimate}` })
++  }
++  for (const entitlement of list(order.entitlements)) {
++    belongs(entitlement)
++    if (typeof entitlement.auto_renew !== 'boolean') throw new Error('demo_response_invalid')
++    rows.push({ name: '数字权益', value: `${text(entitlement.package_name)} · ${label(entitlement.status)} · ${entitlement.auto_renew ? '自动续费已开启' : '自动续费已关闭'} · ${entitlement.expires_at === null ? '到期时间未知' : time(entitlement.expires_at)}` })
++  }
++  for (const refund of list(order.refunds)) {
++    belongs(refund)
++    rows.push({ name: '退款', value: `${text(refund.refund_id, 80)} · ${label(refund.status)} · ${formatDemoMoney(refund.amount_minor)}` })
++  }
++  return { found: true, orderId: order.order_id, snapshot, updatedAt: time(order.record_updated_at), rows }
++}
++
++export function createDemoAuthority() {
++  const sessions = new Map()
++  return {
++    set(baseUrl, session) { sessions.set(baseUrl, { userId: session.workspace_user_id, csrf: session.csrf_token }) },
++    clear(baseUrl) { sessions.delete(baseUrl) },
++    csrfFor(baseUrl, userId) {
++      const session = sessions.get(baseUrl)
++      return session?.userId === userId ? session.csrf : null
++    }
++  }
++}
+diff --git a/tests/demoOrders.test.js b/tests/demoOrders.test.js
+new file mode 100644
+index 0000000..2ae203f
+--- /dev/null
++++ b/tests/demoOrders.test.js
+@@ -0,0 +1,234 @@
++import { test } from 'node:test'
++import assert from 'node:assert/strict'
++import fs from 'node:fs'
++import vm from 'node:vm'
++import {
++  createDemoAuthority, formatDemoMoney, isDemoOrderId, normalizeDemoSession, projectDemoOrder
++} from '../src/lib/demoOrders.js'
++import {
++  bindDemoAuthority, clearDemoAuthority, requestDemoOrder, requestDemoSession, requestSearch, saveSettings
++} from '../src/lib/backends.js'
++
++const workspace = 'sf_demo_0123456789abcdefghijklmnop'
++const snapshot = '2026-10-25T00:00:00Z'
++const session = () => ({
++  enabled: true, is_demo: true, workspace_user_id: workspace, customer_label: '演示客户A',
++  csrf_token: 'private-demo-csrf', expires_at: '2099-10-25T08:00:00Z',
++  sample_orders: [{ order_id: 'DEMO-1001', scenario: '设备运输中，配件待发货' }]
++})
++const record = () => ({
++  source: 'serveflow-mysql-demo-v1', is_demo: true, status: 'found', as_of: snapshot,
++  order: {
++    order_id: 'DEMO-1001', customer_id: 'demo-customer-a', currency: 'CNY', order_type: 'bundle',
++    total_amount_minor: 129900, payment_status: 'paid', record_updated_at: snapshot,
++    items: [{ order_id: 'DEMO-1001', item_id: 'item-device', name: '演示设备', item_type: 'device', quantity: 1, unit_amount_minor: 129900 }],
++    payments: [{ order_id: 'DEMO-1001', payment_id: 'payment-1', status: 'paid', channel: 'demo-wallet', amount_minor: 129900 }],
++    shipments: [{ order_id: 'DEMO-1001', shipment_id: 'shipment-1', item_id: 'item-device', status: 'in_transit', tracking_id: 'DEMO-TRACK-1', estimated_delivery: null }],
++    entitlements: [], refunds: [{ order_id: 'DEMO-1001', refund_id: 'refund-1', status: 'pending_review', amount_minor: null }]
++  }
++})
++
++test('demo session validates scope and returns detached samples without persisting CSRF', () => {
++  const raw = session()
++  const normalized = normalizeDemoSession(raw, 0)
++  normalized.sample_orders[0].scenario = 'changed'
++  assert.notEqual(raw.sample_orders[0].scenario, 'changed')
++  for (const changed of [
++    { is_demo: false }, { workspace_user_id: 'u1001' }, { csrf_token: 'bad token' },
++    { expires_at: snapshot }, { sample_orders: [raw.sample_orders[0], raw.sample_orders[0]] }
++  ]) assert.throws(() => normalizeDemoSession({ ...raw, ...changed }))
++  const stored = []
++  const previous = globalThis.localStorage
++  globalThis.localStorage = { setItem: (...args) => stored.push(args) }
++  try {
++    saveSettings({ backend: 'python', userId: workspace, endpoints: { python: '/py' }, pythonToken: 'private-api-token' })
++    assert.equal(stored.length, 1)
++    assert.ok(!stored[0][1].includes('private-demo-csrf'))
++    assert.ok(!stored[0][1].includes('private-api-token'))
++  } finally { globalThis.localStorage = previous }
++})
++
++test('record projection preserves minor units, unknown refund and original query times', () => {
++  const result = projectDemoOrder(record(), 'DEMO-1001')
++  assert.equal(result.found, true)
++  assert.equal(result.snapshot, '2026-10-25 00:00:00 UTC')
++  assert.ok(result.rows.some(row => row.value === '¥1299.00'))
++  assert.ok(result.rows.some(row => row.value.includes('金额待核实')))
++  assert.ok(result.rows.some(row => row.value.includes('到货日期未知')))
++  assert.equal(formatDemoMoney(0), '¥0.00')
++  assert.equal(formatDemoMoney(1), '¥0.01')
++  assert.equal(formatDemoMoney(null), '金额待核实')
++  assert.throws(() => formatDemoMoney('0'))
++  assert.throws(() => formatDemoMoney(Infinity))
++  const offset = record()
++  offset.as_of = '2026-10-25T00:00:00+00:00'
++  assert.equal(projectDemoOrder(offset, 'DEMO-1001').snapshot, result.snapshot)
++})
++
++test('projection rejects cross-order records, unsupported provenance and wrong references', () => {
++  for (const change of [
++    raw => { raw.order.order_id = 'DEMO-1005' },
++    raw => { raw.source = 'model-prose' },
++    raw => { raw.order.items[0].order_id = 'DEMO-1005' },
++    raw => { raw.order.shipments[0].item_id = 'unknown' },
++    raw => { raw.order.payment_status = 'probably-paid' }
++  ]) {
++    const raw = record(); change(raw)
++    assert.throws(() => projectDemoOrder(raw, 'DEMO-1001'))
++  }
++  assert.deepEqual(projectDemoOrder({ source: 'serveflow-mysql-demo-v1', is_demo: true, status: 'not_found', as_of: snapshot, order: null }, 'DEMO-1005'), {
++    found: false, snapshot: '2026-10-25 00:00:00 UTC'
++  })
++})
++
++test('demo authority is bound to endpoint and workspace, then removed explicitly', () => {
++  const authority = createDemoAuthority()
++  authority.set('/py', session())
++  assert.equal(authority.csrfFor('/py', workspace), 'private-demo-csrf')
++  assert.equal(authority.csrfFor('/other', workspace), null)
++  assert.equal(authority.csrfFor('/py', 'different-workspace'), null)
++  authority.clear('/py')
++  assert.equal(authority.csrfFor('/py', workspace), null)
++})
++
++test('demo HTTP helpers only read fixed paths; non-GET receives scoped CSRF and cookie semantics', async () => {
++  const settings = { backend: 'python', userId: workspace, endpoints: { python: '/controlled-python', java: '/java' } }
++  const original = globalThis.fetch, sent = []
++  globalThis.fetch = async (url, options) => {
++    sent.push({ url, options })
++    return new Response(JSON.stringify(url.endsWith('/demo/session') ? session() : { results: [] }), { status: 200 })
++  }
++  try {
++    await requestDemoSession(settings)
++    await requestDemoOrder(settings, 'DEMO-1001')
++    await assert.rejects(() => requestDemoOrder(settings, '../chat'))
++    bindDemoAuthority(settings, session())
++    await requestSearch('python', settings, 'controlled question')
++    await requestSearch('python', { ...settings, userId: 'different-workspace' }, 'controlled question')
++    assert.equal(sent.length, 4)
++    assert.deepEqual(sent.slice(0, 2).map(item => item.url), ['/controlled-python/demo/session', '/controlled-python/demo/orders/DEMO-1001'])
++    assert.ok(sent.slice(0, 2).every(item => !item.options.method || item.options.method === 'GET'))
++    assert.equal(sent[2].options.headers.get('X-ServeFlow-Demo-CSRF'), 'private-demo-csrf')
++    assert.equal(sent[3].options.headers.get('X-ServeFlow-Demo-CSRF'), null)
++    assert.ok(sent.every(item => item.options.credentials === 'same-origin'))
++    assert.ok(!sent.some(item => item.url.includes('/chat') || item.url.includes('/eval')))
++  } finally { clearDemoAuthority(settings); globalThis.fetch = original }
++})
++
++const source = fs.readFileSync(new URL('../src/App.vue', import.meta.url), 'utf8')
++function loadFunction(name, context) {
++  const found = source.match(new RegExp(`(?:async )?function ${name}\\(`))
++  assert.ok(found, name)
++  const start = found.index, next = source.slice(start + 1).search(/\n(?:async )?function /)
++  const end = next < 0 ? source.indexOf('</script>', start) : start + 1 + next
++  vm.runInContext(source.slice(start, end), context)
++}
++const deferred = () => { let resolve, reject; const promise = new Promise((a, b) => { resolve = a; reject = b }); return { promise, resolve, reject } }
++
++for (const fail of [false, true]) {
++  test(`old demo session ${fail ? 'error' : 'success'}/finally cannot bind after A→B→A`, async () => {
++    const pending = deferred()
++    let context
++    context = vm.createContext({
++      settings: { backend: 'python', userId: 'old', endpoints: { python: '/py', java: '/java' } },
++      demoSequence: 0, demoSessionController: null, demoSession: { value: null },
++      demoLoading: { value: false }, demoError: { value: '' },
++      resetDemoState: () => { context.demoSequence += 1 },
++      backendMeta: (type, settings) => ({ baseUrl: settings.endpoints[type] }),
++      AbortController, requestDemoSession: () => pending.promise,
++      normalizeDemoSession: () => assert.fail('old session must not be parsed or bound')
++    })
++    loadFunction('loadDemoSession', context)
++    const task = context.loadDemoSession()
++    context.demoSequence += 2
++    context.demoSession.value = 'new session'
++    context.demoError.value = 'new error'
++    context.demoLoading.value = true
++    if (fail) pending.reject(new Error('old session failed')); else pending.resolve(session())
++    await task
++    assert.equal(context.demoSession.value, 'new session')
++    assert.equal(context.demoError.value, 'new error')
++    assert.equal(context.demoLoading.value, true)
++  })
++}
++
++test('unconfigured demo 404 remains silent and Java never bootstraps a Python identity', async () => {
++  let resets = 0, calls = 0
++  const context = vm.createContext({
++    settings: { backend: 'python', userId: 'original', endpoints: { python: '/py', java: '/java' } },
++    demoSequence: 0, demoSessionController: null, demoSession: { value: null },
++    demoLoading: { value: false }, demoError: { value: '' },
++    resetDemoState: () => { resets += 1 },
++    backendMeta: (type, settings) => ({ baseUrl: settings.endpoints[type] }),
++    AbortController, requestDemoSession: async () => { calls += 1; throw Object.assign(new Error('not configured'), { status: 404 }) }
++  })
++  loadFunction('loadDemoSession', context)
++  await context.loadDemoSession()
++  assert.equal(context.demoError.value, '')
++  assert.equal(context.demoLoading.value, false)
++  assert.equal(context.settings.userId, 'original')
++  context.settings.backend = 'java'
++  await context.loadDemoSession()
++  assert.equal(calls, 1)
++  assert.equal(resets, 2)
++})
++
++for (const fail of [false, true]) {
++  test(`old demo order ${fail ? 'error' : 'success'}/finally cannot overwrite a new A→B→A read`, async () => {
++    const pending = deferred()
++    const settings = { backend: 'python' }
++    const context = vm.createContext({
++      settings, demoSession: { value: { workspace_user_id: workspace } }, demoOrderBusy: { value: false },
++      demoLoading: { value: false }, demoOrderId: { value: 'DEMO-1001' }, demoOrder: { value: null },
++      demoOrderError: { value: '' }, demoOrderSequence: 0, demoOrderController: null,
++      requestState: { begin: () => ({ settings, isCurrent: () => true }) },
++      requestDemoOrder: () => pending.promise, isDemoOrderId, AbortController,
++      projectDemoOrder: () => assert.fail('stale projection'), expireDemoSession: () => assert.fail('stale identity reset')
++    })
++    loadFunction('lookupDemoOrder', context)
++    const task = context.lookupDemoOrder()
++    context.demoOrderSequence += 2
++    context.demoOrder.value = 'new record'
++    context.demoOrderError.value = 'new error'
++    context.demoOrderBusy.value = true
++    if (fail) pending.reject(new Error('old failure')); else pending.resolve(record())
++    await task
++    assert.equal(context.demoOrder.value, 'new record')
++    assert.equal(context.demoOrderError.value, 'new error')
++    assert.equal(context.demoOrderBusy.value, true)
++  })
++}
++
++test('duplicate read is suppressed and filling a question never sends a request', async () => {
++  const pending = deferred(), calls = [], filled = []
++  const settings = { backend: 'python' }
++  const context = vm.createContext({
++    settings, demoSession: { value: { workspace_user_id: workspace } }, demoOrderBusy: { value: false },
++    demoLoading: { value: false }, demoOrderId: { value: 'DEMO-1001' }, demoOrder: { value: null },
++    demoOrderError: { value: '' }, demoOrderSequence: 0, demoOrderController: null,
++    requestState: { begin: () => ({ settings, isCurrent: () => true }) },
++    requestDemoOrder: (...args) => { calls.push(args); return pending.promise }, isDemoOrderId, AbortController,
++    projectDemoOrder, usePrompt: message => filled.push(message)
++  })
++  loadFunction('lookupDemoOrder', context); loadFunction('fillDemoQuestion', context)
++  const task = context.lookupDemoOrder()
++  await context.lookupDemoOrder()
++  assert.equal(calls.length, 1)
++  pending.resolve(record()); await task
++  context.fillDemoQuestion()
++  assert.equal(calls.length, 1)
++  assert.equal(filled.length, 1)
++  assert.ok(filled[0].includes('DEMO-1001'))
++})
++
++test('closing/cancelling invalidates pending read and aborts its fetch once', () => {
++  const controller = new AbortController()
++  const context = vm.createContext({ demoOrderSequence: 2, demoOrderController: controller, demoOrderBusy: { value: true } })
++  loadFunction('cancelDemoOrder', context)
++  context.cancelDemoOrder()
++  assert.equal(controller.signal.aborted, true)
++  assert.equal(context.demoOrderBusy.value, false)
++  assert.equal(context.demoOrderSequence, 3)
++  context.cancelDemoOrder()
++  assert.equal(context.demoOrderBusy.value, false)
++})
