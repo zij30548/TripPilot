@@ -4,7 +4,7 @@
 
 ## 当前版本：对话、知识库、Agent评测
 
-**最新本机独立入口**：[原版EchoMind运行说明](docs/ECHOMIND_ORIGINAL_LOCAL.md)。按用户要求直接运行新上传的`EchoMind/`＋`EchoMindFrontend/`，只用服务端配置将原SDK接入千问，原业务／框架源码未改。打开 **http://127.0.0.1:5173/**，当前仍是原客服场景；启动与离线检查通过，真实千问回答未在该轮验收。旧3110旅行适配及云端不替换。
+**最新本机独立入口**：[智应 ServeFlow 界面说明](docs/SERVEFLOW_UI.md)；[原版EchoMind运行说明](docs/ECHOMIND_ORIGINAL_LOCAL.md)。新上传的`EchoMind/`＋`EchoMindFrontend/`使用原客服框架和千问接入配置，前端已按用户选择更名为“智应 ServeFlow”并轻量调整样式。打开 **http://127.0.0.1:5173/**；品牌调整不代表新的真实回答质量验收，后端框架／模型提示未改。旧3110旅行适配及云端不替换。
 
 **本机开场补修**：[定位、修改和有限复验](docs/CHAT_OPENING_REPAIR.md)。默认legacy已补需求工具选择／完整参数说明、安全诊断和错误原因展示；真实API可记录杭州并继续补日期／人数／预算。一次“带父母”偏好漏项及Chrome第二POST仍待核，不能写成全部语义／浏览器验收通过；没有切换完整候选或更新云端。
 

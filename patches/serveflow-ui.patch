@@ -1,0 +1,168 @@
+diff --git a/index.html b/index.html
+index 9e543ad..e9f92c2 100644
+--- a/index.html
++++ b/index.html
+@@ -6 +6,3 @@
+-    <title>EchoMind 客服调试工作台</title>
++    <meta name="description" content="智应 ServeFlow，面向复杂客服任务的多 Agent 协作系统。" />
++    <link rel="icon" type="image/svg+xml" href="/serveflow.svg" />
++    <title>智应 ServeFlow · 客服协作工作台</title>
+diff --git a/src/App.vue b/src/App.vue
+index 253353c..cee430d 100644
+--- a/src/App.vue
++++ b/src/App.vue
+@@ -4,3 +4,3 @@
+-      <a class="brand" href="#" @click.prevent="activeView = 'chat'" aria-label="EchoMind 首页">
+-        <span class="brand-mark">E</span>
+-        <span class="brand-name">EchoMind</span>
++      <a class="brand" href="#" @click.prevent="activeView = 'chat'" aria-label="智应 ServeFlow 首页">
++        <span class="brand-mark"><BrandMark /></span>
++        <span class="brand-copy"><span class="brand-name">ServeFlow</span><span class="brand-caption">智应 · 客服协作</span></span>
+@@ -50,3 +50,3 @@
+-        <a class="mobile-brand" href="#" @click.prevent="activeView = 'chat'" aria-label="EchoMind 首页">
+-          <span class="brand-mark">E</span>
+-          <span>EchoMind</span>
++        <a class="mobile-brand" href="#" @click.prevent="activeView = 'chat'" aria-label="智应 ServeFlow 首页">
++          <span class="brand-mark"><BrandMark /></span>
++          <span>ServeFlow</span>
+@@ -99 +99 @@
+-                <div class="welcome-mark" aria-hidden="true">E</div>
++                <div class="welcome-mark" aria-hidden="true"><BrandMark /></div>
+@@ -101 +101 @@
+-                <p>从客户问题开始，让合适的 Agent 接手。</p>
++                <p>智应 ServeFlow · 面向复杂客服任务的多 Agent 协作系统</p>
+@@ -105 +105 @@
+-                  <span v-if="item.role === 'assistant'" class="message-avatar">E</span>
++                  <span v-if="item.role === 'assistant'" class="message-avatar"><BrandMark /></span>
+@@ -108 +108 @@
+-                      <strong>{{ item.role === 'user' ? '你' : 'EchoMind' }}</strong>
++                      <strong>{{ item.role === 'user' ? '你' : '智应 ServeFlow' }}</strong>
+@@ -144 +144 @@
+-                  <span class="message-avatar">E</span>
++                  <span class="message-avatar"><BrandMark /></span>
+@@ -483,0 +484 @@ import AppIcon from './components/AppIcon.vue'
++import BrandMark from './components/BrandMark.vue'
+diff --git a/src/styles.css b/src/styles.css
+index 1214a5a..1d68e02 100644
+--- a/src/styles.css
++++ b/src/styles.css
+@@ -7,9 +7,11 @@
+-  --canvas: #ffffff;
+-  --sidebar: #f7f7f8;
+-  --soft: #f5f5f6;
+-  --hover: #eeeeef;
+-  --ink: #202023;
+-  --muted: #71717a;
+-  --faint: #a3a3ab;
+-  --line: #e9e9ec;
+-  --line-strong: #d7d7dc;
++  --canvas: #fcfcfe;
++  --sidebar: #f5f6fa;
++  --soft: #f2f3f8;
++  --hover: #eceef5;
++  --ink: #252939;
++  --muted: #646d80;
++  --faint: #727b8e;
++  --line: #e7eaf2;
++  --line-strong: #d6dbe8;
++  --accent: #6553c7;
++  --accent-soft: #eeebfb;
+@@ -18 +20 @@
+-  --shadow: 0 4px 20px #18181b06;
++  --shadow: 0 6px 24px #30385b08;
+@@ -43 +45 @@ button:disabled, .disabled { opacity: .4; cursor: not-allowed; }
+-button:focus-visible, a:focus-visible, summary:focus-visible, .upload-button:focus-within { outline: 2px solid #65656d; outline-offset: 3px; }
++button:focus-visible, a:focus-visible, summary:focus-visible, .upload-button:focus-within { outline: 2px solid var(--accent); outline-offset: 3px; }
+@@ -62 +64 @@ input, textarea {
+-input:focus, textarea:focus { border-color: #929299; box-shadow: 0 0 0 3px #18181b06; }
++input:focus, textarea:focus { border-color: var(--accent); box-shadow: 0 0 0 3px #6553c712; }
+@@ -80 +82 @@ pre { margin: 10px 0 0; padding: 12px; background: var(--soft); border: 1px soli
+-.app-shell { display: grid; grid-template-columns: 224px minmax(0, 1fr); height: 100dvh; min-height: 400px; overflow: hidden; }
++.app-shell { display: grid; grid-template-columns: 236px minmax(0, 1fr); height: 100dvh; min-height: 400px; overflow: hidden; }
+@@ -82,3 +84,6 @@ pre { margin: 10px 0 0; padding: 12px; background: var(--soft); border: 1px soli
+-.brand { display: flex; align-items: center; gap: 10px; padding: 0 10px; }
+-.brand-mark { display: grid; place-items: center; width: 30px; height: 30px; border-radius: 8px; background: #222225; color: white; font-size: 22px; font-weight: 500; line-height: 1; flex-shrink: 0; }
+-.brand-name { font-size: 20px; font-weight: 600; letter-spacing: -.04em; }
++.brand { display: flex; align-items: center; gap: 11px; padding: 0 10px; }
++.brand-mark { display: grid; place-items: center; width: 36px; height: 36px; border-radius: 11px; background: var(--accent); color: white; line-height: 1; flex-shrink: 0; }
++.brand-symbol { display: block; width: 100%; height: 100%; }
++.brand-copy { display: flex; flex-direction: column; gap: 4px; }
++.brand-name { font-size: 21px; font-weight: 650; letter-spacing: -.04em; line-height: 1.15; }
++.brand-caption { color: var(--muted); font-size: 10px; letter-spacing: .1em; }
+@@ -92,2 +97,2 @@ pre { margin: 10px 0 0; padding: 12px; background: var(--soft); border: 1px soli
+-.view-nav button:hover:not(:disabled) { background: #eeeeef; color: var(--ink); }
+-.view-nav button.active { background: #eaeaec; color: var(--ink); font-weight: 550; }
++.view-nav button:hover:not(:disabled) { background: var(--hover); color: var(--ink); }
++.view-nav button.active { background: var(--accent-soft); color: var(--accent); font-weight: 600; }
+@@ -112 +117 @@ pre { margin: 10px 0 0; padding: 12px; background: var(--soft); border: 1px soli
+-.topbar { display: flex; align-items: center; justify-content: space-between; min-height: 64px; padding: 0 32px; border-bottom: 1px solid #f0f0f2; gap: 20px; }
++.topbar { display: flex; align-items: center; justify-content: space-between; min-height: 68px; padding: 0 32px; border-bottom: 1px solid var(--line); background: #ffffffb3; gap: 20px; }
+@@ -122 +127 @@ pre { margin: 10px 0 0; padding: 12px; background: var(--soft); border: 1px soli
+-.backend-tabs { display: flex; padding: 3px; border: 1px solid var(--line); border-radius: 8px; background: #f9f9fa; }
++.backend-tabs { display: flex; padding: 3px; border: 1px solid var(--line); border-radius: 8px; background: var(--soft); }
+@@ -124 +129 @@ pre { margin: 10px 0 0; padding: 12px; background: var(--soft); border: 1px soli
+-.backend-tabs button.active { background: white; box-shadow: 0 1px 3px #18181b10; color: var(--ink); }
++.backend-tabs button.active { background: white; box-shadow: 0 1px 3px #30385b12; color: var(--accent); }
+@@ -145 +150 @@ pre { margin: 10px 0 0; padding: 12px; background: var(--soft); border: 1px soli
+-.welcome-mark { display: grid; place-items: center; width: 46px; height: 46px; margin: 0 auto 24px; border: 1px solid #e3e3e7; border-radius: 13px; color: #343439; background: #fafafa; box-shadow: 0 2px 5px #18181b03; font-size: 30px; font-weight: 450; }
++.welcome-mark { display: grid; place-items: center; width: 58px; height: 58px; padding: 8px; margin: 0 auto 24px; border: 1px solid #ded8f5; border-radius: 18px; color: var(--accent); background: var(--accent-soft); box-shadow: 0 6px 18px #6553c70a; }
+@@ -147,3 +152,3 @@ pre { margin: 10px 0 0; padding: 12px; background: var(--soft); border: 1px soli
+-.welcome p { margin-top: 12px; color: #85858e; font-size: 14px; line-height: 1.9; }
+-.composer { padding: 0; border: 1px solid #dcdce1; border-radius: 16px; box-shadow: 0 2px 8px #18181b04, 0 9px 25px #18181b03; background: white; transition: box-shadow .15s, border-color .15s; }
+-.composer:focus-within { border-color: #a1a1aa; box-shadow: 0 3px 12px #18181b08; }
++.welcome p { margin-top: 12px; color: var(--muted); font-size: 13px; line-height: 1.9; }
++.composer { padding: 0; border: 1px solid var(--line-strong); border-radius: 18px; box-shadow: 0 3px 8px #30385b04, 0 12px 32px #30385b06; background: white; transition: box-shadow .15s, border-color .15s; }
++.composer:focus-within { border-color: #a299d9; box-shadow: 0 0 0 3px #6553c709, 0 8px 24px #30385b08; }
+@@ -153 +158 @@ pre { margin: 10px 0 0; padding: 12px; background: var(--soft); border: 1px soli
+-.routing-label { display: inline-flex; align-items: center; gap: 7px; color: #92929c; font-size: 11px; }
++.routing-label { display: inline-flex; align-items: center; gap: 7px; color: var(--muted); font-size: 11px; }
+@@ -156,2 +161,3 @@ pre { margin: 10px 0 0; padding: 12px; background: var(--soft); border: 1px soli
+-.keyboard-hint { color: #b7b7bf; font-size: 10px; }
+-.send-button { min-height: 33px; width: 33px; padding: 0; border-radius: 9px; background: #222226; }
++.keyboard-hint { color: var(--faint); font-size: 10px; }
++.send-button { min-height: 33px; width: 33px; padding: 0; border-radius: 10px; background: var(--accent); }
++.send-button:hover:not(:disabled) { background: #5342b2; }
+@@ -160 +166 @@ pre { margin: 10px 0 0; padding: 12px; background: var(--soft); border: 1px soli
+-.composer-note { font-size: 10px; color: #b0b0b8; text-align: center; line-height: 1.8; margin-top: 12px; }
++.composer-note { font-size: 10px; color: var(--faint); text-align: center; line-height: 1.8; margin-top: 12px; }
+@@ -162,2 +168,2 @@ pre { margin: 10px 0 0; padding: 12px; background: var(--soft); border: 1px soli
+-.prompt-grid button { display: flex; align-items: flex-start; gap: 10px; padding: 13px 11px; min-height: 71px; background: #fbfbfc; border-color: #f0f0f2; border-radius: 10px; text-align: left; white-space: normal; color: #76767e; }
+-.prompt-grid button:hover:not(:disabled) { color: var(--ink); background: #f5f5f7; border-color: #dedee4; }
++.prompt-grid button { display: flex; align-items: flex-start; gap: 10px; padding: 14px 12px; min-height: 76px; background: white; border-color: var(--line); border-radius: 12px; text-align: left; white-space: normal; color: var(--muted); }
++.prompt-grid button:hover:not(:disabled) { color: var(--accent); background: #f8f7fd; border-color: #d4cdef; }
+@@ -170 +176 @@ pre { margin: 10px 0 0; padding: 12px; background: var(--soft); border: 1px soli
+-.message-avatar { display: grid; place-items: center; flex-shrink: 0; width: 29px; height: 29px; border-radius: 8px; border: 1px solid #e5e5e8; color: #4a4a52; background: #fafafa; font-size: 19px; font-weight: 500; }
++.message-avatar { display: grid; place-items: center; flex-shrink: 0; width: 29px; height: 29px; padding: 2px; border-radius: 8px; border: 1px solid #ded8f5; color: var(--accent); background: var(--accent-soft); }
+@@ -352 +358 @@ summary::-webkit-details-marker { display: none; }
+-  .brand-name, .nav-caption, .rail-note, .new-chat-button span, .view-nav button > span, .view-nav .nav-chevron, .view-nav button.active .nav-chevron, .docs-link > span, .docs-link .icon:last-child, .user-button > span:not(.avatar), .user-button > .icon { display: none; }
++  .brand-copy, .nav-caption, .rail-note, .new-chat-button span, .view-nav button > span, .view-nav .nav-chevron, .view-nav button.active .nav-chevron, .docs-link > span, .docs-link .icon:last-child, .user-button > span:not(.avatar), .user-button > .icon { display: none; }
+@@ -367,2 +373,2 @@ summary::-webkit-details-marker { display: none; }
+-  .view-nav button { flex-direction: column; gap: 4px; height: 50px; min-height: 50px; justify-content: center; padding: 4px 10px; background: transparent; color: #a1a1a9; font-size: 10px; border-radius: 9px; }
+-  .view-nav button.active { background: #f3f3f5; color: #303037; }
++  .view-nav button { flex-direction: column; gap: 4px; height: 50px; min-height: 50px; justify-content: center; padding: 4px 10px; background: transparent; color: var(--muted); font-size: 10px; border-radius: 9px; }
++  .view-nav button.active { background: var(--accent-soft); color: var(--accent); }
+diff --git a/public/serveflow.svg b/public/serveflow.svg
+new file mode 100644
+index 0000000..25d455f
+--- /dev/null
++++ b/public/serveflow.svg
+@@ -0,0 +1,7 @@
++<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 40 40" fill="none">
++  <rect width="40" height="40" rx="12" fill="#6553C7"/>
++  <g transform="translate(4 4)" stroke="#fff" stroke-width="3" stroke-linecap="round">
++    <path d="M24 9H13a5 5 0 0 0 0 10h6"/>
++    <path d="M8 23h11a5 5 0 0 0 0-10h-6" opacity=".65"/>
++  </g>
++</svg>
+diff --git a/src/components/BrandMark.vue b/src/components/BrandMark.vue
+new file mode 100644
+index 0000000..f3036a3
+--- /dev/null
++++ b/src/components/BrandMark.vue
+@@ -0,0 +1,6 @@
++<template>
++  <svg class="brand-symbol" viewBox="0 0 32 32" fill="none" aria-hidden="true" focusable="false">
++    <path d="M24 9H13a5 5 0 0 0 0 10h6" stroke="currentColor" stroke-width="3" stroke-linecap="round" />
++    <path d="M8 23h11a5 5 0 0 0 0-10h-6" stroke="currentColor" stroke-width="3" stroke-linecap="round" opacity=".65" />
++  </svg>
++</template>
