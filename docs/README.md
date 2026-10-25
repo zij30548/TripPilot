@@ -2,6 +2,8 @@
 
 **独立客服项目**：本机5173现为[智应 ServeFlow](SERVEFLOW_UI.md)，基于上传的原EchoMind客服前端进行品牌／样式调整；[启动说明](ECHOMIND_ORIGINAL_LOCAL.md)。下方TripPilot旅行重构、权限和验收范围不自动适用于这个独立开发入口。
 
+**当前ServeFlow导航**：[对话／监控两页](SERVEFLOW_MONITOR_UI.md)，无Java/Python切换、独立知识管理或评测操作。聊天按需RAG与后台评测保留，监控指标是技术执行统计；历史三页截图不代表当前导航。
+
 [ServeFlow知识资料](SERVEFLOW_KNOWLEDGE.md)：六篇智能设备＋数字服务演示规则、公开参考、实际本机更新和质量边界；不是新旅行语料或真实企业政策。
 
 [ServeFlow演示订单](SERVEFLOW_DEMO_ORDERS.md)：独立MySQL合成业务记录、只读工具、服务端演示会话、浏览器入口、检查与未验范围；不执行真实退款或新增模型质量成绩。

@@ -1,0 +1,1175 @@
+diff --git a/src/App.vue b/src/App.vue
+index 0c5506a..cd36498 100644
+--- a/src/App.vue
++++ b/src/App.vue
+@@ -59,11 +58,0 @@
+-          <div class="backend-tabs" aria-label="选择后端">
+-            <button
+-              v-for="backend in ['java', 'python']"
+-              :key="backend"
+-              :class="{ active: settings.backend === backend }"
+-              :aria-pressed="settings.backend === backend"
+-              @click="switchBackend(backend)"
+-            >
+-              {{ backend === 'java' ? 'Java' : 'Python' }}
+-            </button>
+-          </div>
+@@ -79 +68 @@
+-      <section v-if="activeView === 'chat'" class="page-chat">
++      <section v-show="activeView === 'chat'" class="page-chat">
+@@ -145 +134 @@
+-                      <small v-else-if="item.role === 'assistant'">{{ currentBackend.label }} Agent</small>
++                      <small v-else-if="item.role === 'assistant'">Agent</small>
+@@ -242,190 +231,2 @@
+-      <section v-else-if="activeView === 'knowledge'" class="page page-knowledge">
+-        <div class="page-heading">
+-          <div class="heading-copy">
+-            <span class="kicker">KNOWLEDGE OPERATIONS</span>
+-            <h1>知识库</h1>
+-            <p>管理业务知识，为每次回答提供依据。</p>
+-          </div>
+-          <div class="count-display">
+-            <strong>{{ knowledgeCount }}</strong>
+-            <span>知识片段</span>
+-          </div>
+-        </div>
+-        <div class="knowledge-layout">
+-          <section class="workspace-card search-workspace">
+-            <div class="card-heading">
+-              <div>
+-                <span class="kicker">RETRIEVAL</span>
+-                <h2>检索知识</h2>
+-              </div>
+-              <AppIcon name="search" />
+-            </div>
+-            <form class="search-line" @submit.prevent="performAction('search', searchKnowledge)">
+-              <input v-model="searchQuery" aria-label="检索问题" placeholder="例如：退款多久到账" />
+-              <button :disabled="busy || !searchQuery.trim()">
+-                <AppIcon name="search" />
+-                {{ busy && pendingAction === 'search' ? '检索中' : '搜索' }}
+-              </button>
+-            </form>
+-            <div v-if="searchResults.length" class="result-list">
+-              <article v-for="(item, index) in searchResults" :key="item.id || index" class="result-item">
+-                <span class="result-number">{{ String(index + 1).padStart(2, '0') }}</span>
+-                <div>
+-                  <div class="result-title">
+-                    <strong>{{ item.title || '未命名文档' }}</strong>
+-                    <small>相关度 {{ item.score ?? '—' }}</small>
+-                  </div>
+-                  <p>{{ item.content }}</p>
+-                </div>
+-              </article>
+-            </div>
+-            <div v-else class="workspace-empty">
+-              <AppIcon name="book" />
+-              <h3>{{ searched ? '暂未找到相关知识' : '搜索你的知识库' }}</h3>
+-              <p>{{ searched ? '尝试换一个问题，或添加更多知识文档。' : '输入客户问题，查看最相关的知识片段。' }}</p>
+-            </div>
+-          </section>
+-          <section class="workspace-card import-workspace">
+-            <div class="card-heading">
+-              <div>
+-                <span class="kicker">INGESTION</span>
+-                <h2>添加知识</h2>
+-              </div>
+-              <AppIcon name="document" />
+-            </div>
+-            <form @submit.prevent="performAction('import', submitKnowledge)">
+-              <label>
+-                <span>文档标题</span>
+-                <input v-model="docTitle" required placeholder="例如：退款补充政策" />
+-              </label>
+-              <label>
+-                <span>知识内容</span>
+-                <textarea v-model="docContent" required rows="7" placeholder="输入客服规范、产品说明或排障流程"></textarea>
+-              </label>
+-              <div class="side-actions">
+-                <button :disabled="busy || !docTitle.trim() || !docContent.trim()">
+-                  <AppIcon name="arrow" />
+-                  {{ busy && pendingAction === 'import' ? '添加中' : '添加文档' }}
+-                </button>
+-                <label class="upload-button" :class="{ disabled: busy }">
+-                  <AppIcon name="upload" />
+-                  上传文件
+-                  <input :disabled="busy" type="file" accept=".txt,.md,.json" @change="performAction('upload', handleUpload, $event)" />
+-                </label>
+-              </div>
+-              <p class="form-hint">支持 TXT、Markdown、JSON，最大 10 MB。</p>
+-            </form>
+-          </section>
+-        </div>
+-        <section class="workspace-card skills-workspace">
+-          <div class="card-heading">
+-            <div>
+-              <span class="kicker">LOADED SKILLS</span>
+-              <h2>已加载能力</h2>
+-            </div>
+-            <button class="text-button" :disabled="busy" @click="performAction('skills', reloadSkillSet)">
+-              <AppIcon name="refresh" />
+-              重新加载
+-            </button>
+-          </div>
+-          <div class="skill-table">
+-            <div v-for="skill in skillsData.skills" :key="skill.name" class="skill-item">
+-              <span class="skill-dot"></span>
+-              <strong>{{ skill.name }}</strong>
+-              <span>{{ skill.description || '业务规范能力' }}</span>
+-              <small>{{ skill.content_chars || 0 }} chars</small>
+-            </div>
+-            <p v-if="!skillsData.skills?.length" class="skills-empty">暂无已加载能力，连接服务后刷新查看。</p>
+-          </div>
+-        </section>
+-      </section>
+-      <section v-else class="page page-evaluation">
+-        <div class="page-heading">
+-          <div class="heading-copy">
+-            <span class="kicker">EVALUATION LAB</span>
+-            <h1>评测中心</h1>
+-            <p>检查意图识别、回复质量与回归结果。</p>
+-          </div>
+-          <button @click="performAction('evaluation', runEvaluation)" :disabled="busy">
+-            <AppIcon :name="busy && pendingAction === 'evaluation' ? 'refresh' : 'play'" :class="{ spinning: busy && pendingAction === 'evaluation' }" />
+-            {{ busy && pendingAction === 'evaluation' ? '评测运行中' : '运行评测' }}
+-          </button>
+-        </div>
+-        <div v-if="evalData" class="evaluation-content">
+-          <div class="evaluation-summary">
+-            <div class="score-hero">
+-              <span>PASS RATE · 通过率</span>
+-              <strong :class="{ 'no-score': evalData.valid_total === 0 }">{{ evalData.valid_total === 0 ? '无有效评分' : formatPercent(evalData.pass_rate) }}</strong>
+-              <small>{{ evalData.passed }} / {{ evalData.valid_total ?? evalData.total }} 有效用例通过</small>
+-            </div>
+-            <div>
+-              <span>通过用例</span>
+-              <strong>{{ evalData.passed }}</strong>
+-            </div>
+-            <div>
+-              <span>总数 / 评分失败</span>
+-              <strong>
+-                {{ evalData.total }}
+-                <small> / {{ evalData.evaluation_errors ?? 0 }}</small>
+-              </strong>
+-            </div>
+-            <div>
+-              <span>回归问题</span>
+-              <strong :class="evalData.regressions?.length ? 'danger' : 'success'">{{ evalData.regressions?.length || 0 }}</strong>
+-            </div>
+-          </div>
+-          <div class="evaluation-layout">
+-            <section class="workspace-card">
+-              <div class="card-heading">
+-                <div>
+-                  <span class="kicker">QUALITY SCORES</span>
+-                  <h2>平均评分</h2>
+-                </div>
+-              </div>
+-              <p v-if="!Object.keys(evalData.avg_scores || {}).length" class="muted">没有有效评分，请查看失败原因。</p>
+-              <div class="score-list">
+-                <div v-for="(value, key) in evalData.avg_scores" :key="key">
+-                  <span>{{ key }}</span>
+-                  <i>
+-                    <b :style="{ width: `${Math.max(0, Math.min(Number(value) * 100, 100))}%` }"></b>
+-                  </i>
+-                  <strong>{{ Number(value).toFixed(2) }}</strong>
+-                </div>
+-              </div>
+-            </section>
+-            <section class="workspace-card">
+-              <div class="card-heading">
+-                <div>
+-                  <span class="kicker">RECOMMENDATIONS</span>
+-                  <h2>优化建议</h2>
+-                </div>
+-              </div>
+-              <p v-if="evalData.regression_note" class="muted">{{ evalData.regression_note }}</p>
+-              <div v-if="evalData.recommendations?.length" class="recommendations">
+-                <p v-for="(item, index) in evalData.recommendations" :key="index">{{ item }}</p>
+-              </div>
+-              <p v-else class="muted">本次评测没有返回额外建议。</p>
+-              <div v-for="(result, index) in evalData.regressions || []" :key="index" class="evaluation-warning">
+-                <strong class="danger">回归问题</strong>
+-                <p>{{ typeof result === 'string' ? result : formatJson(result) }}</p>
+-              </div>
+-              <div v-for="result in (evalData.results || []).filter(item => item.metadata?.judge_failed)" :key="result.test_id" class="evaluation-warning">
+-                <strong class="danger">{{ result.test_id }}：评分失败</strong>
+-                <p>{{ result.metadata.judge_error || '模型未返回有效评分' }}</p>
+-                <small>{{ result.metadata.judge_attempts ?? '—' }} 次尝试</small>
+-              </div>
+-            </section>
+-          </div>
+-        </div>
+-        <div v-else class="evaluation-empty">
+-          <span class="empty-emblem">
+-            <AppIcon name="chart" />
+-          </span>
+-          <h2>{{ busy && pendingAction === 'evaluation' ? '正在检验每一份答案。' : '了解 Agent 的表现' }}</h2>
+-          <p>{{ busy && pendingAction === 'evaluation' ? '评测需要一些时间，结果返回后会显示在这里。' : '运行一次评测，了解 Agent 的表现与改进空间。' }}</p>
+-          <div class="evaluation-dimensions">
+-            <span>意图识别</span>
+-            <span>回复质量</span>
+-            <span>回归检测</span>
+-          </div>
+-        </div>
++      <section v-show="activeView === 'monitor'" class="page page-monitor" aria-label="运行监控">
++        <MonitorDashboard :snapshot="monitorReadAt ? monitorData : null" :loading="monitorLoading" :error="monitorError" :read-at="monitorReadAt" @refresh="loadMonitor" />
+@@ -456 +257 @@
+-      <p class="dialog-description">配置 {{ currentBackend.label }} 服务与当前会话。</p>
++      <p class="dialog-description">配置客服服务与当前会话。</p>
+@@ -472 +273 @@
+-        <label v-if="settings.backend === 'python'">
++        <label>
+@@ -503 +303,0 @@ import {
+-  addKnowledge,
+@@ -508 +307,0 @@ import {
+-  reloadSkills,
+@@ -513 +311,0 @@ import {
+-  requestKnowledgeStats,
+@@ -515 +312,0 @@ import {
+-  requestSearch,
+@@ -517,4 +314 @@ import {
+-  requestSkills,
+-  runEvaluation as requestEvaluation,
+-  saveSettings,
+-  uploadKnowledge
++  saveSettings
+@@ -525,0 +320 @@ import RequestInspector from './components/RequestInspector.vue'
++import MonitorDashboard from './components/MonitorDashboard.vue'
+@@ -539,5 +333,0 @@ const statusText = ref('')
+-const knowledgeCount = ref('-')
+-const searchQuery = ref('退款多久能到账')
+-const searchResults = ref([])
+-const docTitle = ref('')
+-const docContent = ref('')
+@@ -550 +339,0 @@ const pendingAction = ref('')
+-const searched = ref(false)
+@@ -560,2 +349 @@ const views = [
+-  { id: 'knowledge', label: '知识库', icon: 'book' },
+-  { id: 'evaluation', label: '评测', icon: 'chart' }
++  { id: 'monitor', label: '监控', icon: 'chart' }
+@@ -570 +358,5 @@ const monitorData = ref({ agent_stats: {}, tool_stats: {}, active_alerts: [], su
+-const skillsData = ref({ count: 0, skills: [], errors: [] })
++const monitorLoading = ref(false)
++const monitorError = ref('')
++const monitorReadAt = ref(null)
++let monitorController = null
++let monitorSequence = 0
+@@ -573 +364,0 @@ const lastTrace = ref(null)
+-const evalData = ref(null)
+@@ -584 +375 @@ let boundDemoSettings = null
+-const currentBackend = computed(() => backendMeta(settings.backend, settings))
++const currentBackend = computed(() => backendMeta('python', settings))
+@@ -588,0 +380,4 @@ watch(() => settings.conversationId, persist)
++watch(activeView, (view, previous) => {
++  if (view === 'monitor') loadMonitor()
++  else if (previous === 'monitor') cancelMonitor()
++})
+@@ -597,0 +393 @@ onBeforeUnmount(() => {
++  cancelMonitor()
+@@ -637,6 +433 @@ function saveConnection() {
+-    searchResults.value = []
+-    searched.value = false
+-    evalData.value = null
+-    monitorData.value = { agent_stats: {}, tool_stats: {}, active_alerts: [], suggestions: [] }
+-    skillsData.value = { count: 0, skills: [], errors: [] }
+-    knowledgeCount.value = '—'
++    resetMonitor()
+@@ -648 +439,2 @@ function saveConnection() {
+-  settings.endpoints[settings.backend] = endpoint
++  settings.backend = 'python'
++  settings.endpoints.python = endpoint
+@@ -667,21 +458,0 @@ async function copyMessage(content) {
+-function switchBackend(type) {
+-  if (settings.backend === type) return
+-  searched.value = false
+-  requestState.invalidate()
+-  busy.value = false
+-  statusText.value = ''
+-  knowledgeCount.value = '-'
+-  monitorData.value = { agent_stats: {}, tool_stats: {}, active_alerts: [], suggestions: [] }
+-  skillsData.value = { count: 0, skills: [], errors: [] }
+-  evalData.value = null
+-  settings.backend = type
+-  persist()
+-  healthOk.value = false
+-  healthLabel.value = '未检查'
+-  messages.value = []
+-  searchResults.value = []
+-  lastResponse.value = null
+-  lastTrace.value = null
+-  refreshConsole()
+-}
+-
+@@ -690 +461,2 @@ async function refreshConsole() {
+-  await Promise.allSettled([checkHealth(), loadStats(), loadMonitor(), loadSkills()])
++  await checkHealth()
++  if (activeView.value === 'monitor') await loadMonitor()
+@@ -723,3 +495 @@ function expireDemoSession(message = '演示会话已过期，请刷新页面重
+-  searchResults.value = []
+-  searched.value = false
+-  evalData.value = null
++  resetMonitor()
+@@ -751,3 +521 @@ async function loadDemoSession() {
+-      searchResults.value = []
+-      searched.value = false
+-      evalData.value = null
++      resetMonitor()
+@@ -844,9 +612,5 @@ async function checkHealth() {
+-async function loadStats() {
+-  const request = requestState.begin('stats')
+-  try {
+-    const data = await requestKnowledgeStats(request.backend, request.settings)
+-    if (!request.isCurrent()) return
+-    knowledgeCount.value = data.total_chunks ?? data.totalChunks ?? '-'
+-  } catch {
+-    if (request.isCurrent()) knowledgeCount.value = '-'
+-  }
++function cancelMonitor() {
++  monitorSequence += 1
++  monitorController?.abort()
++  monitorController = null
++  monitorLoading.value = false
+@@ -855,8 +619,5 @@ async function loadStats() {
+-async function loadMonitor() {
+-  const request = requestState.begin('monitor')
+-  try {
+-    const data = await requestMonitor(request.backend, request.settings)
+-    if (request.isCurrent()) monitorData.value = { ...data, loaded: true }
+-  } catch {
+-    if (request.isCurrent()) monitorData.value = { agent_stats: {}, tool_stats: {}, active_alerts: [], suggestions: [] }
+-  }
++function resetMonitor() {
++  cancelMonitor()
++  monitorData.value = { agent_stats: {}, tool_stats: {}, active_alerts: [], suggestions: [] }
++  monitorReadAt.value = null
++  monitorError.value = ''
+@@ -865,2 +626,10 @@ async function loadMonitor() {
+-async function loadSkills() {
+-  const request = requestState.begin('skills')
++async function loadMonitor() {
++  if (monitorLoading.value) return
++  const request = requestState.begin('monitor')
++  const sequence = ++monitorSequence
++  const controller = new AbortController()
++  const identity = settings.userId
++  monitorController = controller
++  const current = () => request.isCurrent() && sequence === monitorSequence && identity === settings.userId
++  monitorLoading.value = true
++  monitorError.value = ''
+@@ -868,2 +637,4 @@ async function loadSkills() {
+-    const data = await requestSkills(request.backend, request.settings)
+-    if (request.isCurrent()) skillsData.value = data
++    const data = await requestMonitor('python', request.settings, { signal: controller.signal })
++    if (!current()) return
++    monitorData.value = { ...data, loaded: true }
++    monitorReadAt.value = new Date().toISOString()
+@@ -871 +642,6 @@ async function loadSkills() {
+-    if (request.isCurrent()) skillsData.value = { count: 0, skills: [], errors: [] }
++    if (current()) monitorError.value = '监控读取失败，请手动刷新。本次未自动重试。'
++  } finally {
++    if (current()) {
++      monitorLoading.value = false
++      monitorController = null
++    }
+@@ -875,15 +650,0 @@ async function loadSkills() {
+-async function reloadSkillSet() {
+-  const request = requestState.begin('action')
+-  busy.value = true
+-  try {
+-    const data = await reloadSkills(request.backend, request.settings)
+-    if (!request.isCurrent()) return
+-    skillsData.value = data
+-    showToast('Skills 已重新加载')
+-  } catch (error) {
+-    if (!request.isCurrent()) return
+-    statusText.value = error.message
+-    showToast('Skills 加载失败')
+-  } finally { if (request.isCurrent()) busy.value = false }
+-}
+-
+@@ -913 +673,0 @@ async function sendMessage() {
+-    await loadMonitor()
+@@ -932,0 +693 @@ function clearConversation() {
++  cancelMonitor()
+@@ -942,76 +702,0 @@ function clearConversation() {
+-async function searchKnowledge() {
+-  if (!searchQuery.value.trim() || busy.value) return
+-  const request = requestState.begin('action')
+-  busy.value = true
+-  try {
+-    const data = await requestSearch(request.backend, request.settings, searchQuery.value, 5)
+-    if (!request.isCurrent()) return
+-    searchResults.value = data.results || []
+-    searched.value = true
+-    showToast(`检索完成，返回 ${searchResults.value.length} 条结果`)
+-  } catch (error) {
+-    if (!request.isCurrent()) return
+-    statusText.value = error.message
+-    showToast('检索失败，请检查连接')
+-  } finally { if (request.isCurrent()) busy.value = false }
+-}
+-
+-async function submitKnowledge() {
+-  if (!docTitle.value.trim() || !docContent.value.trim() || busy.value) return
+-  const request = requestState.begin('action')
+-  busy.value = true
+-  try {
+-    const data = await addKnowledge(request.backend, request.settings, [{ title: docTitle.value.trim(), content: docContent.value.trim() }])
+-    if (!request.isCurrent()) return
+-    statusText.value = JSON.stringify(data, null, 2)
+-    await loadStats()
+-    if (!request.isCurrent()) return
+-    showToast('文档已添加')
+-  } catch (error) {
+-    if (!request.isCurrent()) return
+-    statusText.value = error.message
+-    showToast('文档导入失败')
+-  } finally { if (request.isCurrent()) busy.value = false }
+-}
+-
+-async function handleUpload(event) {
+-  const file = event.target.files?.[0]
+-  event.target.value = ''
+-  if (!file || busy.value) return
+-  if (file.size > 10 * 1024 * 1024) { showToast('文件不能超过 10 MB'); return }
+-  const request = requestState.begin('action')
+-  busy.value = true
+-  try {
+-    const data = await uploadKnowledge(request.backend, request.settings, file)
+-    if (!request.isCurrent()) return
+-    statusText.value = JSON.stringify(data, null, 2)
+-    await loadStats()
+-    if (!request.isCurrent()) return
+-    showToast(`${file.name} 导入成功`)
+-  } catch (error) {
+-    if (!request.isCurrent()) return
+-    statusText.value = error.message
+-    showToast('文件导入失败')
+-  } finally { if (request.isCurrent()) busy.value = false }
+-}
+-
+-async function runEvaluation() {
+-  const request = requestState.begin('action')
+-  busy.value = true
+-  try {
+-    const data = await requestEvaluation(request.backend, request.settings, null, {
+-      isCurrent: request.isCurrent,
+-      onProgress: job => {
+-        if (request.isCurrent()) statusText.value = `评测任务 ${job.job_id}：${job.status === 'queued' ? '排队中' : '运行中'}，已完成 ${job.completed}/${job.total} 组`
+-      }
+-    })
+-    if (!request.isCurrent()) return
+-    evalData.value = data
+-    showToast(data.status === 'failed' ? '评测执行失败，请查看结果' : data.status === 'partial' ? '评测部分完成，请查看失败原因' : '评测完成')
+-  } catch (error) {
+-    if (!request.isCurrent()) return
+-    statusText.value = error.message
+-    showToast('评测运行失败')
+-  } finally { if (request.isCurrent()) busy.value = false }
+-}
+-
+@@ -1026,5 +710,0 @@ async function loadToolTrace(requestId, request = requestState.begin('trace')) {
+-function formatPercent(value) {
+-  const number = Number(value || 0)
+-  return `${(number <= 1 ? number * 100 : number).toFixed(1)}%`
+-}
+-
+diff --git a/src/components/RequestInspector.vue b/src/components/RequestInspector.vue
+index 0ce7093..4e2b97b 100644
+--- a/src/components/RequestInspector.vue
++++ b/src/components/RequestInspector.vue
+@@ -89,2 +89,2 @@
+-          <span>请求</span>
+-          <strong>{{ monitorData.loaded ? totalRequests : '—' }}</strong>
++          <span>Agent执行</span>
++          <strong>{{ monitorData.loaded ? totalAgentExecutions : '—' }}</strong>
+@@ -123 +123,6 @@ const agentCount = computed(() => Object.keys(props.monitorData.agent_stats || {
+-const totalRequests = computed(() => Object.values(props.monitorData.agent_stats || {}).reduce((sum, item) => sum + Number(item.total || 0), 0))
++const totalAgentExecutions = computed(() => {
++  const values = Object.values(props.monitorData.agent_stats || {}).map(item => item.total)
++  if (values.some(value => !Number.isSafeInteger(value) || value < 0)) return '—'
++  const total = values.reduce((sum, value) => sum + value, 0)
++  return Number.isSafeInteger(total) ? total : '—'
++})
+diff --git a/src/lib/backends.js b/src/lib/backends.js
+index 1279814..cd51e92 100644
+--- a/src/lib/backends.js
++++ b/src/lib/backends.js
+@@ -22 +22 @@ export function createInitialSettings() {
+-    backend: saved.backend || import.meta.env?.VITE_DEFAULT_BACKEND || 'python',
++    backend: 'python',
+@@ -33 +33 @@ export function saveSettings(settings) {
+-  localStorage.setItem('echomind.frontend.settings', JSON.stringify({ ...settings, pythonToken: undefined }))
++  localStorage.setItem('echomind.frontend.settings', JSON.stringify({ ...settings, backend: 'python', pythonToken: undefined }))
+@@ -48,2 +48,4 @@ export async function requestHealth(type, settings) {
+-export async function requestMonitor(type, settings) {
+-  return requestFor(type, settings, '/monitor')
++export async function requestMonitor(type, settings, options = {}) {
++  const deadline = AbortSignal.timeout(20000)
++  const signal = options.signal ? AbortSignal.any([options.signal, deadline]) : deadline
++  return requestFor(type, settings, '/monitor', { ...options, signal })
+diff --git a/src/styles.css b/src/styles.css
+index 0938202..4025ef8 100644
+--- a/src/styles.css
++++ b/src/styles.css
+@@ -127,4 +126,0 @@ pre { margin: 10px 0 0; padding: 12px; background: var(--soft); border: 1px soli
+-.backend-tabs { display: flex; padding: 3px; border: 1px solid var(--line); border-radius: 8px; background: var(--soft); }
+-.backend-tabs button { min-height: 26px; padding: 0 14px; background: transparent; color: var(--faint); border-radius: 5px; font-size: 11px; }
+-.backend-tabs button.active { background: white; box-shadow: 0 1px 3px #30385b12; color: var(--accent); }
+-.backend-tabs button:hover:not(.active) { color: var(--ink); background: #f0f0f1; }
+@@ -397 +393 @@ summary::-webkit-details-marker { display: none; }
+-  .view-nav { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px; }
++  .view-nav { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
+@@ -409,2 +404,0 @@ summary::-webkit-details-marker { display: none; }
+-  .backend-tabs { padding: 3px; }
+-  .backend-tabs button { min-height: 25px; padding: 0 11px; font-size: 10px; }
+@@ -474 +467,0 @@ summary::-webkit-details-marker { display: none; }
+-  .backend-tabs button { padding-inline: 9px; }
+diff --git a/tests/requestState.test.js b/tests/requestState.test.js
+index 9d3e6d0..e6cb406 100644
+--- a/tests/requestState.test.js
++++ b/tests/requestState.test.js
+@@ -34 +34,3 @@ function loadFunction(name, context) {
+-  const start = source.indexOf(`async function ${name}(`)
++  const match = new RegExp(`^(?:async )?function ${name}\\(`, 'm').exec(source)
++  assert.ok(match, `Expected the current application function ${name}`)
++  const start = match.index
+@@ -40,20 +42,7 @@ function loadFunction(name, context) {
+-for (const [name, requestName, field, result] of [
+-  ['loadStats','requestKnowledgeStats','knowledgeCount',{total_chunks: 99}],
+-  ['loadMonitor','requestMonitor','monitorData',{agent_stats:{old:true}}],
+-  ['loadSkills','requestSkills','skillsData',{skills:['old']}],
+-]) {
+-  for (const fail of [false,true]) {
+-    test(`${name}: stale ${fail ? 'error' : 'success'} cannot overwrite switched state`, async () => {
+-      const settings = state()
+-      const requests = createRequestState(settings)
+-      let resolve, reject
+-      const pending = new Promise((a,b)=>{resolve=a;reject=b})
+-      const context = vm.createContext({settings,requestState:requests,[field]:{value:'new'},[requestName]:()=>pending})
+-      loadFunction(name,context)
+-      const task = context[name]()
+-      settings.backend='java'; requests.invalidate()
+-      if (fail) reject(new Error('old')); else resolve(result)
+-      await task
+-      assert.equal(context[field].value,'new')
+-    })
+-  }
++// Knowledge management and evaluation pages were explicitly removed. Keep their
++// shared request-state coverage above; exercise the current health/monitor UI
++// functions here instead of retaining calls to deleted page controllers.
++function deferred() {
++  let resolve, reject
++  const promise = new Promise((a,b) => { resolve = a; reject = b })
++  return { promise, resolve, reject }
+@@ -62,9 +51,58 @@ for (const [name, requestName, field, result] of [
+-test('stale eval response does not clear a new operation busy state', async () => {
+-  const settings=state(), requests=createRequestState(settings)
+-  let resolve
+-  const context=vm.createContext({settings, requestState:requests, busy:{value:false},evalData:{value:'new'},
+-    statusText:{value:''}, showToast:()=>assert.fail('stale toast'), requestEvaluation:()=>new Promise(a=>{resolve=a})})
+-  loadFunction('runEvaluation',context)
+-  const task=context.runEvaluation()
+-  settings.backend='java'; requests.invalidate(); context.busy.value=true
+-  resolve({avg_scores:{accuracy:0.5}})
++for (const fail of [false,true]) {
++  test(`health: old ${fail ? 'error' : 'success'} cannot overwrite connection A→B→A`, async () => {
++    const settings = state(), requests = createRequestState(settings), wait = deferred()
++    const context = vm.createContext({ settings, requestState: requests,
++      healthOk: {value:'fresh'}, healthLabel: {value:'fresh'}, statusText: {value:'fresh'},
++      requestHealth: () => wait.promise })
++    loadFunction('checkHealth', context)
++    const task = context.checkHealth()
++    settings.endpoints.python = '/changed'; requests.invalidate()
++    settings.endpoints.python = '/py'; requests.invalidate()
++    if (fail) wait.reject(new Error('old private server error')); else wait.resolve({status:'ok'})
++    await task
++    assert.equal(context.healthOk.value, 'fresh')
++    assert.equal(context.healthLabel.value, 'fresh')
++    assert.equal(context.statusText.value, 'fresh')
++  })
++}
++
++function monitorContext(requestMonitor) {
++  const settings = state()
++  const context = vm.createContext({ settings, requestState: createRequestState(settings), AbortController,
++    monitorSequence: 0, monitorController: null, monitorLoading: {value:false},
++    monitorError: {value:''}, monitorReadAt: {value:'previous read'},
++    monitorData: {value:{loaded:true,agent_stats:{previous:true}}}, requestMonitor })
++  for (const name of ['cancelMonitor','resetMonitor','loadMonitor']) loadFunction(name,context)
++  return context
++}
++
++for (const fail of [false,true]) {
++  test(`monitor: old ${fail ? 'error' : 'success'} and finally cannot change the new request after A→B→A`, async () => {
++    const wait = deferred(), context = monitorContext(() => wait.promise)
++    const task = context.loadMonitor()
++    context.settings.endpoints.python = '/changed'; context.requestState.invalidate()
++    context.cancelMonitor()
++    context.settings.endpoints.python = '/py'; context.requestState.invalidate()
++    const fresh = {agent_stats:{fresh:true}}, controller = {fresh:true}
++    context.monitorData.value = fresh
++    context.monitorReadAt.value = 'new read'
++    context.monitorError.value = 'new error'
++    context.monitorLoading.value = true
++    context.monitorController = controller
++    if (fail) wait.reject(new Error('old private server error')); else wait.resolve({agent_stats:{old:true}})
++    await task
++    assert.equal(context.monitorData.value, fresh)
++    assert.equal(context.monitorReadAt.value, 'new read')
++    assert.equal(context.monitorError.value, 'new error')
++    assert.equal(context.monitorLoading.value, true)
++    assert.equal(context.monitorController, controller)
++  })
++}
++
++test('monitor read checks workspace identity even without a request-state invalidation', async () => {
++  const wait = deferred(), context = monitorContext(() => wait.promise)
++  const task = context.loadMonitor(), previous = context.monitorData.value
++  context.settings.userId = 'another workspace'
++  context.monitorReadAt.value = 'new workspace read'
++  context.monitorError.value = 'new workspace error'
++  wait.resolve({agent_stats:{old:true}})
+@@ -72,2 +110,50 @@ test('stale eval response does not clear a new operation busy state', async () =
+-  assert.equal(context.evalData.value,'new')
+-  assert.equal(context.busy.value,true)
++  assert.equal(context.monitorData.value, previous)
++  assert.equal(context.monitorReadAt.value, 'new workspace read')
++  assert.equal(context.monitorError.value, 'new workspace error')
++  assert.equal(context.monitorLoading.value, true)
++})
++
++test('leaving/cancelling monitor aborts once and preserves the last snapshot and read time', async () => {
++  const wait = deferred(), context = monitorContext(() => wait.promise)
++  const task = context.loadMonitor(), previous = context.monitorData.value
++  let aborts = 0
++  context.monitorController.signal.addEventListener('abort', () => { aborts += 1 })
++  context.cancelMonitor()
++  context.cancelMonitor()
++  wait.reject(new Error('aborted'))
++  await task
++  assert.equal(aborts, 1)
++  assert.equal(context.monitorLoading.value, false)
++  assert.equal(context.monitorError.value, '')
++  assert.equal(context.monitorReadAt.value, 'previous read')
++  assert.equal(context.monitorData.value, previous)
++})
++
++test('failed current monitor refresh keeps old data/date and only shows a fixed error', async () => {
++  let calls = 0
++  const context = monitorContext(async () => { calls += 1; throw new Error('private raw server detail') })
++  const previous = context.monitorData.value
++  await context.loadMonitor()
++  assert.equal(calls, 1)
++  assert.equal(context.monitorData.value, previous)
++  assert.equal(context.monitorReadAt.value, 'previous read')
++  assert.equal(context.monitorError.value, '监控读取失败，请手动刷新。本次未自动重试。')
++  assert.equal(context.monitorLoading.value, false)
++})
++
++test('successful monitor refresh is a single cancelable Python read and records its read time', async () => {
++  let calls = 0
++  const context = monitorContext(async (type, settings, options) => {
++    calls += 1
++    assert.equal(type, 'python')
++    assert.equal(settings.userId, 'a')
++    assert.ok(options.signal instanceof AbortSignal)
++    return {agent_stats:{general:{total:1}}}
++  })
++  await context.loadMonitor()
++  assert.equal(calls, 1)
++  assert.equal(context.monitorData.value.agent_stats.general.total, 1)
++  assert.equal(context.monitorData.value.loaded, true)
++  assert.ok(Number.isFinite(Date.parse(context.monitorReadAt.value)))
++  assert.equal(context.monitorError.value, '')
++  assert.equal(context.monitorLoading.value, false)
+diff --git a/src/components/MonitorDashboard.vue b/src/components/MonitorDashboard.vue
+new file mode 100644
+index 0000000..008cf05
+--- /dev/null
++++ b/src/components/MonitorDashboard.vue
+@@ -0,0 +1,167 @@
++<template>
++  <section class="monitor-dashboard" aria-labelledby="monitor-heading" :aria-busy="loading">
++    <header class="monitor-heading">
++      <div>
++        <span class="kicker">RUNTIME MONITOR</span>
++        <h1 id="monitor-heading">运行监控</h1>
++        <p>查看 Agent 与工具的执行状态。</p>
++      </div>
++      <button class="quiet-button" type="button" :disabled="loading" @click="$emit('refresh')">
++        <AppIcon name="refresh" />{{ loading ? '读取中' : '刷新指标' }}
++      </button>
++    </header>
++
++    <p v-if="error" class="monitor-error" role="alert">监控数据读取失败，请手动刷新。{{ view.available ? '下方保留上次读取结果。' : '' }}</p>
++    <p v-if="view.incomplete" class="monitor-note" role="status">部分指标格式异常，已隐藏；未知值以 — 显示。</p>
++
++    <template v-if="view.available">
++      <div class="monitor-overview" aria-label="Agent 执行概览">
++        <div><span>Agent 执行次数</span><strong>{{ formatMonitorCount(view.agentSummary.total) }}</strong></div>
++        <div><span>执行成功率</span><strong>{{ summaryRate }}</strong></div>
++        <div><span>平均执行耗时</span><strong>{{ summaryDuration }}</strong></div>
++      </div>
++      <p class="monitor-note overview-note">按 Agent 执行统计，并行角色分别计数；成功率反映执行是否完成，不代表回答准确率。汇总成功率和耗时为加权约数。</p>
++
++      <section class="monitor-section" aria-labelledby="agent-monitor-heading">
++        <div class="monitor-section-heading"><h2 id="agent-monitor-heading">Agent 状态</h2><span>{{ view.agents.length }} 个实例</span></div>
++        <div class="monitor-table-wrap">
++          <table class="monitor-table">
++            <thead><tr><th scope="col">处理角色</th><th scope="col">执行次数</th><th scope="col">成功率</th><th scope="col">平均耗时</th><th scope="col">恢复状态</th></tr></thead>
++            <tbody>
++              <tr v-for="agent in view.agents" :key="agent.id">
++                <th scope="row">{{ agent.label }}</th><td>{{ formatMonitorCount(agent.total) }}</td>
++                <td>{{ agent.total === 0 ? '暂无样本' : formatMonitorRate(agent.rate) }}</td>
++                <td>{{ agent.total === 0 ? '—' : formatMonitorDuration(agent.averageMs) }}</td>
++                <td><span class="monitor-state" :class="agent.stateTone">{{ agent.state }}</span></td>
++              </tr>
++              <tr v-if="!view.agents.length"><td colspan="5" class="monitor-empty-cell">暂无 Agent 指标</td></tr>
++            </tbody>
++          </table>
++        </div>
++      </section>
++
++      <section class="monitor-section" aria-labelledby="tool-monitor-heading">
++        <div class="monitor-section-heading"><h2 id="tool-monitor-heading">已注册工具</h2><span>{{ view.tools.length }} 项</span></div>
++        <div class="monitor-table-wrap">
++          <table class="monitor-table">
++            <thead><tr><th scope="col">工具</th><th scope="col">调用次数</th><th scope="col">成功率</th><th scope="col">平均耗时</th><th scope="col">熔断状态</th></tr></thead>
++            <tbody>
++              <tr v-for="tool in view.tools" :key="tool.id">
++                <th scope="row">{{ tool.label }}</th><td>{{ formatMonitorCount(tool.total) }}</td>
++                <td>{{ tool.total === 0 ? '暂无样本' : formatMonitorRate(tool.rate) }}</td>
++                <td>{{ tool.total === 0 ? '—' : formatMonitorDuration(tool.averageMs) }}</td>
++                <td><span class="monitor-state" :class="tool.stateTone">{{ tool.state }}</span></td>
++              </tr>
++              <tr v-if="!view.tools.length"><td colspan="5" class="monitor-empty-cell">暂无已注册工具指标</td></tr>
++            </tbody>
++          </table>
++        </div>
++        <p class="monitor-note">此表仅覆盖后端工具管理器，含缓存命中；不是全部工具、外部发送或费用计数。</p>
++      </section>
++
++      <section v-if="view.alerts.length" class="monitor-section" aria-labelledby="monitor-alerts-heading">
++        <div class="monitor-section-heading"><h2 id="monitor-alerts-heading">阈值提醒</h2><span>{{ view.alerts.length }} 项</span></div>
++        <ul class="monitor-alert-list">
++          <li v-for="alert in view.alerts" :key="alert.key">
++            <span class="monitor-state" :class="alert.tone">{{ alert.severity }}</span>
++            <strong>{{ alert.label }}</strong><span>{{ alert.value }} · 阈值 {{ alert.threshold }}</span>
++          </li>
++        </ul>
++      </section>
++      <footer class="monitor-footer"><span>读取于 {{ formatMonitorReadTime(readAt) }}</span><span>本进程统计，服务重启可能清零。</span></footer>
++    </template>
++    <div v-else class="monitor-empty" role="status"><AppIcon name="chart" /><h2>{{ loading ? '正在读取运行数据' : '尚未取得监控数据' }}</h2><p>刷新后查看当前服务的指标。</p></div>
++  </section>
++</template>
++
++<script setup>
++import { computed } from 'vue'
++import AppIcon from './AppIcon.vue'
++import { projectMonitorSnapshot, formatMonitorCount, formatMonitorRate, formatMonitorDuration, formatMonitorReadTime } from '../lib/monitorStats.js'
++
++const props = defineProps({
++  snapshot: { type: Object, default: null },
++  loading: { type: Boolean, default: false },
++  error: { type: String, default: '' },
++  readAt: { type: String, default: null }
++})
++defineEmits(['refresh'])
++const view = computed(() => projectMonitorSnapshot(props.snapshot))
++const summaryRate = computed(() => view.value.agentSummary.total === 0 ? '暂无样本'
++  : view.value.agentSummary.rate === null ? '—' : `≈ ${formatMonitorRate(view.value.agentSummary.rate)}`)
++const summaryDuration = computed(() => view.value.agentSummary.averageMs === null ? '—' : `≈ ${formatMonitorDuration(view.value.agentSummary.averageMs)}`)
++</script>
++
++<style scoped>
++.monitor-dashboard { flex: 1; min-height: 0; overflow-y: auto; padding: 38px 40px; }
++.monitor-heading { display: flex; justify-content: space-between; align-items: center; gap: 20px; margin-bottom: 30px; }
++.monitor-heading h1 { margin-top: 6px; }
++.monitor-heading p { color: var(--muted); margin-top: 10px; font-size: 13px; line-height: 1.8; }
++.monitor-heading button { flex-shrink: 0; }
++.monitor-heading .icon { width: 15px; height: 15px; }
++.monitor-overview { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); border: 1px solid var(--line); border-radius: 14px; background: white; }
++.monitor-overview > div { display: flex; flex-direction: column; gap: 15px; min-width: 0; padding: 25px; }
++.monitor-overview > div + div { border-left: 1px solid var(--line); }
++.monitor-overview span { color: var(--muted); font-size: 12px; }
++.monitor-overview strong { font-size: clamp(20px, 2.6vw, 30px); font-weight: 600; letter-spacing: -.04em; line-height: 1.3; overflow-wrap: anywhere; }
++.monitor-note { color: var(--muted); font-size: 11px; line-height: 1.8; margin-top: 14px; }
++.overview-note { margin: 14px 0 27px; }
++.monitor-error { color: var(--danger); padding: 12px 15px; background: #fff7f5; border: 1px solid #f2d8d2; border-radius: 9px; font-size: 12px; line-height: 1.8; margin-bottom: 18px; }
++.monitor-section { margin-top: 22px; padding: 24px; border: 1px solid var(--line); border-radius: 14px; background: white; }
++.monitor-section-heading { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 17px; }
++.monitor-section-heading span { color: var(--muted); font-size: 11px; }
++.monitor-table-wrap { overflow-x: auto; }
++.monitor-table { width: 100%; border-collapse: collapse; text-align: left; font-size: 12px; table-layout: fixed; }
++.monitor-table th, .monitor-table td { padding: 15px 10px; line-height: 1.7; border-bottom: 1px solid var(--line); overflow-wrap: anywhere; }
++.monitor-table thead th { color: var(--muted); font-size: 11px; font-weight: 500; padding-top: 5px; }
++.monitor-table th:first-child { width: 28%; padding-left: 0; }
++.monitor-table th:last-child, .monitor-table td:last-child { padding-right: 0; }
++.monitor-table tbody th { font-weight: 500; }
++.monitor-table tbody tr:last-child th, .monitor-table tbody tr:last-child td { border-bottom: none; }
++.monitor-state { display: inline-flex; align-items: center; gap: 5px; color: var(--muted); font-size: 11px; white-space: nowrap; }
++.monitor-state:before { content: ''; width: 5px; height: 5px; border-radius: 50%; background: currentColor; }
++.monitor-state.healthy { color: #397557; }
++.monitor-state.warning { color: #a34c38; }
++.monitor-state.pending { color: #8b6a25; }
++.monitor-empty-cell { color: var(--muted); text-align: center; }
++.monitor-alert-list { list-style: none; margin: 0; padding: 0; }
++.monitor-alert-list li { display: flex; align-items: center; flex-wrap: wrap; gap: 12px; padding: 13px 0; font-size: 12px; border-bottom: 1px solid var(--line); }
++.monitor-alert-list li:last-child { border-bottom: none; }
++.monitor-alert-list strong { font-weight: 500; }
++.monitor-alert-list li > span:last-child { color: var(--muted); margin-left: auto; }
++.monitor-footer { display: flex; flex-wrap: wrap; justify-content: space-between; gap: 10px; color: var(--muted); font-size: 11px; line-height: 1.8; margin: 20px 0 8px; }
++.monitor-empty { display: flex; flex-direction: column; align-items: center; justify-content: center; min-height: 320px; gap: 16px; text-align: center; }
++.monitor-empty > .icon { width: 30px; height: 30px; color: var(--faint); }
++.monitor-empty h2 { font-size: 20px; font-weight: 500; }
++.monitor-empty p { color: var(--muted); font-size: 12px; }
++@media (max-width: 760px) {
++  .monitor-dashboard { padding: 26px 22px; }
++  .monitor-heading { align-items: flex-start; margin-bottom: 24px; }
++  .monitor-heading h1 { font-size: 26px; }
++  .monitor-overview > div { padding: 20px 14px; gap: 12px; }
++  .monitor-overview span { font-size: 10px; }
++  .monitor-overview strong { font-size: 20px; }
++  .monitor-section { padding: 20px 16px; }
++  .monitor-table { font-size: 11px; }
++  .monitor-table th, .monitor-table td { padding: 13px 5px; }
++  .monitor-table th:first-child { width: 26%; }
++  .monitor-table th:nth-child(2) { width: 14%; }
++  .monitor-table th:nth-child(3) { width: 21%; }
++  .monitor-table th:nth-child(4) { width: 19%; }
++  .monitor-table th:nth-child(5) { width: 20%; }
++  .monitor-table thead th, .monitor-state { font-size: 10px; }
++}
++@media (max-width: 420px) {
++  .monitor-dashboard { padding: 24px 17px; }
++  .monitor-heading { gap: 12px; }
++  .monitor-heading p { font-size: 12px; }
++  .monitor-heading button { min-height: 34px; padding-inline: 10px; font-size: 11px; }
++  .monitor-overview > div { padding: 18px 10px; }
++  .monitor-overview strong { font-size: 18px; }
++  .monitor-section { padding: 18px 12px; }
++  .monitor-table th, .monitor-table td { padding-inline: 3px; }
++  .monitor-state { gap: 3px; }
++  .monitor-state:before { width: 4px; height: 4px; }
++  .monitor-note { font-size: 10px; }
++}
++</style>
+diff --git a/src/lib/monitorStats.js b/src/lib/monitorStats.js
+new file mode 100644
+index 0000000..3a97630
+--- /dev/null
++++ b/src/lib/monitorStats.js
+@@ -0,0 +1,134 @@
++const AGENT_LABELS = Object.freeze({
++  general: '通用接待', technical: '技术支持', billing: '账单服务', escalation: '人工交接'
++})
++const TOOL_LABELS = Object.freeze({
++  knowledge_search: '知识检索', search_knowledge_base: '知识库查询',
++  inspect_request_context: '请求核对', suggest_required_fields: '补充信息',
++  lookup_error_code: '错误码查询', build_diagnostic_plan: '排障建议',
++  check_billing_fields: '账单核对', compare_amounts: '金额比较',
++  create_handoff_summary: '交接摘要', read_demo_order: '演示订单查询'
++})
++const AGENT_ORDER = Object.keys(AGENT_LABELS)
++const RECOVERY = Object.freeze({ healthy: '正常', cooldown: '冷却中', probing: '恢复探测' })
++const CIRCUIT = Object.freeze({ closed: '正常', open: '已熔断', half_open: '恢复探测' })
++const ALERT_METRICS = Object.freeze({
++  agent_success_rate: { label: '执行成功率', type: 'agent', unit: 'rate' },
++  agent_avg_ms: { label: '平均耗时', type: 'agent', unit: 'ms' },
++  tool_success_rate: { label: '执行成功率', type: 'tool', unit: 'rate' },
++  tool_avg_ms: { label: '平均耗时', type: 'tool', unit: 'ms' }
++})
++const SEVERITY = Object.freeze({ info: '提示', warning: '提醒', error: '异常', critical: '严重异常' })
++
++function record(value) {
++  return value !== null && typeof value === 'object' && !Array.isArray(value)
++}
++
++function number(value, maximum = Number.MAX_SAFE_INTEGER) {
++  return typeof value === 'number' && Number.isFinite(value) && value >= 0 && value <= maximum ? value : null
++}
++
++function count(value) {
++  return Number.isSafeInteger(value) && value >= 0 ? value : null
++}
++
++function agentIdentity(value) {
++  const match = /^(general|technical|billing|escalation)_([0-9]{1,2})$/.exec(value)
++  return match ? { label: `${AGENT_LABELS[match[1]]} · ${Number(match[2]) + 1}`, group: match[1], instance: Number(match[2]) } : null
++}
++
++function rowsFor(input, kind) {
++  const rows = []
++  let rejected = 0
++  if (!record(input)) return { rows, rejected: 0, available: false }
++  for (const [id, raw] of Object.entries(input).slice(0, 100)) {
++    const identity = kind === 'agent' ? agentIdentity(id) : Object.hasOwn(TOOL_LABELS, id) ? { label: TOOL_LABELS[id] } : null
++    if (!identity || !record(raw)) { rejected++; continue }
++    const total = count(raw.total)
++    const sampled = total !== null && total > 0
++    const state = kind === 'agent' ? raw.recovery_state : raw.circuit_state
++    const states = kind === 'agent' ? RECOVERY : CIRCUIT
++    rows.push({
++      id, label: identity.label, group: identity.group, instance: identity.instance,
++      total, sampled,
++      rate: sampled ? number(raw.success_rate, 1) : null,
++      averageMs: sampled ? number(kind === 'agent' ? raw.avg_ms : raw.avg_latency_ms) : null,
++      state: Object.hasOwn(states, state) ? states[state] : '未知',
++      stateTone: state === 'open' || state === 'cooldown' ? 'warning' : state === 'half_open' || state === 'probing' ? 'pending' : state === 'healthy' || state === 'closed' ? 'healthy' : 'unknown',
++      consecutiveFails: kind === 'tool' ? count(raw.consecutive_fails) : null
++    })
++  }
++  if (Object.keys(input).length > 100) rejected += Object.keys(input).length - 100
++  rows.sort((a, b) => kind === 'agent'
++    ? AGENT_ORDER.indexOf(a.group) - AGENT_ORDER.indexOf(b.group) || a.instance - b.instance
++    : a.id.localeCompare(b.id))
++  return { rows, rejected, available: true }
++}
++
++function aggregate(group) {
++  const { rows } = group
++  if (!group.available || group.rejected || rows.some(row => row.total === null)) return { total: null, rate: null, averageMs: null }
++  const total = rows.reduce((sum, row) => sum + row.total, 0)
++  if (!Number.isSafeInteger(total)) return { total: null, rate: null, averageMs: null }
++  const sampled = rows.filter(row => row.total > 0)
++  if (!total) return { total, rate: null, averageMs: null }
++  const weighted = field => sampled.some(row => row[field] === null) ? null
++    : sampled.reduce((sum, row) => sum + row.total / total * row[field], 0)
++  return { total, rate: weighted('rate'), averageMs: weighted('averageMs') }
++}
++
++function alertsFor(value) {
++  if (!Array.isArray(value)) return []
++  const seen = new Set()
++  const alerts = []
++  for (const raw of value.slice(-10)) {
++    if (!record(raw) || raw.resolved === true || !Object.hasOwn(SEVERITY, raw.severity) || typeof raw.metric !== 'string') continue
++    const [metric, identifier, extra] = raw.metric.split(':')
++    const definition = ALERT_METRICS[metric]
++    if (!definition || extra !== undefined) continue
++    const subject = definition.type === 'agent' ? agentIdentity(identifier)?.label
++      : Object.hasOwn(TOOL_LABELS, identifier) ? TOOL_LABELS[identifier] : null
++    const maximum = definition.unit === 'rate' ? 1 : Number.MAX_SAFE_INTEGER
++    const measured = number(raw.value, maximum)
++    const threshold = number(raw.threshold, maximum)
++    if (!subject || measured === null || threshold === null) continue
++    const key = `${raw.metric}:${raw.value}:${raw.threshold}:${raw.severity}`
++    if (seen.has(key)) continue
++    seen.add(key)
++    alerts.push({ key, severity: SEVERITY[raw.severity], tone: ['error', 'critical'].includes(raw.severity) ? 'warning' : 'pending',
++      label: `${subject} · ${definition.label}`, value: definition.unit === 'rate' ? formatMonitorRate(measured) : formatMonitorDuration(measured),
++      threshold: definition.unit === 'rate' ? formatMonitorRate(threshold) : formatMonitorDuration(threshold) })
++  }
++  return alerts
++}
++
++export function projectMonitorSnapshot(snapshot) {
++  const raw = record(snapshot) ? snapshot : {}
++  const agents = rowsFor(raw.agent_stats, 'agent')
++  const tools = rowsFor(raw.tool_stats, 'tool')
++  return {
++    available: record(snapshot) && agents.available && tools.available,
++    agents: agents.rows, tools: tools.rows,
++    agentSummary: aggregate(agents), toolSummary: aggregate(tools),
++    alerts: alertsFor(raw.active_alerts),
++    incomplete: agents.rejected > 0 || tools.rejected > 0,
++    metricScope: 'technical-execution'
++  }
++}
++
++export function formatMonitorCount(value) {
++  return count(value) === null ? '—' : String(value)
++}
++
++export function formatMonitorRate(value) {
++  return number(value, 1) === null ? '—' : `${(value * 100).toFixed(1)}%`
++}
++
++export function formatMonitorDuration(value) {
++  if (number(value) === null) return '—'
++  return value >= 1000 ? `${(value / 1000).toFixed(2)} s` : `${Math.round(value)} ms`
++}
++
++export function formatMonitorReadTime(value) {
++  if (typeof value !== 'string' || !/^\d{4}-\d{2}-\d{2}T/.test(value) || !Number.isFinite(Date.parse(value))) return '—'
++  return new Date(value).toLocaleString('zh-CN', { hour12: false })
++}
+diff --git a/tests/monitorStats.test.js b/tests/monitorStats.test.js
+new file mode 100644
+index 0000000..703c6ad
+--- /dev/null
++++ b/tests/monitorStats.test.js
+@@ -0,0 +1,91 @@
++import test from 'node:test'
++import assert from 'node:assert/strict'
++import { projectMonitorSnapshot, formatMonitorCount, formatMonitorRate, formatMonitorDuration, formatMonitorReadTime } from '../src/lib/monitorStats.js'
++
++const agent = (total, success_rate, avg_ms) => ({ total, success_rate, avg_ms, recovery_state: 'healthy' })
++const tool = (total, success_rate, avg_latency_ms) => ({ total, success_rate, avg_latency_ms, circuit_state: 'closed', consecutive_fails: 0 })
++
++test('zero backend samples never become a fabricated 100 percent success rate', () => {
++  const view = projectMonitorSnapshot({ agent_stats: { general_0: agent(0, 1, 0) }, tool_stats: { knowledge_search: tool(0, 1, 0) } })
++  assert.equal(view.available, true)
++  assert.deepEqual(view.agentSummary, { total: 0, rate: null, averageMs: null })
++  assert.equal(view.agents[0].sampled, false)
++  assert.equal(view.agents[0].rate, null)
++  assert.equal(view.tools[0].averageMs, null)
++  assert.equal(view.metricScope, 'technical-execution')
++})
++
++test('summary counts role executions and weights reported rate and latency without inventing success counts', () => {
++  const view = projectMonitorSnapshot({ agent_stats: { general_0: agent(2, 1, 100), billing_0: agent(6, .5, 300) }, tool_stats: { knowledge_search: tool(3, 1, 20) } })
++  assert.deepEqual(view.agentSummary, { total: 8, rate: .625, averageMs: 250 })
++  assert.equal(view.toolSummary.total, 3)
++  assert.equal('successCount' in view.agentSummary, false)
++  assert.equal(view.agents[1].label, '账单服务 · 1')
++})
++
++test('invalid numbers are unknown, never coerced or clamped into good metrics', () => {
++  for (const invalid of [NaN, Infinity, -1, '4', null, true]) {
++    const view = projectMonitorSnapshot({ agent_stats: { general_0: agent(invalid, .9, 25) }, tool_stats: {} })
++    assert.equal(view.agentSummary.total, null)
++    assert.equal(view.agents[0].rate, null)
++    assert.equal(formatMonitorCount(invalid), '—')
++  }
++  const view = projectMonitorSnapshot({ agent_stats: { general_0: agent(3, 95, Infinity) }, tool_stats: {} })
++  assert.equal(view.agentSummary.total, 3)
++  assert.equal(view.agentSummary.rate, null)
++  assert.equal(view.agentSummary.averageMs, null)
++})
++
++test('fractional success values have one scale and missing values do not turn into zero', () => {
++  assert.equal(formatMonitorRate(.953), '95.3%')
++  assert.equal(formatMonitorRate(1), '100.0%')
++  assert.equal(formatMonitorRate(95), '—')
++  assert.equal(formatMonitorRate(null), '—')
++  assert.equal(formatMonitorDuration(0), '0 ms')
++  assert.equal(formatMonitorDuration(1500), '1.50 s')
++  assert.equal(formatMonitorDuration(undefined), '—')
++})
++
++test('projection never exposes role prompts, customer text, unknown identifiers or server advice bodies', () => {
++  const view = projectMonitorSnapshot({
++    agent_stats: { general_0: { ...agent(1, 1, 50), role: 'secret role', workflow: ['customer message'] }, 'customer-private-name': agent(1, 1, 1) },
++    tool_stats: { 'secret-tool-id': tool(1, 1, 1), knowledge_search: tool(1, 1, 10) },
++    suggestions: [{ title: 'private title', action: 'private action' }],
++    active_alerts: [{ severity: 'error', metric: 'agent_success_rate:general_0', value: .5, threshold: .9, message: 'private payload' }]
++  })
++  const serialized = JSON.stringify(view)
++  for (const forbidden of ['secret role', 'customer message', 'customer-private-name', 'secret-tool-id', 'private title', 'private action', 'private payload']) {
++    assert.equal(serialized.includes(forbidden), false)
++  }
++  assert.equal(view.incomplete, true)
++  assert.equal(view.agentSummary.total, null)
++  assert.equal(view.alerts[0].label, '通用接待 · 1 · 执行成功率')
++})
++
++test('unavailable snapshots stay unavailable and unsafe counter totals are not added', () => {
++  for (const input of [null, undefined, [], {}, { agent_stats: [], tool_stats: {} }]) {
++    assert.equal(projectMonitorSnapshot(input).available, false)
++  }
++  const view = projectMonitorSnapshot({ agent_stats: { general_0: agent(Number.MAX_SAFE_INTEGER, 1, 1), technical_0: agent(1, 1, 1) }, tool_stats: {} })
++  assert.equal(view.agentSummary.total, null)
++})
++
++test('alert projection uses only recognized metrics and deduplicates repeated threshold samples', () => {
++  const alert = { severity: 'warning', metric: 'tool_avg_ms:knowledge_search', value: 6000, threshold: 5000 }
++  const view = projectMonitorSnapshot({ agent_stats: {}, tool_stats: {}, active_alerts: [
++    alert, alert, { ...alert, metric: 'secret:customer' }, { ...alert, value: Infinity }, { ...alert, resolved: true },
++    { ...alert, metric: 'tool_success_rate:knowledge_search', value: 95, threshold: .95 }
++  ] })
++  assert.equal(view.alerts.length, 1)
++  assert.equal(view.alerts[0].value, '6.00 s')
++  assert.equal(view.alerts[0].threshold, '5.00 s')
++})
++
++test('known recovery and circuit states are fixed labels; arbitrary strings do not reach the page', () => {
++  const view = projectMonitorSnapshot({ agent_stats: { general_0: { ...agent(3, 1, 0), recovery_state: 'cooldown' } }, tool_stats: { knowledge_search: { ...tool(2, .5, 20), circuit_state: 'open' } } })
++  assert.equal(view.agents[0].state, '冷却中')
++  assert.equal(view.tools[0].state, '已熔断')
++  const invalid = projectMonitorSnapshot({ agent_stats: { general_0: { ...agent(1, 1, 1), recovery_state: 'private failure text' } }, tool_stats: {} })
++  assert.equal(invalid.agents[0].state, '未知')
++  assert.equal(formatMonitorReadTime('private time text'), '—')
++})
+diff --git a/tests/frontendSettings.test.js b/tests/frontendSettings.test.js
+new file mode 100644
+index 0000000..503f8ed
+--- /dev/null
++++ b/tests/frontendSettings.test.js
+@@ -0,0 +1,74 @@
++import { test } from 'node:test'
++import assert from 'node:assert/strict'
++import { createInitialSettings, requestMonitor, saveSettings } from '../src/lib/backends.js'
++
++test('old Java selection cannot change the Python-only product entry', () => {
++  const previous = globalThis.localStorage
++  globalThis.localStorage = { getItem: () => JSON.stringify({ backend: 'java', userId: 'old-user',
++    endpoints: { python: '/api/python', java: '/old-java' } }) }
++  try {
++    const settings = createInitialSettings()
++    assert.equal(settings.backend, 'python')
++    assert.equal(settings.endpoints.python, '/api/python')
++    assert.equal(settings.userId, 'old-user')
++  } finally { globalThis.localStorage = previous }
++})
++
++test('saved product settings keep Python fixed without persisting credentials', () => {
++  const previous = globalThis.localStorage
++  let stored
++  globalThis.localStorage = { setItem: (_, value) => { stored = JSON.parse(value) } }
++  try {
++    saveSettings({ backend: 'java', pythonToken: 'test-only-secret', endpoints: { python: '/api/python' } })
++    assert.equal(stored.backend, 'python')
++    assert.equal(stored.pythonToken, undefined)
++    assert.equal(stored.endpoints.python, '/api/python')
++  } finally { globalThis.localStorage = previous }
++})
++
++test('monitor remains a readonly request with caller cancellation and no retry', async () => {
++  const previous = globalThis.fetch
++  const calls = []
++  const controller = new AbortController()
++  globalThis.fetch = async (url, options) => {
++    calls.push({ url, options })
++    return new Response(JSON.stringify({ agent_stats: {}, tool_stats: {} }), { status: 200 })
++  }
++  try {
++    await requestMonitor('python', { endpoints: { python: '/api/python' }, userId: 'demo' }, { signal: controller.signal })
++    assert.equal(calls.length, 1)
++    assert.equal(calls[0].url, '/api/python/monitor')
++    assert.equal(calls[0].options.method, undefined)
++    assert.notEqual(calls[0].options.signal, controller.signal)
++    assert.equal(calls[0].options.signal.aborted, false)
++    controller.abort()
++    assert.equal(calls[0].options.signal.aborted, true)
++    assert.equal(calls[0].options.credentials, 'same-origin')
++  } finally { globalThis.fetch = previous }
++})
++
++test('monitor keeps its timeout when a caller also supplies cancellation', async () => {
++  const previousFetch = globalThis.fetch
++  const previousTimeout = AbortSignal.timeout
++  const deadline = new AbortController()
++  const caller = new AbortController()
++  let signal
++  AbortSignal.timeout = milliseconds => {
++    assert.equal(milliseconds, 20000)
++    return deadline.signal
++  }
++  globalThis.fetch = async (_, options) => {
++    signal = options.signal
++    return new Response('{}', { status: 200 })
++  }
++  try {
++    await requestMonitor('python', { endpoints: { python: '/api/python' }, userId: 'demo' }, { signal: caller.signal })
++    assert.equal(signal.aborted, false)
++    deadline.abort()
++    assert.equal(signal.aborted, true)
++    assert.equal(caller.signal.aborted, false)
++  } finally {
++    globalThis.fetch = previousFetch
++    AbortSignal.timeout = previousTimeout
++  }
++})
