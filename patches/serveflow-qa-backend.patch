@@ -1,0 +1,893 @@
+diff --git a/agents/agent_orchestrator.py b/agents/agent_orchestrator.py
+index 3b3c790..56059f9 100644
+--- a/agents/agent_orchestrator.py
++++ b/agents/agent_orchestrator.py
+@@ -22,0 +23 @@ import os
++import re
+@@ -31 +32 @@ from typing import Any, Awaitable, Callable, Dict, List, Optional, Tuple
+-from anthropic import AsyncAnthropic
++from anthropic import APITimeoutError, AsyncAnthropic
+@@ -42,0 +44,2 @@ from core.llm_utils import extract_text_content
++from core.provider_options import nonthinking_options
++from core.safe_diagnostics import record_llm_failure
+@@ -176 +179,2 @@ class AgentCallError(RuntimeError):
+-    def __init__(self, message: str, tools_used: List[str], tool_traces: List[Dict[str, Any]]):
++    def __init__(self, message: str, tools_used: List[str], tool_traces: List[Dict[str, Any]],
++                 error_code: str = "agent_failed"):
+@@ -179,0 +184 @@ class AgentCallError(RuntimeError):
++        self.error_code = error_code
+@@ -307 +312,4 @@ class BaseAgent:
+-            logger.error(f"{self.agent_type.value} 处理失败: {ex}")
++            error_code = ex.error_code if isinstance(ex, AgentCallError) else "agent_failed"
++            if type(error_code) is not str or error_code not in {"agent_failed", "agent_timeout", "agent_protocol_error"}:
++                error_code = "agent_failed"
++            logger.error("agent_failure agent=%s error_code=%s", self.agent_type.value, error_code)
+@@ -318 +326 @@ class BaseAgent:
+-                error_code="agent_failed",
++                error_code=error_code,
+@@ -341,0 +350 @@ class BaseAgent:
++        seen_tool_use_ids = set()
+@@ -359,0 +369 @@ class BaseAgent:
++                request_kwargs.update(nonthinking_options(self._client, self._model))
+@@ -375,0 +386,23 @@ class BaseAgent:
++                # Validate the entire native batch before any handler can run. A
++                # truncated response or malformed later block must not leave an
++                # earlier tool executed without a valid native round trip.
++                batch_ids = set()
++                invalid_batch = getattr(resp, "stop_reason", None) == "max_tokens"
++                for block in tool_uses:
++                    tool_use_id = self._block_value(block, "id")
++                    args = self._block_value(block, "input")
++                    if (not isinstance(tool_use_id, str)
++                            or re.fullmatch(r"[A-Za-z0-9_-]{1,200}", tool_use_id) is None
++                            or tool_use_id in seen_tool_use_ids
++                            or tool_use_id in batch_ids
++                            or type(args) is not dict):
++                        invalid_batch = True
++                        break
++                    batch_ids.add(tool_use_id)
++                if invalid_batch:
++                    raise AgentCallError(
++                        "模型工具协议无效，本次工具批次未执行",
++                        tools_used, tool_traces, error_code="agent_protocol_error",
++                    )
++                seen_tool_use_ids.update(batch_ids)
++
+@@ -381 +414 @@ class BaseAgent:
+-                    args = self._block_value(block, "input") or {}
++                    args = self._block_value(block, "input")
+@@ -448,0 +482,3 @@ class BaseAgent:
++        except (TimeoutError, APITimeoutError) as ex:
++            raise AgentCallError("模型响应超时", tools_used, tool_traces,
++                                 error_code="agent_timeout") from ex
+@@ -450 +486 @@ class BaseAgent:
+-            raise AgentCallError(str(ex), tools_used, tool_traces) from ex
++            raise AgentCallError("模型调用未完成", tools_used, tool_traces) from None
+@@ -529 +565 @@ class GeneralAgent(BaseAgent):
+-        "你是 EchoMind 智能客服。友好、简洁地回答用户问题。"
++        "你是智应 ServeFlow 智能客服。友好、简洁地回答用户问题。"
+@@ -706,0 +743,2 @@ class ResponseComposer:
++        started = time.monotonic()
++        phase = "composer.transport"
+@@ -712,0 +751 @@ class ResponseComposer:
++                **nonthinking_options(self._client, self._model),
+@@ -713,0 +753 @@ class ResponseComposer:
++            phase = "composer.extract"
+@@ -716,0 +757,3 @@ class ResponseComposer:
++            record_llm_failure(logger, phase, None, (time.monotonic() - started) * 1000, empty_output=True)
++        except asyncio.CancelledError:
++            raise
+@@ -718 +761 @@ class ResponseComposer:
+-            logger.warning("Response Composer 失败，使用确定性合并: %s", ex)
++            record_llm_failure(logger, phase, ex, (time.monotonic() - started) * 1000)
+@@ -770 +813 @@ class AgentOrchestrator:
+-        client = AsyncAnthropic(**kwargs)
++        client = AsyncAnthropic(**kwargs, max_retries=0)
+diff --git a/core/intent_recognizer.py b/core/intent_recognizer.py
+index d2bdbe2..fdd4c3b 100644
+--- a/core/intent_recognizer.py
++++ b/core/intent_recognizer.py
+@@ -26,0 +27,2 @@ from core.llm_utils import extract_text_content
++from core.provider_options import nonthinking_options
++from core.safe_diagnostics import record_llm_failure
+@@ -161 +163 @@ class IntentRecognizer:
+-        self.client    = AsyncAnthropic(**kwargs)
++        self.client    = AsyncAnthropic(**kwargs, max_retries=0)
+@@ -277,0 +280,2 @@ class IntentRecognizer:
++        started = time.monotonic()
++        phase = "intent.transport"
+@@ -283,0 +288 @@ class IntentRecognizer:
++                **nonthinking_options(self.client, self.model),
+@@ -284,0 +290 @@ class IntentRecognizer:
++            phase = "intent.parse"
+@@ -287,0 +294 @@ class IntentRecognizer:
++            phase = "intent.validate"
+@@ -295,0 +303,2 @@ class IntentRecognizer:
++        except asyncio.CancelledError:
++            raise
+@@ -297 +306 @@ class IntentRecognizer:
+-            logger.warning(f"LLM 识别失败: {ex}")
++            record_llm_failure(logger, phase, ex, (time.monotonic() - started) * 1000)
+diff --git a/evaluation/evaluator.py b/evaluation/evaluator.py
+index 118514b..0629fc0 100644
+--- a/evaluation/evaluator.py
++++ b/evaluation/evaluator.py
+@@ -32,0 +33 @@ from core.llm_utils import extract_text_content
++from core.provider_options import nonthinking_options
+@@ -199,0 +201 @@ Agent 响应: {response}
++                    **nonthinking_options(self._client, self._model),
+diff --git a/memory/conversation_memory.py b/memory/conversation_memory.py
+index 3ba7cec..e56d5eb 100644
+--- a/memory/conversation_memory.py
++++ b/memory/conversation_memory.py
+@@ -31,0 +32,2 @@ from core.llm_utils import extract_text_content
++from core.provider_options import nonthinking_options
++from core.safe_diagnostics import record_llm_failure
+@@ -107 +109 @@ class MemoryManager:
+-        self._client = AsyncAnthropic(**kwargs)
++        self._client = AsyncAnthropic(**kwargs, max_retries=0)
+@@ -255,0 +258 @@ class MemoryManager:
++        started = time.monotonic()
+@@ -259,0 +263 @@ class MemoryManager:
++                **nonthinking_options(self._client, self._model),
+@@ -281 +285 @@ class MemoryManager:
+-            logger.warning(f"更新用户画像失败: {ex}")
++            record_llm_failure(logger, "memory.profile", ex, (time.monotonic() - started) * 1000)
+@@ -343,0 +348 @@ class MemoryManager:
++        started = time.monotonic()
+@@ -347,0 +353 @@ class MemoryManager:
++                **nonthinking_options(self._client, self._model),
+@@ -354 +360 @@ class MemoryManager:
+-            logger.warning("摘要生成失败，保留原始会话消息: %s", type(ex).__name__)
++            record_llm_failure(logger, "memory.summary", ex, (time.monotonic() - started) * 1000)
+@@ -564,0 +571 @@ class MemoryManager:
++        started = time.monotonic()
+@@ -570,0 +578 @@ class MemoryManager:
++                **nonthinking_options(self._client, self._model),
+@@ -576 +584 @@ class MemoryManager:
+-            logger.warning(f"合并摘要失败，回退为截断拼接: {ex}")
++            record_llm_failure(logger, "memory.merge", ex, (time.monotonic() - started) * 1000)
+diff --git a/skills/billing_support/SKILL.md b/skills/billing_support/SKILL.md
+index 3858b88..7c52e30 100644
+--- a/skills/billing_support/SKILL.md
++++ b/skills/billing_support/SKILL.md
+@@ -13 +13 @@ enabled: true
+-你是 EchoMind 的账单服务专家，负责解释账单、支付、扣款、退款、发票、订阅、优惠券和费用争议。你的回复必须准确、保守、可核验。涉及实际退款、发票作废、账单调整、补偿、人工审核时，必须明确需要核验和人工处理。
++你是智应 ServeFlow 的账单服务专家，负责解释账单、支付、扣款、退款、发票、订阅、优惠券和费用争议。你的回复必须准确、保守、可核验。涉及实际退款、发票作废、账单调整、补偿、人工审核时，必须明确需要核验和人工处理。
+diff --git a/skills/general_customer_service/SKILL.md b/skills/general_customer_service/SKILL.md
+index 938b30e..25e8204 100644
+--- a/skills/general_customer_service/SKILL.md
++++ b/skills/general_customer_service/SKILL.md
+@@ -13 +13 @@ enabled: true
+-你是 EchoMind 的通用客服代表，负责处理用户的首轮咨询、基础业务问题、信息澄清、简单售后说明和跨领域问题分流。你的目标不是一次性展示所有能力，而是快速判断用户真实诉求，用清晰、礼貌、可执行的方式推动问题解决。
++你是智应 ServeFlow 的通用客服代表，负责处理用户的首轮咨询、基础业务问题、信息澄清、简单售后说明和跨领域问题分流。你的目标不是一次性展示所有能力，而是快速判断用户真实诉求，用清晰、礼貌、可执行的方式推动问题解决。
+diff --git a/skills/technical_support/SKILL.md b/skills/technical_support/SKILL.md
+index c905c1e..e3688be 100644
+--- a/skills/technical_support/SKILL.md
++++ b/skills/technical_support/SKILL.md
+@@ -13 +13 @@ enabled: true
+-你是 EchoMind 的技术支持专家，负责帮助用户定位系统故障、接口接入问题、配置错误、登录异常、性能问题和数据同步异常。你的回复要可执行、可验证、可复现，避免只给笼统建议。
++你是智应 ServeFlow 的技术支持专家，负责帮助用户定位系统故障、接口接入问题、配置错误、登录异常、性能问题和数据同步异常。你的回复要可执行、可验证、可复现，避免只给笼统建议。
+diff --git a/tooling/tool_manager.py b/tooling/tool_manager.py
+index fb6b02c..dad685f 100644
+--- a/tooling/tool_manager.py
++++ b/tooling/tool_manager.py
+@@ -28,0 +29,2 @@ from core.llm_utils import extract_text_content
++from core.provider_options import nonthinking_options
++from core.safe_diagnostics import record_llm_failure
+@@ -149 +151 @@ class MCPToolManager:
+-        self._client = AsyncAnthropic(**kwargs)
++        self._client = AsyncAnthropic(**kwargs, max_retries=0)
+@@ -325,0 +328 @@ class MCPToolManager:
++        started = time.monotonic()
+@@ -329,0 +333 @@ class MCPToolManager:
++                **nonthinking_options(self._client, self._model),
+@@ -337 +341 @@ class MCPToolManager:
+-            logger.warning(f"查询改写失败，使用原始查询: {ex}")
++            record_llm_failure(logger, "retrieval.rewrite", ex, (time.monotonic() - started) * 1000)
+@@ -414,0 +419 @@ class MCPToolManager:
++        started = time.monotonic()
+@@ -418,0 +424 @@ class MCPToolManager:
++                **nonthinking_options(self._client, self._model),
+@@ -441 +447 @@ class MCPToolManager:
+-            logger.warning("重排失败，返回原始顺序: %s", type(ex).__name__)
++            record_llm_failure(logger, "retrieval.rerank", ex, (time.monotonic() - started) * 1000)
+diff --git a/core/provider_options.py b/core/provider_options.py
+new file mode 100644
+index 0000000..456ad39
+--- /dev/null
++++ b/core/provider_options.py
+@@ -0,0 +1,39 @@
++"""Narrow provider compatibility options; never change arbitrary endpoints.
++
++Only the explicitly supported Beijing Flash snapshot uses Bailian's native
++Anthropic thinking switch. No URL, credential or provider error is logged here.
++"""
++from __future__ import annotations
++
++import re
++from typing import Any
++from urllib.parse import urlsplit
++
++FLASH_SNAPSHOT = "qwen3.7-flash-2026-07-15"
++_WORKSPACE_HOST = re.compile(
++    r"[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?\.cn-beijing\.maas\.aliyuncs\.com\Z"
++)
++
++
++def nonthinking_options(client: Any, model: str) -> dict[str, Any]:
++    """Return request options only for the real client's exact official origin.
++
++    A prompt, environment name, selected role or caller-supplied model alias
++    cannot opt another provider into this compatibility behavior.
++    """
++    if model != FLASH_SNAPSHOT:
++        return {}
++    try:
++        base = urlsplit(str(getattr(client, "base_url", "")))
++        host = base.hostname
++        if (base.scheme != "https" or host is None
++                or not (host == "dashscope.aliyuncs.com" or _WORKSPACE_HOST.fullmatch(host))
++                or base.port not in {None, 443} or base.username is not None or base.password is not None
++                or base.query or base.fragment or base.path not in {"/apps/anthropic", "/apps/anthropic/"}):
++            return {}
++    except (TypeError, ValueError, UnicodeError):
++        return {}
++    # The pinned Anthropic 0.40 SDK predates the typed ``thinking`` keyword.
++    # extra_body is its supported extension hook and serializes this as the
++    # exact top-level HTTP JSON field, without upgrading the original SDK.
++    return {"extra_body": {"thinking": {"type": "disabled"}}}
+diff --git a/core/safe_diagnostics.py b/core/safe_diagnostics.py
+new file mode 100644
+index 0000000..50a3d88
+--- /dev/null
++++ b/core/safe_diagnostics.py
+@@ -0,0 +1,69 @@
++"""Bounded LLM failure metadata; never render exception messages or payloads."""
++
++import asyncio
++import json
++import math
++
++from anthropic import (
++    APIConnectionError,
++    APIStatusError,
++    APITimeoutError,
++    AuthenticationError,
++    BadRequestError,
++    PermissionDeniedError,
++    RateLimitError,
++)
++
++
++_PHASES = frozenset({
++    "intent.transport", "intent.parse", "intent.validate",
++    "composer.transport", "composer.extract",
++    "retrieval.rewrite", "retrieval.rerank",
++    "memory.profile", "memory.summary", "memory.merge",
++})
++_ERRORS = (
++    (asyncio.CancelledError, "CancelledError", "cancelled"),
++    (TimeoutError, "TimeoutError", "deadline_exceeded"),
++    (APITimeoutError, "APITimeoutError", "deadline_exceeded"),
++    (AuthenticationError, "AuthenticationError", "authentication_failed"),
++    (PermissionDeniedError, "PermissionDeniedError", "permission_denied"),
++    (RateLimitError, "RateLimitError", "rate_limited"),
++    (BadRequestError, "BadRequestError", "provider_request_rejected"),
++    (APIConnectionError, "APIConnectionError", "connection_failed"),
++    (APIStatusError, "APIStatusError", "provider_status_error"),
++    (json.JSONDecodeError, "JSONDecodeError", "invalid_json"),
++    (TypeError, "TypeError", "invalid_structure"),
++    (KeyError, "KeyError", "invalid_structure"),
++    (ValueError, "ValueError", "invalid_semantics"),
++)
++
++
++def record_llm_failure(logger, phase, error, elapsed_ms, *, empty_output=False):
++    """Log fixed vocabulary and bounded timing, excluding exception repr/str.
++
++    These categories describe an observed failure, not upstream root causality.
++    Unknown exception classes are deliberately collapsed to OtherError.
++    """
++    safe_phase = phase if phase in _PHASES else "unknown"
++    error_type, error_code = "OtherError", "unexpected_error"
++    if empty_output:
++        error_type, error_code = "None", "empty_output"
++    else:
++        for kind, label, code in _ERRORS:
++            if isinstance(error, kind):
++                error_type, error_code = label, code
++                break
++    safe_elapsed = 0
++    if isinstance(elapsed_ms, (int, float)) and not isinstance(elapsed_ms, bool) and math.isfinite(elapsed_ms):
++        safe_elapsed = int(min(3_600_000, max(0, elapsed_ms)))
++    diagnostic = {
++        "phase": safe_phase,
++        "error_code": error_code,
++        "error_type": error_type,
++        "elapsed_ms": safe_elapsed,
++    }
++    logger.warning(
++        "llm_failure phase=%s error_code=%s error_type=%s elapsed_ms=%d",
++        safe_phase, error_code, error_type, safe_elapsed,
++    )
++    return diagnostic
+diff --git a/tests/test_native_tool_protocol.py b/tests/test_native_tool_protocol.py
+new file mode 100644
+index 0000000..2565184
+--- /dev/null
++++ b/tests/test_native_tool_protocol.py
+@@ -0,0 +1,148 @@
++"""Native response-boundary checks with mocked providers; no model or DB calls."""
++import asyncio
++from types import SimpleNamespace
++from unittest.mock import AsyncMock
++
++import pytest
++import httpx
++from anthropic import APITimeoutError
++
++from agents.agent_orchestrator import GeneralAgent, Request
++from agents.tools import make_tool
++
++
++def tool_block(*, tool_id="toolu_valid", arguments=None):
++    return {"type": "tool_use", "id": tool_id, "name": "probe",
++            "input": {} if arguments is None else arguments}
++
++
++def response(blocks, stop="tool_use"):
++    return SimpleNamespace(content=blocks, stop_reason=stop)
++
++
++def setup_agent(responses):
++    provider = AsyncMock(side_effect=responses)
++    handler = AsyncMock(return_value={"success": True})
++    agent = GeneralAgent(SimpleNamespace(messages=SimpleNamespace(create=provider)), "controlled-model")
++    agent.set_shared_tools({"probe": make_tool("probe", "Controlled read", {}, handler)})
++    req = Request(message="controlled query", user_id="isolated", conv_id="controlled")
++    return agent, provider, handler, req
++
++
++@pytest.mark.asyncio
++@pytest.mark.parametrize("arguments", [None, [], 0, "", False, ["value"], "{}"])
++async def test_non_object_input_rejected_without_dispatch_or_repair(arguments):
++    block = tool_block()
++    block["input"] = arguments
++    agent, provider, handler, req = setup_agent([response([block])])
++    result = await agent.handle(req)
++    assert not result.success and result.error_code == "agent_protocol_error"
++    assert result.tools_used == result.tool_traces == req.tool_attempts == []
++    handler.assert_not_called()
++    assert provider.await_count == 1
++
++
++@pytest.mark.asyncio
++@pytest.mark.parametrize("tool_id", [None, "", " ", "tool with space", "bad\n", "x" * 201, 7, "工具"])
++async def test_invalid_id_rejected_before_dispatch(tool_id):
++    agent, provider, handler, req = setup_agent([response([tool_block(tool_id=tool_id)])])
++    result = await agent.handle(req)
++    assert not result.success and result.error_code == "agent_protocol_error"
++    assert result.tools_used == req.tool_attempts == []
++    handler.assert_not_called()
++    assert provider.await_count == 1
++
++
++@pytest.mark.asyncio
++async def test_missing_id_rejected_before_dispatch():
++    block = tool_block()
++    del block["id"]
++    agent, provider, handler, req = setup_agent([response([block])])
++    result = await agent.handle(req)
++    assert result.error_code == "agent_protocol_error"
++    handler.assert_not_called()
++
++
++@pytest.mark.asyncio
++@pytest.mark.parametrize("second", [
++    tool_block(tool_id="toolu_valid"), tool_block(tool_id=None),
++    tool_block(tool_id="toolu_second", arguments=[]),
++    {**tool_block(tool_id="toolu_second"), "input": None},
++])
++async def test_entire_batch_checked_before_first_handler(second):
++    agent, provider, handler, req = setup_agent([response([tool_block(), second])])
++    result = await agent.handle(req)
++    assert not result.success and result.error_code == "agent_protocol_error"
++    assert result.tools_used == result.tool_traces == req.tool_attempts == []
++    handler.assert_not_called()
++
++
++@pytest.mark.asyncio
++async def test_duplicate_id_in_later_round_preserves_only_prior_execution():
++    agent, provider, handler, req = setup_agent([response([tool_block()]), response([tool_block()])])
++    result = await agent.handle(req)
++    assert not result.success and result.error_code == "agent_protocol_error"
++    assert provider.await_count == 2 and handler.await_count == 1
++    assert result.tools_used == ["probe"]
++    assert [trace["tool_use_id"] for trace in result.tool_traces] == ["toolu_valid"]
++    assert len(req.tool_attempts) == 1
++
++
++@pytest.mark.asyncio
++async def test_truncated_tool_response_never_dispatches():
++    agent, provider, handler, req = setup_agent([response([tool_block()], stop="max_tokens")])
++    result = await agent.handle(req)
++    assert not result.success and result.error_code == "agent_protocol_error"
++    assert result.tools_used == result.tool_traces == req.tool_attempts == []
++    handler.assert_not_called()
++    assert provider.await_count == 1
++
++
++@pytest.mark.asyncio
++@pytest.mark.parametrize("sdk_object", [False, True])
++@pytest.mark.parametrize("tool_id", ["toolu_valid", "a" * 200])
++async def test_valid_dictionary_and_sdk_blocks_keep_native_feedback(sdk_object, tool_id):
++    block = tool_block(tool_id=tool_id)
++    if sdk_object:
++        block = SimpleNamespace(**block)
++    agent, provider, handler, req = setup_agent([
++        response([block]), response([{"type": "text", "text": "Controlled answer"}], stop="end_turn")])
++    result = await agent.handle(req)
++    assert result.success and result.status == "success" and result.tools_used == ["probe"]
++    assert provider.await_count == 2
++    handler.assert_awaited_once_with(req, {})
++    feedback = provider.await_args_list[1].kwargs["messages"][-1]["content"][0]
++    assert feedback["type"] == "tool_result" and feedback["tool_use_id"] == tool_id
++    assert feedback["is_error"] is False
++
++
++@pytest.mark.asyncio
++async def test_text_only_truncation_keeps_partial_semantics():
++    agent, provider, handler, req = setup_agent([
++        response([{"type": "text", "text": "Incomplete text"}], stop="max_tokens")])
++    result = await agent.handle(req)
++    assert result.success and result.status == "partial" and result.error_code is None
++    assert agent.stats.success == 0
++    handler.assert_not_called()
++
++
++@pytest.mark.asyncio
++@pytest.mark.parametrize("error", [
++    TimeoutError("controlled timeout"),
++    APITimeoutError(request=httpx.Request("POST", "https://controlled.invalid/")),
++])
++async def test_provider_timeout_is_classified_without_tool_dispatch(error):
++    agent, provider, handler, req = setup_agent([error])
++    result = await agent.handle(req)
++    assert not result.success and result.error_code == "agent_timeout"
++    assert result.tools_used == result.tool_traces == req.tool_attempts == []
++    handler.assert_not_called()
++    assert provider.await_count == 1
++
++
++@pytest.mark.asyncio
++async def test_task_cancellation_is_not_changed_into_a_model_error():
++    agent, provider, handler, req = setup_agent([asyncio.CancelledError()])
++    with pytest.raises(asyncio.CancelledError):
++        await agent.handle(req)
++    handler.assert_not_called()
+diff --git a/tests/test_provider_failure_safety.py b/tests/test_provider_failure_safety.py
+new file mode 100644
+index 0000000..4fc3518
+--- /dev/null
++++ b/tests/test_provider_failure_safety.py
+@@ -0,0 +1,108 @@
++"""Private provider errors cannot become user answers or LLM failure logs."""
++import json
++from types import SimpleNamespace
++from unittest.mock import AsyncMock
++
++from anthropic import APIStatusError
++import fakeredis.aioredis
++import httpx
++import pytest
++
++from agents.agent_orchestrator import AgentCallError, GeneralAgent, Request
++from memory.conversation_memory import MemoryManager, Message, MsgRole
++from tooling.tool_manager import MCPToolManager
++
++
++PRIVATE = "private-provider-body-prompt-and-cookie"
++
++
++def private_error():
++    request = httpx.Request("POST", f"https://private.invalid/{PRIVATE}", headers={"Authorization": PRIVATE})
++    response = httpx.Response(503, request=request, text=PRIVATE)
++    return APIStatusError(PRIVATE, response=response, body={"private": PRIVATE})
++
++
++def client(error):
++    return SimpleNamespace(messages=SimpleNamespace(create=AsyncMock(side_effect=error)))
++
++
++def assert_safe(caplog):
++    assert PRIVATE not in caplog.text and "private.invalid" not in caplog.text
++    assert all(record.exc_info is None and record.exc_text is None for record in caplog.records)
++
++
++@pytest.mark.asyncio
++async def test_agent_generic_provider_error_is_fixed_and_logs_only_safe_code(caplog):
++    agent = GeneralAgent(client(private_error()), "controlled-model")
++    req = Request(message=PRIVATE, user_id="isolated", conv_id="controlled")
++    with pytest.raises(AgentCallError) as caught:
++        await agent._call_llm(req)
++    assert str(caught.value) == "模型调用未完成"
++    assert PRIVATE not in str(caught.value)
++    result = await agent.handle(req)
++    assert not result.success and result.error_code == "agent_failed"
++    assert PRIVATE not in result.content and "error_code=agent_failed" in caplog.text
++    assert_safe(caplog)
++
++
++@pytest.mark.asyncio
++async def test_untrusted_error_class_and_code_are_not_logged(caplog):
++    class UnknownFailure(Exception):
++        def __str__(self):
++            raise AssertionError("Never stringify unknown provider failures")
++    UnknownFailure.__name__ = PRIVATE
++    agent = GeneralAgent(client(UnknownFailure()), "controlled-model")
++    result = await agent.handle(Request(message="controlled", user_id="isolated", conv_id="controlled"))
++    assert not result.success and result.error_code == "agent_failed"
++    assert_safe(caplog)
++
++
++@pytest.mark.asyncio
++@pytest.mark.parametrize("code", [PRIVATE, {}, [], None])
++async def test_unknown_agent_error_codes_are_collapsed_safely(caplog, code):
++    agent = GeneralAgent(client(AgentCallError(PRIVATE, [], [], error_code=code)), "controlled-model")
++    result = await agent.handle(Request(message="controlled", user_id="isolated", conv_id="controlled"))
++    assert not result.success and result.error_code == "agent_failed"
++    assert_safe(caplog)
++
++
++@pytest.mark.asyncio
++@pytest.mark.parametrize("target", ["rewrite", "rerank"])
++async def test_rag_provider_error_keeps_fallback_without_private_body(caplog, target):
++    manager = MCPToolManager.__new__(MCPToolManager)
++    manager._client, manager._model = client(private_error()), "controlled-model"
++    if target == "rewrite":
++        assert await manager.rewrite_query(PRIVATE) == [PRIVATE]
++    else:
++        assert await manager._rerank_with_status(PRIVATE, ["one", "two"], 1) == (["one"], False)
++    assert manager._client.messages.create.await_count == 1
++    assert f"phase=retrieval.{target}" in caplog.text and "error_code=provider_status_error" in caplog.text
++    assert_safe(caplog)
++
++
++@pytest.mark.asyncio
++@pytest.mark.parametrize("target", ["profile", "summary", "merge"])
++async def test_memory_provider_error_keeps_state_and_safe_fallback(caplog, target):
++    memory = MemoryManager.__new__(MemoryManager)
++    memory._client, memory._model = client(private_error()), "controlled-model"
++    redis = fakeredis.aioredis.FakeRedis(decode_responses=True)
++    memory._redis = redis
++    try:
++        if target == "profile":
++            memory._get_working_memory = AsyncMock(return_value=[Message(MsgRole.USER, PRIVATE)])
++            memory._get_profile = AsyncMock(return_value={})
++            memory._profile = SimpleNamespace(upsert=lambda **kwargs: pytest.fail("No profile write after model failure"))
++            await memory._update_profile("isolated", "controlled")
++        elif target == "summary":
++            key = memory._wm_key("isolated", "controlled")
++            raw = json.dumps({"role": "user", "content": PRIVATE, "ts": "2026-10-25T00:00:00"})
++            await redis.lpush(key, *([raw] * memory.COMPRESS_AT))
++            await memory._compress("isolated", "controlled")
++            assert await redis.llen(key) == memory.COMPRESS_AT
++        else:
++            assert await memory._merge_summary("old", "new") == "old\nnew"
++        assert memory._client.messages.create.await_count == 1
++        assert f"phase=memory.{target}" in caplog.text and "error_code=provider_status_error" in caplog.text
++        assert_safe(caplog)
++    finally:
++        await redis.aclose()
+diff --git a/tests/test_provider_options.py b/tests/test_provider_options.py
+new file mode 100644
+index 0000000..5e428c7
+--- /dev/null
++++ b/tests/test_provider_options.py
+@@ -0,0 +1,140 @@
++"""Provider payload capture with in-memory HTTP only; no live credentials."""
++import ast
++import json
++from pathlib import Path
++from types import SimpleNamespace
++from unittest.mock import AsyncMock
++
++from anthropic import AsyncAnthropic
++import httpx
++import pytest
++
++from agents.agent_orchestrator import GeneralAgent, Request
++from agents.tools import make_tool
++from core.provider_options import FLASH_SNAPSHOT, nonthinking_options
++
++
++@pytest.mark.parametrize("origin", [
++    "https://dashscope.aliyuncs.com/apps/anthropic",
++    "https://dashscope.aliyuncs.com/apps/anthropic/",
++    "https://workspace-example.cn-beijing.maas.aliyuncs.com/apps/anthropic",
++    "https://workspace-example.cn-beijing.maas.aliyuncs.com/apps/anthropic/",
++])
++def test_fixed_official_beijing_flash_disables_thinking(origin):
++    assert nonthinking_options(SimpleNamespace(base_url=origin), FLASH_SNAPSHOT) == {
++        "extra_body": {"thinking": {"type": "disabled"}}}
++
++
++@pytest.mark.parametrize("origin", [
++    "https://api.anthropic.com", "https://private.invalid/apps/anthropic",
++    "http://dashscope.aliyuncs.com/apps/anthropic",
++    "https://dashscope-intl.aliyuncs.com/apps/anthropic",
++    "https://w.cn-shanghai.maas.aliyuncs.com/apps/anthropic",
++    "https://dashscope.aliyuncs.com.evil.invalid/apps/anthropic",
++    "https://dashscope.aliyuncs.com:444/apps/anthropic",
++    "https://user:password@dashscope.aliyuncs.com/apps/anthropic",
++    "https://dashscope.aliyuncs.com/apps/anthropic?x=1",
++    "https://dashscope.aliyuncs.com/apps/anthropic#fragment",
++    "https://dashscope.aliyuncs.com/apps/anthropic/v1",
++    "https://dashscope.aliyuncs.com/compatible-mode/v1",
++    "https://dashscope.aliyuncs.com:invalid/apps/anthropic", "", None,
++])
++def test_other_origins_are_unchanged(origin):
++    assert nonthinking_options(SimpleNamespace(base_url=origin), FLASH_SNAPSHOT) == {}
++
++
++@pytest.mark.parametrize("model", ["claude-sonnet-4-5", "qwen3.7-flash", "qwen3-vl-plus", "", None])
++def test_other_models_are_unchanged(model):
++    assert nonthinking_options(SimpleNamespace(base_url="https://dashscope.aliyuncs.com/apps/anthropic"), model) == {}
++
++
++def test_request_options_do_not_share_mutable_state():
++    client = SimpleNamespace(base_url="https://dashscope.aliyuncs.com/apps/anthropic")
++    first = nonthinking_options(client, FLASH_SNAPSHOT)
++    first["extra_body"]["thinking"]["type"] = "changed"
++    assert nonthinking_options(client, FLASH_SNAPSHOT) == {"extra_body": {"thinking": {"type": "disabled"}}}
++
++
++def native_response(blocks, *, stop="end_turn", model=FLASH_SNAPSHOT):
++    return {"id": "msg_controlled", "type": "message", "role": "assistant", "model": model,
++            "content": blocks, "stop_reason": stop, "stop_sequence": None,
++            "usage": {"input_tokens": 1, "output_tokens": 1}}
++
++
++@pytest.mark.asyncio
++async def test_real_sdk_payload_keeps_tools_and_native_feedback_with_thinking_disabled():
++    captured = []
++    replies = [native_response([{"type": "tool_use", "id": "toolu_probe", "name": "probe", "input": {}}], stop="tool_use"),
++               native_response([{"type": "text", "text": "Controlled answer"}])]
++
++    def mock_send(request):
++        captured.append(json.loads(request.content))
++        return httpx.Response(200, json=replies.pop(0))
++
++    async with httpx.AsyncClient(transport=httpx.MockTransport(mock_send)) as http:
++        client = AsyncAnthropic(api_key="controlled-not-real", base_url="https://dashscope.aliyuncs.com/apps/anthropic/",
++                                http_client=http, max_retries=0)
++        agent = GeneralAgent(client, FLASH_SNAPSHOT)
++        handler = AsyncMock(return_value={"success": True})
++        agent.set_shared_tools({"probe": make_tool("probe", "Controlled read", {}, handler)})
++        result = await agent.handle(Request(message="Controlled query", user_id="isolated", conv_id="controlled"))
++    assert result.success and len(captured) == 2
++    assert handler.await_count == 1
++    for payload in captured:
++        assert payload["thinking"] == {"type": "disabled"}
++        assert payload["model"] == FLASH_SNAPSHOT and payload["max_tokens"] == agent.profile.max_tokens
++        assert payload["temperature"] == agent.profile.temperature
++        assert {tool["name"] for tool in payload["tools"]} == set(agent.get_tools())
++    assert captured[1]["messages"][-1]["content"][0]["tool_use_id"] == "toolu_probe"
++
++
++@pytest.mark.asyncio
++@pytest.mark.parametrize("origin,model", [
++    ("https://api.anthropic.com", FLASH_SNAPSHOT),
++    ("https://dashscope.aliyuncs.com/apps/anthropic", "claude-sonnet-4-5"),
++])
++async def test_other_real_sdk_request_payloads_do_not_gain_thinking(origin, model):
++    captured = []
++
++    def mock_send(request):
++        captured.append(json.loads(request.content))
++        return httpx.Response(200, json=native_response([{"type": "text", "text": "Controlled"}], model=model))
++
++    async with httpx.AsyncClient(transport=httpx.MockTransport(mock_send)) as http:
++        client = AsyncAnthropic(api_key="controlled-not-real", base_url=origin, http_client=http, max_retries=0)
++        await client.messages.create(model=model, max_tokens=64, messages=[{"role": "user", "content": "Controlled"}],
++                                     **nonthinking_options(client, model))
++    assert len(captured) == 1 and "thinking" not in captured[0]
++
++
++def test_all_native_call_sites_opt_in_explicitly_and_clients_disable_sdk_retries():
++    """Prevent future native call sites accidentally retaining provider defaults."""
++    root = Path(__file__).resolve().parents[1]
++    files = ("core/intent_recognizer.py", "agents/agent_orchestrator.py", "tooling/tool_manager.py",
++             "memory/conversation_memory.py", "evaluation/evaluator.py")
++    for relative in files:
++        tree = ast.parse((root / relative).read_text())
++        parents = {child: node for node in ast.walk(tree) for child in ast.iter_child_nodes(node)}
++        for node in ast.walk(tree):
++            if not isinstance(node, ast.Call):
++                continue
++            if isinstance(node.func, ast.Name) and node.func.id == "AsyncAnthropic":
++                assert any(keyword.arg == "max_retries" and isinstance(keyword.value, ast.Constant)
++                           and keyword.value.value == 0 for keyword in node.keywords), relative
++            if not (isinstance(node.func, ast.Attribute) and node.func.attr == "create"
++                    and isinstance(node.func.value, ast.Attribute) and node.func.value.attr == "messages"):
++                continue
++            explicit = any(keyword.arg is None and isinstance(keyword.value, ast.Call)
++                           and isinstance(keyword.value.func, ast.Name)
++                           and keyword.value.func.id == "nonthinking_options" for keyword in node.keywords)
++            if not explicit:
++                # The Agent assembles the existing tools payload as a dictionary.
++                parent = node
++                while not isinstance(parent, (ast.FunctionDef, ast.AsyncFunctionDef)):
++                    parent = parents[parent]
++                explicit = any(isinstance(item, ast.Call) and isinstance(item.func, ast.Attribute)
++                    and item.func.attr == "update" and isinstance(item.func.value, ast.Name)
++                    and item.func.value.id == "request_kwargs" and item.args
++                    and isinstance(item.args[0], ast.Call) and isinstance(item.args[0].func, ast.Name)
++                    and item.args[0].func.id == "nonthinking_options" for item in ast.walk(parent))
++            assert explicit, f"{relative}:{node.lineno}"
+diff --git a/tests/test_safe_diagnostics.py b/tests/test_safe_diagnostics.py
+new file mode 100644
+index 0000000..33a08f5
+--- /dev/null
++++ b/tests/test_safe_diagnostics.py
+@@ -0,0 +1,159 @@
++"""Controlled diagnostics checks: no model client construction or network."""
++
++import asyncio
++import json
++import logging
++import socket
++from types import SimpleNamespace
++
++import pytest
++import httpx
++from anthropic import APITimeoutError, APIConnectionError, AuthenticationError, RateLimitError
++
++from agents.agent_orchestrator import AgentResponse, AgentType, Request, ResponseComposer
++from core.intent_recognizer import IntentCategory, IntentRecognizer
++from core.safe_diagnostics import record_llm_failure
++
++
++PRIVATE = "private-customer-text-cookie-and-provider-body"
++
++
++@pytest.fixture(autouse=True)
++def no_network(monkeypatch):
++    def refused(*args, **kwargs):
++        raise AssertionError("Network is forbidden in controlled diagnostics tests")
++    monkeypatch.setattr(socket.socket, "connect", refused)
++    monkeypatch.setattr(socket.socket, "connect_ex", refused)
++    monkeypatch.setattr(socket, "create_connection", refused)
++
++
++class FakeClient:
++    def __init__(self, *, content=None, error=None):
++        self.calls = 0
++
++        async def create(**kwargs):
++            self.calls += 1
++            if error is not None:
++                raise error
++            return SimpleNamespace(content=content, stop_reason="end_turn")
++
++        self.messages = SimpleNamespace(create=create)
++
++
++def recognizer(client):
++    value = IntentRecognizer.__new__(IntentRecognizer)
++    value.client, value.model = client, "controlled-model"
++    return value
++
++
++def compose(client):
++    return ResponseComposer(client, "controlled-model").compose_result(
++        Request(message=PRIVATE, user_id="controlled", conv_id="controlled"),
++        [AgentResponse(AgentType.TECHNICAL, "主结论", True),
++         AgentResponse(AgentType.BILLING, "辅助结论", True)],
++    )
++
++
++def assert_safe(caplog):
++    assert PRIVATE not in caplog.text
++    assert all(record.exc_info is None for record in caplog.records)
++    assert all(record.exc_text is None for record in caplog.records)
++
++
++@pytest.mark.parametrize(("error", "phase", "code", "kind"), [
++    (TimeoutError(PRIVATE), "intent.transport", "deadline_exceeded", "TimeoutError"),
++    (json.JSONDecodeError(PRIVATE, PRIVATE, 0), "intent.parse", "invalid_json", "JSONDecodeError"),
++    (ValueError(PRIVATE), "intent.validate", "invalid_semantics", "ValueError"),
++    (TypeError(PRIVATE), "composer.extract", "invalid_structure", "TypeError"),
++])
++def test_diagnostics_only_log_fixed_vocabulary(caplog, error, phase, code, kind):
++    result = record_llm_failure(logging.getLogger("controlled"), phase, error, 12.9)
++    assert result == {"phase": phase, "error_code": code, "error_type": kind, "elapsed_ms": 12}
++    assert_safe(caplog)
++
++
++def test_unknown_exception_name_and_message_are_not_rendered(caplog):
++    class SensitiveException(Exception):
++        def __str__(self):
++            raise AssertionError("Exception text must never be evaluated")
++        def __repr__(self):
++            raise AssertionError("Exception repr must never be evaluated")
++    SensitiveException.__name__ = PRIVATE
++    result = record_llm_failure(logging.getLogger("controlled"), PRIVATE, SensitiveException(), float("inf"))
++    assert result == {"phase": "unknown", "error_code": "unexpected_error", "error_type": "OtherError", "elapsed_ms": 0}
++    assert_safe(caplog)
++
++
++@pytest.mark.parametrize(("error_kind", "expected_code"), [
++    (APITimeoutError, "deadline_exceeded"),
++    (APIConnectionError, "connection_failed"),
++    (AuthenticationError, "authentication_failed"),
++    (RateLimitError, "rate_limited"),
++])
++def test_provider_exceptions_do_not_log_request_response_or_body(caplog, error_kind, expected_code):
++    request = httpx.Request("POST", "https://example.invalid/", headers={"Authorization": PRIVATE})
++    if error_kind in (APITimeoutError, APIConnectionError):
++        error = error_kind(request=request)
++    else:
++        response = httpx.Response(401 if error_kind is AuthenticationError else 429, request=request, text=PRIVATE)
++        error = error_kind(PRIVATE, response=response, body={"private": PRIVATE})
++    result = record_llm_failure(logging.getLogger("controlled"), "intent.transport", error, 1)
++    assert result["error_code"] == expected_code
++    assert_safe(caplog)
++    assert "example.invalid" not in caplog.text
++
++
++@pytest.mark.parametrize(("elapsed", "expected"), [(-1, 0), (float("nan"), 0), (True, 0), (10**12, 3_600_000)])
++def test_elapsed_is_bounded(caplog, elapsed, expected):
++    assert record_llm_failure(logging.getLogger("controlled"), "intent.transport", TimeoutError(), elapsed)["elapsed_ms"] == expected
++
++
++@pytest.mark.parametrize(("content", "error", "phase", "code"), [
++    (None, TimeoutError(PRIVATE), "intent.transport", "deadline_exceeded"),
++    ([{"type": "text", "text": PRIVATE}], None, "intent.parse", "invalid_json"),
++    ([{"type": "text", "text": '{"intent":"query","confidence":true}'}], None, "intent.validate", "invalid_semantics"),
++    ([{"type": "text", "text": '{"confidence":0.5}'}], None, "intent.validate", "invalid_structure"),
++])
++def test_intent_failures_preserve_fallback_and_single_call(caplog, content, error, phase, code):
++    client = FakeClient(content=content, error=error)
++    result = asyncio.run(recognizer(client)._llm_recognize(PRIVATE, None))
++    assert result == {"intent": IntentCategory.OTHER, "confidence": 0.0, "reasoning": "LLM 失败", "failed": True}
++    assert client.calls == 1
++    assert f"phase={phase}" in caplog.text and f"error_code={code}" in caplog.text
++    assert_safe(caplog)
++
++
++def test_intent_success_has_no_failure_log(caplog):
++    client = FakeClient(content=[{"type": "text", "text": '{"intent":"query","confidence":0.8,"reasoning":"ok"}'}])
++    result = asyncio.run(recognizer(client)._llm_recognize(PRIVATE, None))
++    assert result["intent"] is IntentCategory.QUERY and result["confidence"] == .8
++    assert client.calls == 1 and not caplog.records
++
++
++@pytest.mark.parametrize(("content", "error", "phase", "code"), [
++    (None, TimeoutError(PRIVATE), "composer.transport", "deadline_exceeded"),
++    ([], None, "composer.extract", "empty_output"),
++    (42, None, "composer.extract", "invalid_structure"),
++])
++def test_composer_failure_preserves_deterministic_fallback(caplog, content, error, phase, code):
++    client = FakeClient(content=content, error=error)
++    result = asyncio.run(compose(client))
++    assert result.content == "主结论\n\n补充说明：\n辅助结论" and result.status == "success"
++    assert client.calls == 1
++    assert f"phase={phase}" in caplog.text and f"error_code={code}" in caplog.text
++    assert_safe(caplog)
++
++
++@pytest.mark.parametrize("target", ["intent", "composer"])
++def test_cancellation_propagates_without_retry_or_failure_log(caplog, target):
++    client = FakeClient(error=asyncio.CancelledError())
++    with pytest.raises(asyncio.CancelledError):
++        asyncio.run(recognizer(client)._llm_recognize(PRIVATE, None) if target == "intent" else compose(client))
++    assert client.calls == 1 and not caplog.records
++
++
++def test_composer_success_has_no_failure_log(caplog):
++    client = FakeClient(content=[{"type": "text", "text": "合并结论"}])
++    result = asyncio.run(compose(client))
++    assert result.content == "合并结论" and result.status == "success"
++    assert client.calls == 1 and not caplog.records

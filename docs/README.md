@@ -1,5 +1,7 @@
 # 文档导航
 
+**ServeFlow最新问题补修**：[SERVEFLOW_QA_REPAIR](SERVEFLOW_QA_REPAIR.md)：失败／partial、trace阻塞、原生工具协议、Flash非思考兼容；真实4/20后暂停与离线最终版本分别说明，未完成查单／退款／RAG质量验收。
+
 **独立客服项目**：本机5173现为[智应 ServeFlow](SERVEFLOW_UI.md)，基于上传的原EchoMind客服前端进行品牌／样式调整；[启动说明](ECHOMIND_ORIGINAL_LOCAL.md)。下方TripPilot旅行重构、权限和验收范围不自动适用于这个独立开发入口。
 
 **当前ServeFlow导航**：[对话／监控两页](SERVEFLOW_MONITOR_UI.md)，无Java/Python切换、独立知识管理或评测操作。聊天按需RAG与后台评测保留，监控指标是技术执行统计；历史三页截图不代表当前导航。

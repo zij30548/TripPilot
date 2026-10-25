@@ -1,0 +1,478 @@
+diff --git a/src/App.vue b/src/App.vue
+index cd36498..3acf426 100644
+--- a/src/App.vue
++++ b/src/App.vue
+@@ -133,0 +134 @@
++                      <span v-else-if="item.status === 'partial'" class="error-label">部分完成</span>
+@@ -136,0 +138 @@
++                    <p v-if="item.status === 'partial'" class="muted">本次仅取得部分结果，尚未完整处理你的问题；不会自动重试。</p>
+@@ -211 +213 @@
+-                  <AppIcon :name="prompt.label === '退款申请' ? 'route' : prompt.label === '技术排查' ? 'sliders' : 'document'" />
++                  <AppIcon :name="prompt.icon" />
+@@ -214 +216 @@
+-                    <small>{{ prompt.label === '退款申请' ? '了解订单与售后流程' : prompt.label === '技术排查' ? '排查登录与使用问题' : '解答开票相关问题' }}</small>
++                    <small>{{ prompt.description }}</small>
+@@ -305,0 +308 @@ import {
++  chatFailureMessage,
+@@ -351,5 +354 @@ const views = [
+-const prompts = [
+-  { label: '退款申请', text: '我想申请退款，订单号是 #12345' },
+-  { label: '技术排查', text: '登录时提示错误，应该怎么排查？' },
+-  { label: '发票咨询', text: '发票多久可以开具？' }
+-]
++const prompts = computed(() => buildConversationPrompts(demoSession.value))
+@@ -373,0 +373,2 @@ let boundDemoSettings = null
++let chatController = null
++let traceController = null
+@@ -391,0 +393 @@ onBeforeUnmount(() => {
++  cancelChat()
+@@ -428,0 +431 @@ function saveConnection() {
++    cancelChat()
+@@ -490,0 +494 @@ function expireDemoSession(message = '演示会话已过期，请刷新页面重
++  cancelChat()
+@@ -516,0 +521 @@ async function loadDemoSession() {
++      cancelChat()
+@@ -659,0 +665,4 @@ async function sendMessage() {
++  cancelChat()
++  const controller = new AbortController()
++  chatController = controller
++  const current = () => request.isCurrent() && settings.userId === request.settings.userId
+@@ -662,2 +671,2 @@ async function sendMessage() {
+-    const response = await requestChat(request.backend, request.settings, content)
+-    if (!request.isCurrent()) return
++    const response = await requestChat(request.backend, request.settings, content, { signal: controller.signal })
++    if (!current()) return
+@@ -668,2 +676,0 @@ async function sendMessage() {
+-    const trace = await loadToolTrace(response.requestId, request)
+-    if (!request.isCurrent()) return
+@@ -671 +677,0 @@ async function sendMessage() {
+-    lastTrace.value = trace
+@@ -673 +679,5 @@ async function sendMessage() {
+-    messages.value.push({ id: createMessageId(), role: 'assistant', content: response.response, meta, trace: lastTrace.value?.trace || null })
++    const message = { id: createMessageId(), role: 'assistant', content: response.response, meta,
++      status: response.status, error: response.status === 'failed', trace: null }
++    messages.value.push(message)
++    // Optional tracing must never delay the reply or keep the composer busy.
++    void loadResponseTrace(response.requestId, request, message.id)
+@@ -675 +685 @@ async function sendMessage() {
+-    if (!request.isCurrent()) return
++    if (!current()) return
+@@ -680 +690 @@ async function sendMessage() {
+-    messages.value.push({ id: createMessageId(), role: 'assistant', content: error.message, meta: '请求失败', error: true })
++    messages.value.push({ id: createMessageId(), role: 'assistant', content: chatFailureMessage(error), meta: '请求失败', error: true })
+@@ -682 +692,2 @@ async function sendMessage() {
+-    if (!request.isCurrent()) return
++    if (!current()) return
++    if (chatController === controller) chatController = null
+@@ -688,0 +700,13 @@ async function sendMessage() {
++function buildConversationPrompts(session) {
++  const samples = session?.sample_orders || []
++  const first = samples[0]
++  const refund = samples.find(sample => sample.scenario.includes('退款'))
++  return [
++    first ? { label: '订单查询', text: `请查询演示订单 ${first.order_id} 的状态。`, description: '查看当前演示身份的订单记录', icon: 'document' }
++      : { label: '订单咨询', text: '查询订单状态需要提供哪些信息？', description: '了解查单需要的信息', icon: 'document' },
++    refund ? { label: '退款查询', text: `请查询演示订单 ${refund.order_id} 的退款状态。`, description: '查询演示退款，不发起退款操作', icon: 'route' }
++      : { label: '退款咨询', text: '申请退款需要满足什么条件？', description: '了解售后规则，不发起退款操作', icon: 'route' },
++    { label: '技术排查', text: '登录时提示错误，应该怎么排查？', description: '排查登录与使用问题', icon: 'sliders' }
++  ]
++}
++
+@@ -694,0 +719 @@ function clearConversation() {
++  cancelChat()
+@@ -703 +728,11 @@ function clearConversation() {
+-async function loadToolTrace(requestId, request = requestState.begin('trace')) {
++function cancelChat() {
++  chatController?.abort()
++  chatController = null
++  traceController?.abort()
++  traceController = null
++}
++
++async function loadResponseTrace(requestId, request, messageId) {
++  if (!requestId) return
++  const controller = new AbortController()
++  traceController = controller
+@@ -705 +740,6 @@ async function loadToolTrace(requestId, request = requestState.begin('trace')) {
+-    return await requestToolTrace(request.backend, request.settings, requestId)
++    const trace = await requestToolTrace(request.backend, request.settings, requestId, { signal: controller.signal })
++    if (!request.isCurrent() || settings.userId !== request.settings.userId || controller.signal.aborted) return
++    const message = messages.value.find(item => item.id === messageId)
++    if (!message) return
++    lastTrace.value = trace
++    message.trace = trace?.trace || null
+@@ -707 +747,3 @@ async function loadToolTrace(requestId, request = requestState.begin('trace')) {
+-    return null
++    // Trace availability is independent from the already rendered chat result.
++  } finally {
++    if (traceController === controller) traceController = null
+diff --git a/src/components/RequestInspector.vue b/src/components/RequestInspector.vue
+index 4e2b97b..344d63b 100644
+--- a/src/components/RequestInspector.vue
++++ b/src/components/RequestInspector.vue
+@@ -7,2 +7,2 @@
+-          <i :class="{ working: busy, complete: lastResponse && !busy }"></i>
+-          {{ busy ? '处理中' : lastResponse ? '已完成' : '待开始' }}
++          <i :class="{ working: busy, complete: lastResponse?.status === 'success' && !busy }"></i>
++          {{ busy ? '处理中' : responseState }}
+@@ -12 +12 @@
+-      <ol class="trace-steps" :class="{ complete: lastResponse && !busy }">
++      <ol class="trace-steps" :class="{ complete: lastResponse?.status === 'success' && !busy }">
+@@ -46 +46 @@
+-            <p>{{ busy ? '等待回复' : lastResponse ? lastResponse.escalated ? '已转人工处理' : '回复已生成' : '等待新的请求' }}</p>
++            <p>{{ busy ? '等待回复' : lastResponse ? lastResponse.status === 'failed' ? '本次未完成' : lastResponse.status === 'partial' ? '仅取得部分结果' : lastResponse.escalated ? '已转人工处理' : '回复已生成' : '等待新的请求' }}</p>
+@@ -121,0 +122 @@ const activeAlerts = computed(() => props.monitorData.active_alerts || [])
++const responseState = computed(() => ({ success: '已完成', partial: '部分完成', failed: '未完成' }[props.lastResponse?.status] || '待开始'))
+diff --git a/src/lib/backends.js b/src/lib/backends.js
+index cd51e92..a38fe9d 100644
+--- a/src/lib/backends.js
++++ b/src/lib/backends.js
+@@ -114 +114 @@ export async function requestSearch(type, settings, query, topK = 5) {
+-export async function requestChat(type, settings, message) {
++export async function requestChat(type, settings, message, options = {}) {
+@@ -120 +120 @@ export async function requestChat(type, settings, message) {
+-      if (chatAttempts.size > 100) chatAttempts.clear()
++      if (chatAttempts.size >= 100) throw new Error('chat_attempt_capacity')
+@@ -125,7 +125,30 @@ export async function requestChat(type, settings, message) {
+-  const raw = await requestFor(type, settings, '/chat', {
+-    method: 'POST',
+-    headers: { 'Content-Type': 'application/json' },
+-    body: JSON.stringify(payload)
+-  })
+-  chatAttempts.delete(attemptKey)
+-  return normalizeChatResponse(type, raw)
++  try {
++    const raw = await requestFor(type, settings, '/chat', {
++      method: 'POST',
++      headers: { 'Content-Type': 'application/json' },
++      body: JSON.stringify(payload),
++      signal: boundedSignal(options.signal, 55000)
++    })
++    const response = normalizeChatResponse(type, raw)
++    if (response.status !== 'failed') chatAttempts.delete(attemptKey)
++    else retainFailedAttempt(response)
++    return response
++  } catch (error) {
++    // A failed turn is an intentional ChatResponse, not an arbitrary error body.
++    if (error.status === 503 && error.responseBody?.status === 'failed') {
++      const response = normalizeChatResponse(type, error.responseBody)
++      retainFailedAttempt(response)
++      return response
++    }
++    const safe = new Error(chatFailureMessage(error))
++    safe.status = error.status
++    safe.name = error.name
++    throw safe
++  }
++
++  function retainFailedAttempt(response) {
++    // Binding the returned conversation must not silently create a new operation
++    // if the user repeats the same failed turn after the initial unbound request.
++    const boundKey = JSON.stringify([type, meta.baseUrl, settings.userId, response.conversationId, message])
++    if (chatAttempts.has(boundKey) || chatAttempts.size < 100) chatAttempts.set(boundKey, payload.client_request_id)
++  }
+@@ -134 +157 @@ export async function requestChat(type, settings, message) {
+-export async function requestToolTrace(type, settings, requestId) {
++export async function requestToolTrace(type, settings, requestId, options = {}) {
+@@ -136 +159,3 @@ export async function requestToolTrace(type, settings, requestId) {
+-  const raw = await requestFor(type, settings, `/trace/tool/${encodeURIComponent(requestId)}`)
++  const raw = await requestFor(type, settings, `/trace/tool/${encodeURIComponent(requestId)}`, {
++    signal: boundedSignal(options.signal, 20000)
++  })
+@@ -139,0 +165,23 @@ export async function requestToolTrace(type, settings, requestId) {
++function boundedSignal(signal, timeout) {
++  const deadline = AbortSignal.timeout(timeout)
++  return signal ? AbortSignal.any([signal, deadline]) : deadline
++}
++
++export function chatFailureMessage(error) {
++  if ([401, 403, 428].includes(error?.status)) return '当前会话已失效，请重新读取演示身份。'
++  if (error?.status === 429) return '请求过于频繁，请稍后再试；不会自动重试。'
++  if (['AbortError', 'TimeoutError'].includes(error?.name) || error?.status === 504) {
++    return '本次等待已结束，处理结果尚未确认；已发送的请求可能仍在处理，不会自动重试。'
++  }
++  return '本次请求未完成，请核对当前会话或检查服务连接；不会自动重试。'
++}
++
++const CHAT_FAILURES = Object.freeze({
++  agent_busy: '当前处理通道忙，本次请求未完成；不会自动重试。',
++  agent_failed: '本次处理未完成，暂时无法提供有效答复；不会自动重试。',
++  agent_unavailable: '当前处理通道不可用，本次请求未完成；不会自动重试。',
++  agent_timeout: '本次处理超时，尚未取得有效结果；已发送的请求可能仍在处理，不会自动重试。',
++  agent_protocol_error: '本次响应格式无效，未取得有效结果；不会自动重试。',
++  tool_outcome_unknown: '相关操作结果尚未确认，请先核对执行结果，不要重复操作。'
++})
++
+@@ -165,0 +214,12 @@ function normalizeChatResponse(type, raw) {
++  if (!raw || typeof raw !== 'object' || Array.isArray(raw) ||
++      !['success', 'partial', 'failed'].includes(raw.status) ||
++      typeof raw.retryable !== 'boolean' || typeof raw.response !== 'string' || raw.response.length > 100000 ||
++      (raw.status !== 'failed' && !raw.response.trim()) ||
++      (raw.error_code != null && (typeof raw.error_code !== 'string' || raw.error_code.length > 100))) {
++    throw new Error('chat_response_invalid')
++  }
++  const conversationId = raw.conversation_id || raw.conversationId || raw.conv_id || ''
++  const requestId = raw.request_id || raw.requestId || ''
++  if (!/^[A-Za-z0-9_.:-]{1,128}$/.test(conversationId) ||
++      (requestId !== '' && !/^[A-Za-z0-9_.:-]{1,128}$/.test(requestId))) throw new Error('chat_response_invalid')
++  const errorCode = Object.hasOwn(CHAT_FAILURES, raw.error_code) ? raw.error_code : raw.error_code == null ? null : 'unknown_error'
+@@ -168,3 +228,6 @@ function normalizeChatResponse(type, raw) {
+-    conversationId: raw.conversation_id || raw.conversationId || raw.conv_id || '',
+-    requestId: raw.request_id || raw.requestId || '',
+-    response: raw.response || '',
++    conversationId,
++    requestId,
++    status: raw.status,
++    retryable: raw.retryable,
++    errorCode,
++    response: raw.status === 'failed' ? (CHAT_FAILURES[errorCode] || chatFailureMessage()) : raw.response,
+@@ -186,2 +249 @@ function normalizeChatResponse(type, raw) {
+-    grounded: raw.grounded,
+-    raw
++    grounded: raw.grounded
+@@ -232,0 +295 @@ async function requestJson(baseUrl, path, options = {}) {
++    error.responseBody = data
+diff --git a/tests/chatReliability.test.js b/tests/chatReliability.test.js
+new file mode 100644
+index 0000000..40d49fe
+--- /dev/null
++++ b/tests/chatReliability.test.js
+@@ -0,0 +1,238 @@
++import { test } from 'node:test'
++import assert from 'node:assert/strict'
++import fs from 'node:fs'
++import vm from 'node:vm'
++import { chatFailureMessage, requestChat, requestToolTrace } from '../src/lib/backends.js'
++import { createRequestState } from '../src/lib/requestState.js'
++
++const settings = () => ({ backend: 'python', endpoints: { python: '/controlled-python' }, userId: 'qa-workspace', conversationId: '' })
++const reply = overrides => ({ conv_id: 'qa-conversation', request_id: 'qa-request', response: '受控回答',
++  status: 'success', retryable: false, error_code: null, ...overrides })
++const deferred = () => { let resolve, reject; const promise = new Promise((a, b) => { resolve = a; reject = b }); return { promise, resolve, reject } }
++
++test('structured failed chat keeps identity and status, replaces arbitrary prose and error codes with fixed messages', async () => {
++  const previous = globalThis.fetch
++  globalThis.fetch = async () => new Response(JSON.stringify(reply({ status: 'failed', retryable: true,
++    error_code: 'agent_failed', response: 'PRIVATE RAW EXCEPTION BODY' })), { status: 503 })
++  try {
++    const result = await requestChat('python', settings(), 'controlled failed turn')
++    assert.equal(result.status, 'failed')
++    assert.equal(result.retryable, true)
++    assert.equal(result.errorCode, 'agent_failed')
++    assert.equal(result.conversationId, 'qa-conversation')
++    assert.equal(result.requestId, 'qa-request')
++    assert.match(result.response, /本次处理未完成/)
++    assert.ok(!result.response.includes('PRIVATE'))
++    globalThis.fetch = async () => new Response(JSON.stringify(reply({ status: 'failed',
++      error_code: 'PRIVATE_UNKNOWN_ERROR', response: 'PRIVATE RAW EXCEPTION BODY' })), { status: 503 })
++    const unknown = await requestChat('python', settings(), 'controlled unknown failure')
++    assert.equal(unknown.errorCode, 'unknown_error')
++    assert.equal(unknown.response, chatFailureMessage())
++  } finally { globalThis.fetch = previous }
++})
++
++test('partial is retained; invalid structured response and arbitrary HTTP error cannot become successful answers', async () => {
++  const previous = globalThis.fetch
++  try {
++    globalThis.fetch = async () => new Response(JSON.stringify(reply({ status: 'partial' })))
++    const partial = await requestChat('python', settings(), 'controlled partial turn')
++    assert.equal(partial.status, 'partial')
++    assert.equal(partial.response, '受控回答')
++    for (const body of [reply({ status: 'invented' }), reply({ retryable: 'false' }), reply({ conv_id: '../private' }),
++      reply({ response: '' }), reply({ error_code: { private: 'error' } })]) {
++      globalThis.fetch = async () => new Response(JSON.stringify(body))
++      await assert.rejects(() => requestChat('python', settings(), JSON.stringify(body)), error => !error.message.includes('invented') && !error.message.includes('../private'))
++    }
++    globalThis.fetch = async () => new Response('PRIVATE RAW SERVER BODY', { status: 500 })
++    await assert.rejects(() => requestChat('python', settings(), 'controlled raw failure'), error => error.message === chatFailureMessage())
++  } finally { globalThis.fetch = previous }
++})
++
++test('timeout and invalid-protocol failures have explicit safe messages and never expose backend prose', async () => {
++  const previous = globalThis.fetch
++  try {
++    for (const [errorCode, expected] of [
++      ['agent_timeout', /本次处理超时.*已发送的请求可能仍在处理.*不会自动重试/],
++      ['agent_protocol_error', /本次响应格式无效.*未取得有效结果.*不会自动重试/]
++    ]) {
++      globalThis.fetch = async () => new Response(JSON.stringify(reply({ status: 'failed', error_code: errorCode,
++        response: 'PRIVATE PROTOCOL OR UPSTREAM ERROR' })), { status: 503 })
++      const result = await requestChat('python', settings(), `controlled ${errorCode}`)
++      assert.equal(result.status, 'failed')
++      assert.equal(result.errorCode, errorCode)
++      assert.match(result.response, expected)
++      assert.ok(!result.response.includes('PRIVATE'))
++    }
++  } finally { globalThis.fetch = previous }
++})
++
++test('a failed turn keeps its client operation after conversation binding; transport unknowns do not get new IDs', async () => {
++  const previous = globalThis.fetch, sent = [], configured = settings()
++  globalThis.fetch = async (_, options) => {
++    sent.push(JSON.parse(options.body))
++    return new Response(JSON.stringify(reply({ status: 'failed', error_code: 'tool_outcome_unknown' })), { status: 503 })
++  }
++  try {
++    const result = await requestChat('python', configured, 'controlled unknown tool turn')
++    configured.conversationId = result.conversationId
++    await requestChat('python', configured, 'controlled unknown tool turn')
++    assert.equal(sent[0].client_request_id, sent[1].client_request_id)
++    globalThis.fetch = async (_, options) => { sent.push(JSON.parse(options.body)); throw new Error('private transport detail') }
++    await assert.rejects(() => requestChat('python', configured, 'controlled unknown transport'))
++    await assert.rejects(() => requestChat('python', configured, 'controlled unknown transport'))
++    assert.equal(sent[2].client_request_id, sent[3].client_request_id)
++    assert.equal(sent.length, 4) // only explicit calls: no retry performed by the helper
++  } finally { globalThis.fetch = previous }
++})
++
++for (const kind of ['chat', 'trace']) {
++  test(`${kind} retains its deadline as well as caller cancellation without retry`, async () => {
++    const previousFetch = globalThis.fetch, previousTimeout = AbortSignal.timeout
++    const deadline = new AbortController(), caller = new AbortController()
++    let signal, calls = 0
++    AbortSignal.timeout = milliseconds => {
++      assert.equal(milliseconds, kind === 'chat' ? 55000 : 20000)
++      return deadline.signal
++    }
++    globalThis.fetch = async (_, options) => {
++      calls += 1; signal = options.signal
++      return new Response(JSON.stringify(kind === 'chat' ? reply() : { request_id: 'qa-request', found: false, trace: {} }))
++    }
++    try {
++      if (kind === 'chat') await requestChat('python', settings(), 'controlled cancel helper', { signal: caller.signal })
++      else await requestToolTrace('python', settings(), 'qa-request', { signal: caller.signal })
++      assert.notEqual(signal, caller.signal)
++      deadline.abort()
++      assert.equal(signal.aborted, true)
++      assert.equal(caller.signal.aborted, false)
++      assert.equal(calls, 1)
++    } finally { globalThis.fetch = previousFetch; AbortSignal.timeout = previousTimeout }
++  })
++}
++
++const source = fs.readFileSync(new URL('../src/App.vue', import.meta.url), 'utf8')
++function loadFunction(name, context) {
++  const match = new RegExp(`^(?:async )?function ${name}\\(`, 'm').exec(source)
++  assert.ok(match, name)
++  const start = match.index, next = source.slice(start + 1).search(/\n(?:async )?function /)
++  const end = next < 0 ? source.indexOf('</script>', start) : start + 1 + next
++  vm.runInContext(source.slice(start, end), context)
++}
++
++function chatContext(overrides = {}) {
++  const configured = settings(), ref = value => ({ value })
++  let id = 0
++  const context = vm.createContext({ settings: configured, requestState: createRequestState(configured), AbortController,
++    draft: ref('受控客户问题'), busy: ref(false), demoLoading: ref(false), demoError: ref(''),
++    messages: ref([]), lastResponse: ref(null), lastTrace: ref(null), messageList: ref(null), demoSession: ref(null),
++    pendingAction: ref('chat'), chatController: null, traceController: null,
++    createMessageId: () => `qa-message-${++id}`, nextTick: async callback => callback?.(), persist: () => {},
++    cancelDemoOrder: () => {}, cancelMonitor: () => {}, chatFailureMessage,
++    expireDemoSession: () => assert.fail('unexpected identity expiry'),
++    requestChat: async () => ({ conversationId: 'qa-conversation', requestId: 'qa-request', status: 'success', response: '受控回答' }),
++    requestToolTrace: async () => null, ...overrides })
++  for (const name of ['cancelChat', 'sendMessage', 'clearConversation', 'loadResponseTrace']) loadFunction(name, context)
++  return context
++}
++
++test('chat success is visible and composer released before optional trace completes', async () => {
++  const trace = deferred(), context = chatContext({ requestToolTrace: () => trace.promise })
++  await context.sendMessage()
++  assert.equal(context.messages.value[1].content, '受控回答')
++  assert.equal(context.busy.value, false)
++  assert.equal(context.lastTrace.value, null)
++  trace.resolve({ trace: { toolsUsed: ['controlled-tool'] } })
++  await new Promise(resolve => setImmediate(resolve))
++  assert.equal(context.messages.value[1].trace.toolsUsed[0], 'controlled-tool')
++})
++
++test('trace failure never hides a reply or creates an assistant error', async () => {
++  const context = chatContext({ requestToolTrace: async () => { throw new Error('private trace failure') } })
++  await context.sendMessage()
++  assert.equal(context.messages.value.length, 2)
++  assert.equal(context.messages.value[1].error, false)
++  assert.equal(context.busy.value, false)
++})
++
++for (const fail of [false, true]) {
++  test(`clear/new conversation aborts old chat; late ${fail ? 'error' : 'success'} and finally cannot corrupt the new request`, async () => {
++    const pending = deferred()
++    let signal, calls = 0
++    const context = chatContext({ requestChat: (_, __, ___, options) => { calls += 1; signal = options.signal; return pending.promise } })
++    const first = context.sendMessage()
++    context.draft.value = 'duplicate while busy'
++    await context.sendMessage()
++    assert.equal(calls, 1)
++    context.clearConversation()
++    assert.equal(signal.aborted, true)
++    const marker = { controller: 'new' }
++    context.chatController = marker
++    context.busy.value = true
++    if (fail) pending.reject(new Error('old private failure'))
++    else pending.resolve({ conversationId: 'old-conversation', requestId: 'old-request', response: 'old result' })
++    await first
++    assert.equal(context.messages.value.length, 0)
++    assert.equal(context.settings.conversationId, '')
++    assert.equal(context.busy.value, true)
++    assert.equal(context.chatController, marker)
++  })
++}
++
++for (const fail of [false, true]) {
++  test(`old trace ${fail ? 'error' : 'success'} cannot restore state after conversation A→B→A`, async () => {
++    const pending = deferred()
++    let signal
++    const context = chatContext({ requestToolTrace: (_, __, ___, options) => { signal = options.signal; return pending.promise } })
++    await context.sendMessage()
++    context.clearConversation()
++    assert.equal(signal.aborted, true)
++    context.settings.conversationId = 'qa-conversation'
++    const fresh = { trace: { toolsUsed: ['new'] } }, controller = { fresh: true }
++    context.lastTrace.value = fresh
++    context.traceController = controller
++    if (fail) pending.reject(new Error('old private error')); else pending.resolve({ trace: { toolsUsed: ['old'] } })
++    await new Promise(resolve => setImmediate(resolve))
++    assert.equal(context.messages.value.length, 0)
++    assert.equal(context.lastTrace.value, fresh)
++    assert.equal(context.traceController, controller)
++  })
++}
++
++test('identity change rejects late reply even before explicit request generation invalidation', async () => {
++  const pending = deferred(), context = chatContext({ requestChat: () => pending.promise })
++  const task = context.sendMessage()
++  context.settings.userId = 'different-workspace'
++  context.busy.value = 'new workspace'
++  pending.resolve({ conversationId: 'old', response: 'old reply' })
++  await task
++  assert.equal(context.messages.value.length, 1)
++  assert.equal(context.settings.conversationId, '')
++  assert.equal(context.busy.value, 'new workspace')
++})
++
++test('inspector distinguishes successful, partial and failed turns', () => {
++  const inspector = fs.readFileSync(new URL('../src/components/RequestInspector.vue', import.meta.url), 'utf8')
++  const stateLine = inspector.split('\n').find(line => line.startsWith('const responseState ='))
++  for (const [status, expected] of [['success', '已完成'], ['partial', '部分完成'], ['failed', '未完成']]) {
++    const context = vm.createContext({ props: { lastResponse: { status } }, computed: read => read() })
++    vm.runInContext(`${stateLine};globalThis.result=responseState`, context)
++    assert.equal(context.result, expected)
++  }
++})
++
++test('suggested questions use only current demo order IDs, do not invent a real order or send automatically', async () => {
++  const context = vm.createContext({ draft: { value: '' }, nextTick: async callback => callback?.(),
++    composerInput: { value: { focus() {} } }, requestChat: () => assert.fail('a suggestion must not send') })
++  for (const name of ['buildConversationPrompts', 'usePrompt']) loadFunction(name, context)
++  const normal = context.buildConversationPrompts(null)
++  assert.ok(normal.every(prompt => !/DEMO-|#\d|订单号是/.test(prompt.text)))
++  const demo = context.buildConversationPrompts({ sample_orders: [
++    { order_id: 'DEMO-2001', scenario: '拆单配送' },
++    { order_id: 'DEMO-2003', scenario: '退款待审核' }
++  ] })
++  assert.match(demo[0].text, /DEMO-2001/)
++  assert.match(demo[1].text, /DEMO-2003/)
++  assert.ok(demo.every(prompt => !/DEMO-1001|DEMO-1004|#12345/.test(prompt.text)))
++  context.usePrompt(demo[1].text)
++  assert.equal(context.draft.value, demo[1].text)
++})
